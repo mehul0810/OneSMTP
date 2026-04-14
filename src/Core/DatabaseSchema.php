@@ -11,12 +11,11 @@ final class DatabaseSchema
         global $wpdb;
 
         $charsetCollate = $wpdb->get_charset_collate();
-        $prefix         = $wpdb->prefix . 'onesmtp_';
 
-        $providersTable = $prefix . 'providers';
-        $messagesTable  = $prefix . 'messages';
-        $attemptsTable  = $prefix . 'attempts';
-        $eventsTable    = $prefix . 'events';
+        $providersTable = TableNames::providers();
+        $messagesTable  = TableNames::messages();
+        $attemptsTable  = TableNames::attempts();
+        $eventsTable    = TableNames::events();
 
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
@@ -55,7 +54,10 @@ final class DatabaseSchema
             PRIMARY KEY  (id),
             UNIQUE KEY message_uuid (message_uuid),
             KEY status (status),
-            KEY next_retry_at (next_retry_at)
+            KEY selected_provider_id (selected_provider_id),
+            KEY next_retry_at (next_retry_at),
+            KEY status_retry (status, next_retry_at),
+            KEY provider_status (selected_provider_id, status)
         ) {$charsetCollate};";
 
         $attemptsSql = "CREATE TABLE {$attemptsTable} (
@@ -73,7 +75,9 @@ final class DatabaseSchema
             PRIMARY KEY  (id),
             KEY message_id (message_id),
             KEY provider_id (provider_id),
-            KEY result (result)
+            KEY result (result),
+            UNIQUE KEY message_attempt (message_id, attempt_no),
+            KEY provider_result_time (provider_id, result, created_at)
         ) {$charsetCollate};";
 
         $eventsSql = "CREATE TABLE {$eventsTable} (
