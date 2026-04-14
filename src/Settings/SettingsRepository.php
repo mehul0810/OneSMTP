@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace OneSMTP\Settings;
 
 use OneSMTP\Security\SecretVault;
+use OneSMTP\Security\Redactor;
 
 final class SettingsRepository
 {
@@ -22,10 +23,12 @@ final class SettingsRepository
     ];
 
     private SecretVault $secretVault;
+    private Redactor $redactor;
 
-    public function __construct(?SecretVault $secretVault = null)
+    public function __construct(?SecretVault $secretVault = null, ?Redactor $redactor = null)
     {
         $this->secretVault = $secretVault ?? new SecretVault();
+        $this->redactor    = $redactor ?? new Redactor();
     }
 
     public function getAll(): array
@@ -38,8 +41,25 @@ final class SettingsRepository
     public function save(array $settings): bool
     {
         $protectedSettings = $this->encryptSensitiveSettings($settings);
+        $safeForAudit      = $this->redactor->redactArray($protectedSettings);
 
-        return (bool) update_option(self::OPTION_KEY, $protectedSettings, false);
+        /**
+         * Hook: onesmtp_settings_updating
+         *
+         * Redacted payload only. Never contains plain secrets.
+         */
+        do_action('onesmtp_settings_updating', $safeForAudit);
+
+        $updated = (bool) update_option(self::OPTION_KEY, $protectedSettings, false);
+
+        /**
+         * Hook: onesmtp_settings_updated
+         *
+         * Redacted payload only. Never contains plain secrets.
+         */
+        do_action('onesmtp_settings_updated', $safeForAudit, $updated);
+
+        return $updated;
     }
 
     private function encryptSensitiveSettings(array $settings): array
