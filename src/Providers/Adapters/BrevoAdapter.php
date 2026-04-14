@@ -19,22 +19,25 @@ final class BrevoAdapter extends AbstractAdapter implements ProviderAdapterInter
     {
         $apiKey = (string) $config->get('api_key', '');
         if ($apiKey === '') {
-            return new SendResult(false, 'config_missing', 'Missing Brevo API key.');
+            return new SendResult(false, 'missing_api_key', 'Brevo API key is not configured.');
         }
 
         $to = $this->normalizeRecipients($message['to'] ?? []);
         if ($to === []) {
-            return new SendResult(false, 'invalid_to', 'Missing recipient for Brevo.');
+            return new SendResult(false, 'invalid_recipient', 'No valid recipient found.');
         }
+
+        $headers = $this->normalizeHeaders($message['headers'] ?? []);
+        $from = $this->extractFrom($headers);
 
         $payload = [
             'sender' => [
-                'email' => $this->extractFrom($message, $config),
-                'name' => (string) $config->get('from_name', get_bloginfo('name')),
+                'email' => $from['email'],
+                'name' => $from['name'],
             ],
             'to' => array_map(static fn (string $email): array => ['email' => $email], $to),
-            'subject' => (string) ($message['subject'] ?? ''),
-            'htmlContent' => (string) ($message['message'] ?? ''),
+            'subject' => $this->getSubject($message),
+            'textContent' => $this->getBody($message),
         ];
 
         $response = wp_remote_post(
@@ -42,32 +45,38 @@ final class BrevoAdapter extends AbstractAdapter implements ProviderAdapterInter
             [
                 'headers' => [
                     'api-key' => $apiKey,
-                    'accept' => 'application/json',
-                    'content-type' => 'application/json',
+                    'Content-Type' => 'application/json',
                 ],
+                'timeout' => max(5, (int) $config->get('timeout', 30)),
                 'body' => wp_json_encode($payload),
-                'timeout' => 15,
             ]
         );
 
         if (is_wp_error($response)) {
-            return new SendResult(false, 'http_error', $response->get_error_message());
+            return new SendResult(false, 'brevo_network_error', $response->get_error_message());
         }
 
         $status = (int) wp_remote_retrieve_response_code($response);
         if ($status >= 200 && $status < 300) {
-            return new SendResult(true, 'sent', 'Mail delivered via Brevo API.');
+            $body = json_decode((string) wp_remote_retrieve_body($response), true);
+            $messageId = is_array($body) ? (string) ($body['messageId'] ?? '') : '';
+
+            return new SendResult(true, 'accepted', 'Accepted by Brevo.', $messageId !== '' ? $messageId : null);
         }
 
-        return new SendResult(false, 'brevo_http_' . $status, (string) wp_remote_retrieve_body($response));
+        return new SendResult(false, 'brevo_api_error', (string) wp_remote_retrieve_body($response));
     }
 
     public function testConnection(ProviderConfig $config): SendResult
     {
-        if ((string) $config->get('api_key', '') === '') {
-            return new SendResult(false, 'config_missing', 'Missing Brevo API key.');
-        }
+        $probe = [
+            'to' => [sanitize_email((string) get_option('admin_email'))],
+            'subject' => '[OneSMTP] Brevo Connection Test',
+            'message' => 'Connection test from OneSMTP.',
+            'headers' => [],
+        ];
 
-        return new SendResult(true, 'ready', 'Brevo adapter configuration looks valid.');
+        return $this->send($probe, $config);
     }
 }
+

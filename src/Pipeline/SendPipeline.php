@@ -4,7 +4,8 @@ declare(strict_types=1);
 
 namespace OneSMTP\Pipeline;
 
-use OneSMTP\Dispatch\DispatchPolicyInterface;
+use OneSMTP\Delivery\DeliveryEngine;
+use OneSMTP\Delivery\DeliveryOutcome;
 use OneSMTP\Queue\RetryScheduler;
 use OneSMTP\Repository\AttemptRepository;
 use OneSMTP\Repository\EventRepository;
@@ -21,7 +22,7 @@ final class SendPipeline
     private ProviderRepository $providers;
     private EventRepository $events;
     private RetryScheduler $retryScheduler;
-    private DispatchPolicyInterface $dispatchPolicy;
+    private DeliveryEngine $deliveryEngine;
 
     /**
      * @var array<string,int>
@@ -34,159 +35,161 @@ final class SendPipeline
         ProviderRepository $providers,
         EventRepository $events,
         RetryScheduler $retryScheduler,
-        DispatchPolicyInterface $dispatchPolicy
+        DeliveryEngine $deliveryEngine
     ) {
-        $this->messages      = $messages;
-        $this->attempts      = $attempts;
-        $this->providers     = $providers;
-        $this->events        = $events;
+        $this->messages = $messages;
+        $this->attempts = $attempts;
+        $this->providers = $providers;
+        $this->events = $events;
         $this->retryScheduler = $retryScheduler;
-        $this->dispatchPolicy = $dispatchPolicy;
+        $this->deliveryEngine = $deliveryEngine;
     }
 
     public function registerHooks(): void
     {
+        add_filter('pre_wp_mail', [$this, 'handlePreWpMail'], 10, 2);
         add_filter('wp_mail', [$this, 'captureMessage'], 1, 1);
-        add_action('wp_mail_succeeded', [$this, 'handleSuccess'], 10, 1);
-        add_action('wp_mail_failed', [$this, 'handleFailure'], 10, 1);
+        add_action('onesmtp_retry_attempt', [$this, 'handleRetryAttempt'], 10, 5);
+        add_action('onesmtp_manual_resend', [$this, 'handleManualResend'], 10, 2);
+    }
+
+    public function handlePreWpMail($pre, array $atts)
+    {
+        if ($pre !== null) {
+            return $pre;
+        }
+
+        if ($this->providers->getActiveProviders() === []) {
+            return null;
+        }
+
+        $captured = $this->captureMessage($atts);
+        $messageId = $this->resolveMessageId($captured);
+        if ($messageId <= 0) {
+            return false;
+        }
+
+        $attemptNo = max(1, $this->attempts->getAttemptCountForMessage($messageId) + 1);
+        $outcome = $this->deliveryEngine->deliver($messageId, $attemptNo, $captured, null);
+        $this->persistOutcome($messageId, $attemptNo, 'initial', $captured, $outcome);
+
+        return $outcome->isSuccess();
     }
 
     public function captureMessage(array $args): array
     {
         $messageUuid = $this->extractMessageUuidFromHeaders($args['headers'] ?? []);
-        if ($messageUuid !== '') {
-            $existing = $this->messages->findByUuid($messageUuid);
-            if (is_array($existing) && isset($existing['id'])) {
-                $this->inflight[$this->buildFingerprint($args)] = (int) $existing['id'];
-                return $args;
-            }
-        } else {
+        if ($messageUuid === '') {
             $messageUuid = (string) wp_generate_uuid4();
             $args['headers'] = $this->appendMessageUuidHeader($args['headers'] ?? [], $messageUuid);
         }
 
-        $messageId = $this->messages->create($args, self::MAX_RETRIES, $messageUuid);
-        if ($messageId <= 0) {
+        $existing = $this->messages->findByUuid($messageUuid);
+        if (is_array($existing) && isset($existing['id'])) {
+            $messageId = (int) $existing['id'];
+            $this->messages->updatePayload($messageId, $args);
+            $this->inflight[$this->buildFingerprint($args)] = $messageId;
+
             return $args;
         }
 
-        $fingerprint = $this->buildFingerprint($args);
-        $this->inflight[$fingerprint] = $messageId;
-
-        $this->events->add(
-            'message_captured',
-            ['subject' => (string) ($args['subject'] ?? ''), 'message_uuid' => $messageUuid],
-            $messageId
-        );
+        $messageId = $this->messages->create($args, self::MAX_RETRIES, $messageUuid);
+        if ($messageId > 0) {
+            $this->inflight[$this->buildFingerprint($args)] = $messageId;
+            $this->events->add(
+                'message_captured',
+                ['subject' => (string) ($args['subject'] ?? ''), 'message_uuid' => $messageUuid],
+                $messageId
+            );
+        }
 
         return $args;
     }
 
-    /**
-     * @param array<string,mixed> $mailData
-     */
-    public function handleSuccess(array $mailData): void
+    public function handleRetryAttempt($messageId, int $attemptNo, ?int $providerId = null, array $payload = [], ?string $messageUuid = null): void
     {
-        $messageId = $this->resolveMessageId($mailData);
-        if ($messageId <= 0) {
+        $messageId = (int) $messageId;
+        if ($messageId <= 0 || $attemptNo <= 0) {
             return;
         }
 
-        $attemptNo  = max(1, $this->attempts->getAttemptCountForMessage($messageId) + 1);
-        $providerId = $this->pickProvider($messageId, $attemptNo);
-
-        $this->attempts->add([
-            'message_id'  => $messageId,
-            'attempt_no'  => $attemptNo,
-            'provider_id' => $providerId,
-            'trigger_type' => 'initial',
-            'result'      => 'sent',
-        ]);
-
-        $this->messages->markSent($messageId, $providerId);
-        $this->events->add('message_sent', ['attempt' => $attemptNo], $messageId, $providerId);
-    }
-
-    public function handleFailure(\WP_Error $error): void
-    {
-        $mailData  = $error->get_error_data('wp_mail_failed');
-        $mailData  = is_array($mailData) ? $mailData : [];
-        $messageId = $this->resolveMessageId($mailData);
-
-        if ($messageId <= 0) {
-            $existing = $this->messages->findMostRecentByHashes(
-                $this->hashRecipients($mailData['to'] ?? []),
-                $this->hashBody((string) ($mailData['message'] ?? ''))
-            );
-
-            if (is_array($existing) && isset($existing['id'])) {
-                $messageId = (int) $existing['id'];
-            } else {
-                $messageId = $this->messages->create($mailData, self::MAX_RETRIES);
-                if ($messageId <= 0) {
-                    return;
-                }
-            }
+        $payload = $payload !== [] ? $payload : $this->messages->getPayloadForMessage($messageId);
+        if ($payload === []) {
+            $this->messages->markFailedTerminal($messageId, $attemptNo);
+            $this->events->add('terminal_failure', ['reason' => 'missing_payload'], $messageId, $providerId);
+            return;
         }
 
-        $attemptNo  = max(1, $this->attempts->getAttemptCountForMessage($messageId) + 1);
-        $providerId = $this->pickProvider($messageId, $attemptNo);
+        $outcome = $this->deliveryEngine->deliver($messageId, $attemptNo, $payload, $providerId !== null ? (int) $providerId : null);
+        $this->persistOutcome($messageId, $attemptNo, 'retry', $payload, $outcome, $messageUuid);
+    }
 
+    public function handleManualResend(int $messageId, int $forcedProviderId = 0): void
+    {
+        $this->resendMessage($messageId, $forcedProviderId > 0 ? $forcedProviderId : null);
+    }
+
+    public function resendMessage(int $messageId, ?int $forcedProviderId = null): bool
+    {
+        $payload = $this->messages->getPayloadForMessage($messageId);
+        if ($payload === []) {
+            return false;
+        }
+
+        $attemptNo = max(1, $this->attempts->getAttemptCountForMessage($messageId) + 1);
+        $outcome = $this->deliveryEngine->deliver($messageId, $attemptNo, $payload, $forcedProviderId);
+        $this->persistOutcome($messageId, $attemptNo, 'manual_resend', $payload, $outcome);
+
+        return $outcome->isSuccess();
+    }
+
+    private function persistOutcome(
+        int $messageId,
+        int $attemptNo,
+        string $triggerType,
+        array $payload,
+        DeliveryOutcome $outcome,
+        ?string $messageUuid = null
+    ): void {
         $this->attempts->add([
-            'message_id'    => $messageId,
-            'attempt_no'    => $attemptNo,
-            'provider_id'   => $providerId,
-            'trigger_type'  => $attemptNo === 1 ? 'initial' : 'retry',
-            'result'        => 'fail',
-            'error_code'    => (string) $error->get_error_code(),
-            'error_message' => $error->get_error_message(),
+            'message_id' => $messageId,
+            'attempt_no' => $attemptNo,
+            'provider_id' => $outcome->getProviderId() > 0 ? $outcome->getProviderId() : null,
+            'trigger_type' => $triggerType,
+            'result' => $outcome->isSuccess() ? 'sent' : 'fail',
+            'error_code' => $outcome->isSuccess() ? null : $outcome->getCode(),
+            'error_message' => $outcome->isSuccess() ? null : $outcome->getMessage(),
+            'provider_message_id' => $outcome->getProviderMessageId(),
         ]);
+
+        if ($outcome->isSuccess()) {
+            $this->messages->markSent($messageId, $outcome->getProviderId());
+            $this->events->add('message_sent', ['attempt' => $attemptNo, 'trigger' => $triggerType], $messageId, $outcome->getProviderId());
+            return;
+        }
 
         if ($attemptNo >= self::MAX_RETRIES) {
             $this->messages->markFailedTerminal($messageId, $attemptNo);
-            $this->events->add('terminal_failure', ['attempt' => $attemptNo], $messageId, $providerId);
+            $this->events->add('terminal_failure', ['attempt' => $attemptNo, 'reason' => $outcome->getCode()], $messageId, $outcome->getProviderId());
             return;
         }
 
-        $message     = $this->messages->find($messageId);
-        $messageUuid = is_array($message) && isset($message['message_uuid']) ? (string) $message['message_uuid'] : '';
         $nextAttempt = $attemptNo + 1;
-        $runAt       = $this->retryScheduler->scheduleRetry($messageId, $nextAttempt, $messageUuid);
+        if ($messageUuid === null || $messageUuid === '') {
+            $message = $this->messages->find($messageId);
+            $messageUuid = is_array($message) ? (string) ($message['message_uuid'] ?? '') : '';
+        }
+
+        $runAt = $this->retryScheduler->scheduleRetry($messageId, $nextAttempt, $messageUuid);
         if (is_int($runAt) && $runAt > 0) {
             $this->messages->markRetryScheduled($messageId, $attemptNo, $runAt);
             return;
         }
 
         $this->messages->markFailedTerminal($messageId, $attemptNo);
-        $this->events->add(
-            'terminal_failure',
-            ['attempt' => $attemptNo, 'reason' => 'retry_backend_unavailable'],
-            $messageId,
-            $providerId
-        );
+        $this->events->add('terminal_failure', ['attempt' => $attemptNo, 'reason' => 'retry_backend_unavailable'], $messageId, $outcome->getProviderId());
     }
 
-    private function pickProvider(int $messageId, int $attemptNo): ?int
-    {
-        $providers   = $this->providers->getActiveProviders();
-        $lastAttempt = $this->attempts->getLastAttemptForMessage($messageId);
-        $lastId      = isset($lastAttempt['provider_id']) ? (int) $lastAttempt['provider_id'] : 0;
-        $consecutive = $lastId > 0 ? $this->attempts->countConsecutiveFailuresForProvider($messageId, $lastId) : 0;
-
-        return $this->dispatchPolicy->chooseNextProvider(
-            $messageId,
-            $attemptNo,
-            [
-                'providers'                               => $providers,
-                'last_provider_id'                        => $lastId,
-                'consecutive_failures_for_last_provider'  => $consecutive,
-            ]
-        );
-    }
-
-    /**
-     * @param array<string,mixed> $mailData
-     */
     private function resolveMessageId(array $mailData): int
     {
         $messageUuid = $this->extractMessageUuidFromHeaders($mailData['headers'] ?? []);
@@ -202,29 +205,16 @@ final class SendPipeline
         return isset($this->inflight[$fingerprint]) ? (int) $this->inflight[$fingerprint] : 0;
     }
 
-    /**
-     * @param array<string,mixed> $mailData
-     */
     private function buildFingerprint(array $mailData): string
     {
         $normalized = [
-            'to'      => $mailData['to'] ?? [],
+            'to' => $mailData['to'] ?? [],
             'subject' => (string) ($mailData['subject'] ?? ''),
             'message' => (string) ($mailData['message'] ?? ''),
             'headers' => $mailData['headers'] ?? [],
         ];
 
         return hash('sha256', wp_json_encode($normalized));
-    }
-
-    private function hashRecipients($recipients): string
-    {
-        return hash('sha256', wp_json_encode($recipients));
-    }
-
-    private function hashBody(string $body): string
-    {
-        return hash('sha256', $body);
     }
 
     /**

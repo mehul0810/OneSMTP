@@ -178,4 +178,18 @@ final class MessageRepository
             ['%d']
         );
     }
+
+    public function listRecent(int $limit = 50): array
+    {
+        global $wpdb;
+
+        $limit = max(1, min(200, $limit));
+        $sql = $wpdb->prepare(
+            'SELECT id, message_uuid, subject, recipients_hash, status, selected_provider_id, current_attempt, max_attempts, next_retry_at, created_at, updated_at FROM ' . TableNames::messages() . ' ORDER BY id DESC LIMIT %d',
+            $limit
+        );
+        $rows = $wpdb->get_results($sql, ARRAY_A);
+
+        return is_array($rows) ? $rows : [];
+    }
 }

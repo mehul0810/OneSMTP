@@ -6,6 +6,7 @@ namespace OneSMTP\Providers;
 
 final class ProviderTypes
 {
+    public const SMTP     = 'smtp';
     public const PHP_MAIL = 'php_mail';
     public const GMAIL    = 'gmail';
     public const SENDGRID = 'sendgrid';
@@ -15,6 +16,7 @@ final class ProviderTypes
     public static function all(): array
     {
         return [
+            self::SMTP,
             self::PHP_MAIL,
             self::GMAIL,
             self::SENDGRID,

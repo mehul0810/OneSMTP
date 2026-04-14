@@ -126,6 +126,10 @@ final class RetryScheduler
             return;
         }
 
+        if (($messageUuid === null || $messageUuid === '') && isset($message['message_uuid'])) {
+            $messageUuid = (string) $message['message_uuid'];
+        }
+
         $providers   = $this->providers->getActiveProviders();
         $lastAttempt = $this->attempts->getLastAttemptForMessage($messageId);
         $lastId      = isset($lastAttempt['provider_id']) ? (int) $lastAttempt['provider_id'] : 0;
@@ -140,12 +144,6 @@ final class RetryScheduler
                 'consecutive_failures_for_last_provider'  => $consecutive,
             ]
         );
-
-        $this->messages->markRetryRunning($messageId, $attempt, $providerId);
-
-        if (($messageUuid === null || $messageUuid === '') && isset($message['message_uuid'])) {
-            $messageUuid = (string) $message['message_uuid'];
-        }
 
         $payload = $this->messages->getPayloadForMessage($messageId);
         do_action('onesmtp_retry_attempt', $messageId, $attempt, $providerId, $payload, $messageUuid);

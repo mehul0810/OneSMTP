@@ -17,22 +17,24 @@ final class PostmarkAdapter extends AbstractAdapter implements ProviderAdapterIn
 
     public function send(array $message, ProviderConfig $config): SendResult
     {
-        $token = (string) $config->get('server_token', '');
+        $token = (string) $config->get('api_key', $config->get('token', ''));
         if ($token === '') {
-            return new SendResult(false, 'config_missing', 'Missing Postmark server token.');
+            return new SendResult(false, 'missing_api_key', 'Postmark server token is not configured.');
         }
 
         $to = $this->normalizeRecipients($message['to'] ?? []);
         if ($to === []) {
-            return new SendResult(false, 'invalid_to', 'Missing recipient for Postmark.');
+            return new SendResult(false, 'invalid_recipient', 'No valid recipient found.');
         }
 
+        $headers = $this->normalizeHeaders($message['headers'] ?? []);
+        $from = $this->extractFrom($headers);
+
         $payload = [
-            'From' => $this->extractFrom($message, $config),
+            'From' => $from['email'],
             'To' => implode(',', $to),
-            'Subject' => (string) ($message['subject'] ?? ''),
-            'HtmlBody' => (string) ($message['message'] ?? ''),
-            'TextBody' => wp_strip_all_tags((string) ($message['message'] ?? '')),
+            'Subject' => $this->getSubject($message),
+            'TextBody' => $this->getBody($message),
         ];
 
         $response = wp_remote_post(
@@ -40,37 +42,38 @@ final class PostmarkAdapter extends AbstractAdapter implements ProviderAdapterIn
             [
                 'headers' => [
                     'X-Postmark-Server-Token' => $token,
-                    'Accept' => 'application/json',
                     'Content-Type' => 'application/json',
                 ],
+                'timeout' => max(5, (int) $config->get('timeout', 30)),
                 'body' => wp_json_encode($payload),
-                'timeout' => 15,
             ]
         );
 
         if (is_wp_error($response)) {
-            return new SendResult(false, 'http_error', $response->get_error_message());
+            return new SendResult(false, 'postmark_network_error', $response->get_error_message());
         }
 
         $status = (int) wp_remote_retrieve_response_code($response);
-        $body = (string) wp_remote_retrieve_body($response);
-
         if ($status >= 200 && $status < 300) {
-            $decoded = json_decode($body, true);
-            $messageId = is_array($decoded) && isset($decoded['MessageID']) ? (string) $decoded['MessageID'] : null;
+            $body = json_decode((string) wp_remote_retrieve_body($response), true);
+            $messageId = is_array($body) ? (string) ($body['MessageID'] ?? '') : '';
 
-            return new SendResult(true, 'sent', 'Mail delivered via Postmark API.', $messageId);
+            return new SendResult(true, 'accepted', 'Accepted by Postmark.', $messageId !== '' ? $messageId : null);
         }
 
-        return new SendResult(false, 'postmark_http_' . $status, $body);
+        return new SendResult(false, 'postmark_api_error', (string) wp_remote_retrieve_body($response));
     }
 
     public function testConnection(ProviderConfig $config): SendResult
     {
-        if ((string) $config->get('server_token', '') === '') {
-            return new SendResult(false, 'config_missing', 'Missing Postmark server token.');
-        }
+        $probe = [
+            'to' => [sanitize_email((string) get_option('admin_email'))],
+            'subject' => '[OneSMTP] Postmark Connection Test',
+            'message' => 'Connection test from OneSMTP.',
+            'headers' => [],
+        ];
 
-        return new SendResult(true, 'ready', 'Postmark adapter configuration looks valid.');
+        return $this->send($probe, $config);
     }
 }
+

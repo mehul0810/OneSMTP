@@ -26,10 +26,17 @@ final class PhpMailAdapter extends AbstractAdapter implements ProviderAdapterInt
         $body    = (string) ($message['message'] ?? '');
         $headers = $message['headers'] ?? [];
 
-        $ok = wp_mail($to, $subject, $body, $headers);
+        $headerLines = [];
+        if (is_string($headers) && $headers !== '') {
+            $headerLines = preg_split('/\r\n|\r|\n/', $headers) ?: [];
+        } elseif (is_array($headers)) {
+            $headerLines = array_map('strval', $headers);
+        }
+
+        $ok = @mail(implode(',', $to), $subject, $body, implode("\r\n", $headerLines)); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
 
         return $ok
-            ? new SendResult(true, 'sent', 'Mail delivered via wp_mail/php mail transport.')
+            ? new SendResult(true, 'sent', 'Mail delivered via PHP mail transport.')
             : new SendResult(false, 'send_failed', 'PHP mail transport failed.');
     }
 

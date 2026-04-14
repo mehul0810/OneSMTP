@@ -92,4 +92,17 @@ final class AttemptRepository
 
         return $count;
     }
+
+    public function listByMessageId(int $messageId): array
+    {
+        global $wpdb;
+
+        $sql = $wpdb->prepare(
+            'SELECT * FROM ' . TableNames::attempts() . ' WHERE message_id = %d ORDER BY attempt_no ASC, id ASC',
+            $messageId
+        );
+        $rows = $wpdb->get_results($sql, ARRAY_A);
+
+        return is_array($rows) ? $rows : [];
+    }
 }

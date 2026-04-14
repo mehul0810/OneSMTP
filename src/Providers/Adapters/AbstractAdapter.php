@@ -4,8 +4,6 @@ declare(strict_types=1);
 
 namespace OneSMTP\Providers\Adapters;
 
-use OneSMTP\Providers\ProviderConfig;
-
 abstract class AbstractAdapter
 {
     protected function normalizeRecipients($to): array
@@ -21,10 +19,63 @@ abstract class AbstractAdapter
         return array_values(array_filter(array_map('strval', $to), static fn (string $email): bool => $email !== ''));
     }
 
-    protected function extractFrom(array $payload, ProviderConfig $config): string
+    protected function normalizeHeaders($headers): array
     {
-        $from = (string) ($payload['from'] ?? $config->get('from_email', get_bloginfo('admin_email')));
+        if (is_string($headers) && $headers !== '') {
+            $headers = preg_split('/\r\n|\r|\n/', $headers) ?: [];
+        }
 
-        return sanitize_email($from);
+        if (! is_array($headers)) {
+            return [];
+        }
+
+        return array_values(array_filter(array_map('strval', $headers), static fn (string $value): bool => $value !== ''));
+    }
+
+    protected function extractFrom(array $headers): array
+    {
+        foreach ($headers as $header) {
+            if (stripos($header, 'from:') !== 0) {
+                continue;
+            }
+
+            $fromLine = trim(substr($header, 5));
+            if ($fromLine === '') {
+                continue;
+            }
+
+            if (preg_match('/^(.*)<([^>]+)>$/', $fromLine, $matches)) {
+                $name = trim(trim($matches[1]), '" ');
+                $email = sanitize_email(trim($matches[2]));
+
+                return [
+                    'email' => $email !== '' ? $email : sanitize_email((string) get_option('admin_email')),
+                    'name' => $name !== '' ? $name : (string) get_bloginfo('name'),
+                ];
+            }
+
+            $email = sanitize_email($fromLine);
+            if ($email !== '') {
+                return [
+                    'email' => $email,
+                    'name' => (string) get_bloginfo('name'),
+                ];
+            }
+        }
+
+        return [
+            'email' => sanitize_email((string) get_option('admin_email')),
+            'name' => (string) get_bloginfo('name'),
+        ];
+    }
+
+    protected function getSubject(array $message): string
+    {
+        return (string) ($message['subject'] ?? '');
+    }
+
+    protected function getBody(array $message): string
+    {
+        return (string) ($message['message'] ?? '');
     }
 }
