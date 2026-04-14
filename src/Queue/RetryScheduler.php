@@ -47,13 +47,13 @@ final class RetryScheduler
         return min(3600, (int) pow(2, max(0, $attempt - 1)) * 60);
     }
 
-    public function scheduleRetry(int $messageId, int $attempt): int
+    public function scheduleRetry(int $messageId, int $attempt): ?int
     {
         if ($attempt > self::MAX_RETRIES) {
             $this->messages->markFailedTerminal($messageId, self::MAX_RETRIES);
             $this->events->add('terminal_failure', ['reason' => 'max_retries_boundary', 'attempt' => $attempt], $messageId);
 
-            return 0;
+            return null;
         }
 
         $delay    = $this->getDelayForAttempt($attempt);
@@ -71,8 +71,9 @@ final class RetryScheduler
             return $runAt;
         }
 
-        // TODO: Optional WP-Cron fallback can be added if Action Scheduler is unavailable.
-        return $runAt;
+        $this->events->add('retry_schedule_failed', ['reason' => 'scheduler_backend_unavailable', 'attempt' => $attempt], $messageId);
+
+        return null;
     }
 
     public function processRetry($messageId, int $attempt = 1): void
@@ -134,8 +135,8 @@ final class RetryScheduler
 
         $this->messages->markRetryRunning($messageId, $attempt, $providerId);
 
-        // TODO: Send via provider adapter registry and capture a concrete send result.
-        do_action('onesmtp_retry_attempt', $messageId, $attempt, $providerId, $message);
+        $payload = $this->messages->getPayloadForMessage($messageId);
+        do_action('onesmtp_retry_attempt', $messageId, $attempt, $providerId, $payload);
         $this->events->add('retry_dispatched', ['attempt' => $attempt], $messageId, $providerId);
     }
 

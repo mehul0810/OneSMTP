@@ -97,9 +97,18 @@ final class SendPipeline
         $messageId = $this->resolveMessageId($mailData);
 
         if ($messageId <= 0) {
-            $messageId = $this->messages->create($mailData, self::MAX_RETRIES);
-            if ($messageId <= 0) {
-                return;
+            $existing = $this->messages->findMostRecentByHashes(
+                $this->hashRecipients($mailData['to'] ?? []),
+                $this->hashBody((string) ($mailData['message'] ?? ''))
+            );
+
+            if (is_array($existing) && isset($existing['id'])) {
+                $messageId = (int) $existing['id'];
+            } else {
+                $messageId = $this->messages->create($mailData, self::MAX_RETRIES);
+                if ($messageId <= 0) {
+                    return;
+                }
             }
         }
 
@@ -124,7 +133,18 @@ final class SendPipeline
 
         $nextAttempt = $attemptNo + 1;
         $runAt       = $this->retryScheduler->scheduleRetry($messageId, $nextAttempt);
-        $this->messages->markRetryScheduled($messageId, $attemptNo, $runAt);
+        if (is_int($runAt) && $runAt > 0) {
+            $this->messages->markRetryScheduled($messageId, $attemptNo, $runAt);
+            return;
+        }
+
+        $this->messages->markFailedTerminal($messageId, $attemptNo);
+        $this->events->add(
+            'terminal_failure',
+            ['attempt' => $attemptNo, 'reason' => 'retry_backend_unavailable'],
+            $messageId,
+            $providerId
+        );
     }
 
     private function pickProvider(int $messageId, int $attemptNo): ?int
@@ -168,5 +188,15 @@ final class SendPipeline
         ];
 
         return hash('sha256', wp_json_encode($normalized));
+    }
+
+    private function hashRecipients($recipients): string
+    {
+        return hash('sha256', wp_json_encode($recipients));
+    }
+
+    private function hashBody(string $body): string
+    {
+        return hash('sha256', $body);
     }
 }
