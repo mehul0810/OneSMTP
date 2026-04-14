@@ -14,14 +14,18 @@ final class DefaultDispatchPolicy implements DispatchPolicyInterface
             return null;
         }
 
-        $providers = isset($context['providers']) && is_array($context['providers']) ? $context['providers'] : [];
-
+        $providers = $this->normalizeProviders($context['providers'] ?? []);
         if ($providers === []) {
             return null;
         }
 
+        $weightedPool = $this->buildWeightedPool($providers);
+        if ($weightedPool === []) {
+            return null;
+        }
+
         $forcedProviderId = isset($context['forced_provider_id']) ? (int) $context['forced_provider_id'] : 0;
-        if ($forcedProviderId > 0 && $this->providerExists($providers, $forcedProviderId)) {
+        if ($forcedProviderId > 0 && $this->providerExists($weightedPool, $forcedProviderId)) {
             return $forcedProviderId;
         }
 
@@ -31,15 +35,68 @@ final class DefaultDispatchPolicy implements DispatchPolicyInterface
             : 0;
 
         if ($attemptNumber <= 1 || $lastProviderId <= 0) {
-            return (int) $providers[0]['id'];
+            return (int) $weightedPool[0]['id'];
         }
 
         // Invariant: after 2 consecutive failures, switch away from the current provider.
         if ($consecutive >= 2) {
-            return $this->nextProviderInOrder($providers, $lastProviderId);
+            return $this->nextProviderInOrder($weightedPool, $lastProviderId);
         }
 
         return $lastProviderId;
+    }
+
+    private function normalizeProviders(array $providers): array
+    {
+        $normalized = [];
+
+        foreach ($providers as $provider) {
+            if (! is_array($provider)) {
+                continue;
+            }
+
+            if ((int) ($provider['is_active'] ?? 0) !== 1) {
+                continue;
+            }
+
+            $state = (string) ($provider['circuit_state'] ?? 'closed');
+            if ($state === 'open') {
+                continue;
+            }
+
+            $normalized[] = [
+                'id'       => (int) ($provider['id'] ?? 0),
+                'priority' => (int) ($provider['priority'] ?? 100),
+                'weight'   => max(1, (int) ($provider['weight'] ?? 1)),
+            ];
+        }
+
+        usort(
+            $normalized,
+            static function (array $a, array $b): int {
+                $priorityCmp = $a['priority'] <=> $b['priority'];
+                if ($priorityCmp !== 0) {
+                    return $priorityCmp;
+                }
+
+                return $a['id'] <=> $b['id'];
+            }
+        );
+
+        return $normalized;
+    }
+
+    private function buildWeightedPool(array $providers): array
+    {
+        $weighted = [];
+
+        foreach ($providers as $provider) {
+            for ($i = 0; $i < $provider['weight']; $i++) {
+                $weighted[] = $provider;
+            }
+        }
+
+        return $weighted;
     }
 
     private function nextProviderInOrder(array $providers, int $lastProviderId): int
