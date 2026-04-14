@@ -1,0 +1,16 @@
+{
+  "name": "onesmtp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Build tooling for OneSMTP WordPress plugin",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "echo 'No frontend build configured yet'",
+    "build:prod": "npm run build",
+    "watch": "echo 'No watch pipeline configured yet'",
+    "lint:js": "echo 'No JS lint configured yet'",
+    "ci": "npm run build"
+  }
+}

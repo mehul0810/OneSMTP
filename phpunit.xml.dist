@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit
+  bootstrap="tests/bootstrap.php"
+  cacheDirectory=".phpunit.cache"
+  colors="true"
+  failOnRisky="true"
+  failOnWarning="true"
+  beStrictAboutTestsThatDoNotTestAnything="false"
+>
+  <testsuites>
+    <testsuite name="OneSMTP Test Suite">
+      <directory>tests</directory>
+    </testsuite>
+  </testsuites>
+
+  <source>
+    <include>
+      <directory suffix=".php">src</directory>
+    </include>
+  </source>
+</phpunit>

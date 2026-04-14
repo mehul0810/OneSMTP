@@ -1,0 +1,13 @@
+/vendor/
+/node_modules/
+/build/
+/dist/
+/coverage/
+/.phpunit.cache/
+/.phpunit.result.cache
+/.phpstan/
+composer.lock
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.DS_Store

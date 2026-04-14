@@ -1,0 +1,49 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build release package
+        run: |
+          PLUGIN_SLUG="onesmtp"
+          mkdir -p build/$PLUGIN_SLUG
+          rsync -av ./ build/$PLUGIN_SLUG/ \
+            --exclude ".git" \
+            --exclude ".github" \
+            --exclude "node_modules" \
+            --exclude "vendor" \
+            --exclude "tests" \
+            --exclude "build"
+          cd build
+          zip -r "$PLUGIN_SLUG.zip" "$PLUGIN_SLUG"
+          shasum -a 256 "$PLUGIN_SLUG.zip" > "$PLUGIN_SLUG.zip.sha256"
+
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: onesmtp-package
+          path: |
+            build/onesmtp.zip
+            build/onesmtp.zip.sha256
+
+      - name: Publish GitHub release assets
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            build/onesmtp.zip
+            build/onesmtp.zip.sha256
