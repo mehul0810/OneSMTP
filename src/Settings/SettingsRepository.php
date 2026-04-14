@@ -6,6 +6,7 @@ namespace OneSMTP\Settings;
 
 use OneSMTP\Security\SecretVault;
 use OneSMTP\Security\Redactor;
+use OneSMTP\Security\AdminGuard;
 
 final class SettingsRepository
 {
@@ -24,11 +25,13 @@ final class SettingsRepository
 
     private SecretVault $secretVault;
     private Redactor $redactor;
+    private AdminGuard $adminGuard;
 
-    public function __construct(?SecretVault $secretVault = null, ?Redactor $redactor = null)
+    public function __construct(?SecretVault $secretVault = null, ?Redactor $redactor = null, ?AdminGuard $adminGuard = null)
     {
         $this->secretVault = $secretVault ?? new SecretVault();
         $this->redactor    = $redactor ?? new Redactor();
+        $this->adminGuard  = $adminGuard ?? new AdminGuard();
     }
 
     public function getAll(): array
@@ -40,6 +43,8 @@ final class SettingsRepository
 
     public function save(array $settings): bool
     {
+        $this->adminGuard->assertManageRequest('onesmtp_save_settings', '_wpnonce');
+
         $protectedSettings = $this->encryptSensitiveSettings($settings);
         $safeForAudit      = $this->redactor->redactArray($protectedSettings);
 
