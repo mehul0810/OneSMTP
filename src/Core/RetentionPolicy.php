@@ -16,8 +16,14 @@ final class RetentionPolicy
      */
     public static function getLogRetentionDays(): int
     {
-        $days = (int) apply_filters('onesmtp_log_retention_days', self::DEFAULT_DAYS);
+        $storedDays = (int) get_option('onesmtp_log_retention_days', self::DEFAULT_DAYS);
+        $days       = (int) apply_filters('onesmtp_log_retention_days', $storedDays);
 
+        return self::normalizeDays($days);
+    }
+
+    public static function normalizeDays(int $days): int
+    {
         if ($days < 1) {
             $days = self::DEFAULT_DAYS;
         }

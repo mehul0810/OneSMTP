@@ -15,6 +15,6 @@ final class Installer
     private static function storeDefaults(): void
     {
         add_option('onesmtp_version', ONESMTP_VERSION);
-        add_option('onesmtp_log_retention_days', RetentionPolicy::getLogRetentionDays());
+        add_option('onesmtp_log_retention_days', RetentionPolicy::normalizeDays(30));
     }
 }
