@@ -6,7 +6,7 @@
  * Author: OneSMTP
  * Text Domain: onesmtp
  * Requires at least: 6.2
- * Requires PHP: 7.4
+ * Requires PHP: 8.1
  */
 
 declare(strict_types=1);
