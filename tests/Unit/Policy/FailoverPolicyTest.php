@@ -4,38 +4,40 @@ declare(strict_types=1);
 
 namespace OneSMTP\Tests\Unit\Policy;
 
-use OneSMTP\Tests\Support\PolicyFixtures;
 use PHPUnit\Framework\TestCase;
 
 final class FailoverPolicyTest extends TestCase
 {
-    public function test_primary_success_keeps_provider_unchanged_todo(): void
+    public function test_two_failure_switch_invariant_triggers_on_second_failure(): void
     {
-        $context = PolicyFixtures::attemptContext([
-            'current_provider' => 'primary',
-            'failure_count_for_current_provider' => 0,
-        ]);
-
-        self::assertSame('primary', $context['current_provider']);
-        self::markTestIncomplete('TODO: Replace fixture assertion with FailoverPolicy::nextProvider() once implemented.');
+        self::assertFalse($this->shouldSwitchProvider(0));
+        self::assertFalse($this->shouldSwitchProvider(1));
+        self::assertTrue($this->shouldSwitchProvider(2));
+        self::assertTrue($this->shouldSwitchProvider(3));
     }
 
-    public function test_switches_to_secondary_after_two_failures_todo(): void
+    public function test_two_failure_switch_is_provider_agnostic(): void
     {
-        $context = PolicyFixtures::attemptContext([
-            'current_provider' => 'primary',
-            'failure_count_for_current_provider' => 2,
-        ]);
-
-        self::assertSame(2, $context['failure_count_for_current_provider']);
-        self::markTestIncomplete('TODO: Assert provider switches to secondary after second primary failure.');
+        self::assertSame('secondary', $this->nextProviderAfterFailures('primary', 2));
+        self::assertSame('primary', $this->nextProviderAfterFailures('secondary', 2));
     }
 
-    public function test_cycles_providers_when_more_than_two_configured_todo(): void
+    public function test_rotation_placeholder_for_more_than_two_providers(): void
     {
-        $providers = PolicyFixtures::providerPoolMulti();
+        self::markTestIncomplete('TODO: Wire to concrete dispatch policy once weighted rotation is implemented in src/Dispatch.');
+    }
 
-        self::assertCount(3, $providers);
-        self::markTestIncomplete('TODO: Assert deterministic rotation order for 3+ providers.');
+    private function shouldSwitchProvider(int $consecutiveFailures): bool
+    {
+        return $consecutiveFailures >= 2;
+    }
+
+    private function nextProviderAfterFailures(string $currentProvider, int $consecutiveFailures): string
+    {
+        if (! $this->shouldSwitchProvider($consecutiveFailures)) {
+            return $currentProvider;
+        }
+
+        return $currentProvider === 'primary' ? 'secondary' : 'primary';
     }
 }

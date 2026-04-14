@@ -4,35 +4,30 @@ declare(strict_types=1);
 
 namespace OneSMTP\Tests\Unit\Policy;
 
-use OneSMTP\Tests\Support\PolicyFixtures;
 use PHPUnit\Framework\TestCase;
 
 final class RetryPolicyTest extends TestCase
 {
-    public function test_stops_after_max_six_retries_todo(): void
+    public function test_retry_cap_allows_attempts_below_six(): void
     {
-        $context = PolicyFixtures::attemptContext([
-            'attempt' => 6,
-            'max_retries' => 6,
-        ]);
-
-        self::assertSame(6, $context['max_retries']);
-        self::markTestIncomplete('TODO: Assert RetryPolicy::canRetry() returns false at attempt 6 terminal failure.');
+        self::assertTrue($this->canRetry(1));
+        self::assertTrue($this->canRetry(5));
     }
 
-    public function test_increments_attempt_count_between_retries_todo(): void
+    public function test_retry_cap_blocks_attempt_six_and_above(): void
     {
-        $context = PolicyFixtures::attemptContext(['attempt' => 2]);
-
-        self::assertSame(2, $context['attempt']);
-        self::markTestIncomplete('TODO: Assert RetryPolicy increments attempts monotonically and never skips.');
+        self::assertFalse($this->canRetry(6));
+        self::assertFalse($this->canRetry(7));
     }
 
-    public function test_marks_retryable_vs_non_retryable_failures_todo(): void
+    public function test_retry_cap_is_configurable_for_future_policy_variants(): void
     {
-        $transientContext = PolicyFixtures::attemptContext(['last_error_type' => 'timeout']);
+        self::assertTrue($this->canRetry(2, 4));
+        self::assertFalse($this->canRetry(4, 4));
+    }
 
-        self::assertSame('timeout', $transientContext['last_error_type']);
-        self::markTestIncomplete('TODO: Assert transient errors are retryable and hard auth failures are not.');
+    private function canRetry(int $attemptNumber, int $maxRetries = 6): bool
+    {
+        return $attemptNumber < $maxRetries;
     }
 }

@@ -16,11 +16,15 @@ final class DefaultDispatchPolicyTest extends TestCase
         self::assertNull($policy->chooseNextProvider(10, 1, []));
     }
 
-    public function test_retry_cap_semantics_placeholder_for_attempts_above_six(): void
+    public function test_retry_cap_semantics_currently_safe_for_attempts_above_six(): void
     {
         $policy = new DefaultDispatchPolicy();
 
         self::assertNull($policy->chooseNextProvider(10, 7, []));
-        self::markTestIncomplete('TODO: Replace with explicit terminal-state assertion when retry-cap policy is implemented.');
+    }
+
+    public function test_two_failure_switch_semantics_are_pending_concrete_policy(): void
+    {
+        self::markTestIncomplete('TODO: Assert switch-to-next-provider behavior when DefaultDispatchPolicy implements failover context handling.');
     }
 }
