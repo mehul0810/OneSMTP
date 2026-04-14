@@ -12,7 +12,7 @@ Allows overriding log retention days.
 Example:
 
 ```php
-add_filter( onesmtp_log_retention_days, function( $days ) {
+add_filter( 'onesmtp_log_retention_days', function( $days ) {
     return 90;
 } );
 ```
