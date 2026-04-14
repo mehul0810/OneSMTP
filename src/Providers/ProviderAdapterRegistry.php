@@ -9,6 +9,7 @@ use OneSMTP\Providers\Adapters\GmailAdapter;
 use OneSMTP\Providers\Adapters\PhpMailAdapter;
 use OneSMTP\Providers\Adapters\PostmarkAdapter;
 use OneSMTP\Providers\Adapters\SendGridAdapter;
+use OneSMTP\Providers\Adapters\SmtpAdapter;
 
 final class ProviderAdapterRegistry
 {
@@ -20,6 +21,7 @@ final class ProviderAdapterRegistry
     public function __construct()
     {
         $this->adapters = [
+            ProviderTypes::SMTP     => new SmtpAdapter(),
             ProviderTypes::PHP_MAIL => new PhpMailAdapter(),
             ProviderTypes::GMAIL    => new GmailAdapter(),
             ProviderTypes::SENDGRID => new SendGridAdapter(),

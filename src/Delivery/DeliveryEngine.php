@@ -5,8 +5,7 @@ declare(strict_types=1);
 namespace OneSMTP\Delivery;
 
 use OneSMTP\Dispatch\DispatchPolicyInterface;
-use OneSMTP\Providers\ProviderConfig;
-use OneSMTP\Providers\ProviderRegistry;
+use OneSMTP\Providers\ProviderDeliveryManager;
 use OneSMTP\Repository\AttemptRepository;
 use OneSMTP\Repository\ProviderRepository;
 
@@ -15,18 +14,18 @@ final class DeliveryEngine
     private ProviderRepository $providers;
     private AttemptRepository $attempts;
     private DispatchPolicyInterface $dispatchPolicy;
-    private ProviderRegistry $registry;
+    private ProviderDeliveryManager $deliveryManager;
 
     public function __construct(
         ProviderRepository $providers,
         AttemptRepository $attempts,
         DispatchPolicyInterface $dispatchPolicy,
-        ?ProviderRegistry $registry = null
+        ?ProviderDeliveryManager $deliveryManager = null
     ) {
         $this->providers = $providers;
         $this->attempts = $attempts;
         $this->dispatchPolicy = $dispatchPolicy;
-        $this->registry = $registry ?? new ProviderRegistry();
+        $this->deliveryManager = $deliveryManager ?? new ProviderDeliveryManager();
     }
 
     public function deliver(int $messageId, int $attemptNo, array $payload, ?int $forcedProviderId = null): DeliveryOutcome
@@ -41,14 +40,7 @@ final class DeliveryEngine
             return new DeliveryOutcome(false, 0, 'missing_provider', 'Provider not found.');
         }
 
-        $adapterType = (string) ($provider['adapter_type'] ?? '');
-        $adapter = $this->registry->get($adapterType);
-        if ($adapter === null) {
-            return new DeliveryOutcome(false, $providerId, 'unsupported_provider', 'Unsupported provider adapter.');
-        }
-
-        $config = new ProviderConfig(isset($provider['config']) && is_array($provider['config']) ? $provider['config'] : []);
-        $result = $adapter->send($payload, $config);
+        $result = $this->deliveryManager->send($provider, $payload);
 
         if ($result->isSuccess()) {
             $this->providers->markState($providerId, 'closed', null);
@@ -88,4 +80,3 @@ final class DeliveryEngine
         return (int) $providerId;
     }
 }
-
