@@ -29,6 +29,7 @@
     "lint:fix": "phpcbf --standard=phpcs.xml.dist",
     "test": "phpunit --configuration phpunit.xml.dist",
     "analyze": "phpstan analyse --configuration=phpstan.neon --no-progress",
+    "perf:smoke": "./scripts/benchmarks/run-baseline.sh smoke",
     "ci": [
       "@lint",
       "@test",

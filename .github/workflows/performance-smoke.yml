@@ -2,22 +2,36 @@ name: Performance Smoke
 
 on:
   pull_request:
+  push:
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  placeholder:
-    name: Placeholder performance smoke
+  performance-smoke:
+    name: Queue/retry performance smoke
     runs-on: ubuntu-latest
-    continue-on-error: true
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Performance harness status
-        run: |
-          echo "Performance smoke harness is not wired yet."
-          echo "This non-blocking job reserves the CI stage for upcoming load/latency checks."
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+
+      - name: Run performance smoke harness
+        run: ./scripts/benchmarks/run-baseline.sh smoke
+
+      - name: Upload performance artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: onesmtp-performance-smoke
+          path: artifacts/perf/
+          if-no-files-found: warn

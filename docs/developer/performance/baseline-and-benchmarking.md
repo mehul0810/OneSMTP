@@ -74,6 +74,8 @@ Use scripts in `scripts/benchmarks`:
 - `simulate-queue.php`: queue/retry simulation stub
 - `report-summary.php`: summary renderer
 
+CI integration details live in `docs/developer/performance/ci-smoke.md`.
+
 ## Acceptance Criteria For P0 Harness
 
 - Scripts run without external services

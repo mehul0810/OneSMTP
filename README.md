@@ -29,6 +29,7 @@ OneSMTP routes transactional emails across multiple providers with automatic fai
 ## Performance Baseline
 
 - Baseline and targets: `docs/developer/performance/baseline-and-benchmarking.md`
+- CI smoke workflow: `docs/developer/performance/ci-smoke.md`
 - Run lightweight harness: `./scripts/benchmarks/run-baseline.sh smoke`
 - Output artifacts are written to `artifacts/perf/<profile>-<timestamp>/`
 
