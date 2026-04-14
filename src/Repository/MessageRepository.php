@@ -8,17 +8,22 @@ use OneSMTP\Core\TableNames;
 
 final class MessageRepository
 {
-    public function create(array $mailArgs, int $maxAttempts = 6): int
+    public function create(array $mailArgs, int $maxAttempts = 6, ?string $messageUuid = null): int
     {
         global $wpdb;
+
+        if ($messageUuid === null || $messageUuid === '') {
+            $messageUuid = (string) wp_generate_uuid4();
+        }
 
         $inserted = $wpdb->insert(
             TableNames::messages(),
             [
-                'message_uuid'          => (string) wp_generate_uuid4(),
+                'message_uuid'          => $messageUuid,
                 'subject'               => isset($mailArgs['subject']) ? (string) $mailArgs['subject'] : null,
                 'recipients_hash'       => hash('sha256', wp_json_encode($mailArgs['to'] ?? [])),
                 'body_hash'             => hash('sha256', (string) ($mailArgs['message'] ?? '')),
+                'payload_json'          => wp_json_encode($mailArgs),
                 'status'                => 'queued',
                 'selected_provider_id'  => null,
                 'current_attempt'       => 0,
@@ -28,7 +33,7 @@ final class MessageRepository
                 'updated_at'            => current_time('mysql', true),
             ],
             [
-                '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%d', '%s', '%s', '%s',
+                '%s', '%s', '%s', '%s', '%s', '%s', '%d', '%d', '%d', '%s', '%s', '%s',
             ]
         );
 
@@ -47,6 +52,58 @@ final class MessageRepository
         $row = $wpdb->get_row($sql, ARRAY_A);
 
         return is_array($row) ? $row : null;
+    }
+
+    public function findByUuid(string $messageUuid): ?array
+    {
+        global $wpdb;
+
+        $sql = $wpdb->prepare('SELECT * FROM ' . TableNames::messages() . ' WHERE message_uuid = %s', $messageUuid);
+        $row = $wpdb->get_row($sql, ARRAY_A);
+
+        return is_array($row) ? $row : null;
+    }
+
+    public function findMostRecentByHashes(string $recipientsHash, string $bodyHash): ?array
+    {
+        global $wpdb;
+
+        $sql = $wpdb->prepare(
+            'SELECT * FROM ' . TableNames::messages() . ' WHERE recipients_hash = %s AND body_hash = %s ORDER BY id DESC LIMIT 1',
+            $recipientsHash,
+            $bodyHash
+        );
+        $row = $wpdb->get_row($sql, ARRAY_A);
+
+        return is_array($row) ? $row : null;
+    }
+
+    public function getPayloadForMessage(int $messageId): array
+    {
+        $row = $this->find($messageId);
+        if (! is_array($row)) {
+            return [];
+        }
+
+        $payload = isset($row['payload_json']) ? json_decode((string) $row['payload_json'], true) : [];
+
+        return is_array($payload) ? $payload : [];
+    }
+
+    public function updatePayload(int $messageId, array $payload): void
+    {
+        global $wpdb;
+
+        $wpdb->update(
+            TableNames::messages(),
+            [
+                'payload_json' => wp_json_encode($payload),
+                'updated_at'   => current_time('mysql', true),
+            ],
+            ['id' => $messageId],
+            ['%s', '%s'],
+            ['%d']
+        );
     }
 
     public function markSent(int $messageId, ?int $providerId): void

@@ -14,6 +14,7 @@ use OneSMTP\Repository\ProviderRepository;
 final class SendPipeline
 {
     private const MAX_RETRIES = 6;
+    private const HEADER_MESSAGE_UUID = 'X-OneSMTP-Message-ID';
 
     private MessageRepository $messages;
     private AttemptRepository $attempts;
@@ -52,7 +53,19 @@ final class SendPipeline
 
     public function captureMessage(array $args): array
     {
-        $messageId = $this->messages->create($args, self::MAX_RETRIES);
+        $messageUuid = $this->extractMessageUuidFromHeaders($args['headers'] ?? []);
+        if ($messageUuid !== '') {
+            $existing = $this->messages->findByUuid($messageUuid);
+            if (is_array($existing) && isset($existing['id'])) {
+                $this->inflight[$this->buildFingerprint($args)] = (int) $existing['id'];
+                return $args;
+            }
+        } else {
+            $messageUuid = (string) wp_generate_uuid4();
+            $args['headers'] = $this->appendMessageUuidHeader($args['headers'] ?? [], $messageUuid);
+        }
+
+        $messageId = $this->messages->create($args, self::MAX_RETRIES, $messageUuid);
         if ($messageId <= 0) {
             return $args;
         }
@@ -60,7 +73,11 @@ final class SendPipeline
         $fingerprint = $this->buildFingerprint($args);
         $this->inflight[$fingerprint] = $messageId;
 
-        $this->events->add('message_captured', ['subject' => (string) ($args['subject'] ?? '')], $messageId);
+        $this->events->add(
+            'message_captured',
+            ['subject' => (string) ($args['subject'] ?? ''), 'message_uuid' => $messageUuid],
+            $messageId
+        );
 
         return $args;
     }
@@ -131,8 +148,10 @@ final class SendPipeline
             return;
         }
 
+        $message     = $this->messages->find($messageId);
+        $messageUuid = is_array($message) && isset($message['message_uuid']) ? (string) $message['message_uuid'] : '';
         $nextAttempt = $attemptNo + 1;
-        $runAt       = $this->retryScheduler->scheduleRetry($messageId, $nextAttempt);
+        $runAt       = $this->retryScheduler->scheduleRetry($messageId, $nextAttempt, $messageUuid);
         if (is_int($runAt) && $runAt > 0) {
             $this->messages->markRetryScheduled($messageId, $attemptNo, $runAt);
             return;
@@ -170,6 +189,14 @@ final class SendPipeline
      */
     private function resolveMessageId(array $mailData): int
     {
+        $messageUuid = $this->extractMessageUuidFromHeaders($mailData['headers'] ?? []);
+        if ($messageUuid !== '') {
+            $row = $this->messages->findByUuid($messageUuid);
+            if (is_array($row) && isset($row['id'])) {
+                return (int) $row['id'];
+            }
+        }
+
         $fingerprint = $this->buildFingerprint($mailData);
 
         return isset($this->inflight[$fingerprint]) ? (int) $this->inflight[$fingerprint] : 0;
@@ -198,5 +225,60 @@ final class SendPipeline
     private function hashBody(string $body): string
     {
         return hash('sha256', $body);
+    }
+
+    /**
+     * @param array<int|string,mixed>|string $headers
+     * @return array<int,string>
+     */
+    private function appendMessageUuidHeader($headers, string $messageUuid): array
+    {
+        $normalizedHeaders = [];
+
+        if (is_string($headers) && $headers !== '') {
+            $normalizedHeaders = preg_split('/\r\n|\r|\n/', $headers) ?: [];
+        } elseif (is_array($headers)) {
+            $normalizedHeaders = $headers;
+        }
+
+        $normalizedHeaders[] = self::HEADER_MESSAGE_UUID . ': ' . $messageUuid;
+
+        return array_values(
+            array_filter(
+                array_map('strval', $normalizedHeaders),
+                static fn (string $header): bool => $header !== ''
+            )
+        );
+    }
+
+    /**
+     * @param array<int|string,mixed>|string $headers
+     */
+    private function extractMessageUuidFromHeaders($headers): string
+    {
+        if (is_string($headers)) {
+            $headers = preg_split('/\r\n|\r|\n/', $headers) ?: [];
+        }
+
+        if (! is_array($headers)) {
+            return '';
+        }
+
+        foreach ($headers as $header) {
+            if (! is_string($header)) {
+                continue;
+            }
+
+            if (stripos($header, self::HEADER_MESSAGE_UUID . ':') !== 0) {
+                continue;
+            }
+
+            $value = trim(substr($header, strlen(self::HEADER_MESSAGE_UUID) + 1));
+            if ($value !== '') {
+                return $value;
+            }
+        }
+
+        return '';
     }
 }

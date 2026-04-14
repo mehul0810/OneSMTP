@@ -39,7 +39,7 @@ final class RetryScheduler
 
     public function registerHooks(): void
     {
-        add_action(self::ACTION_HOOK, [$this, 'processRetry'], 10, 2);
+        add_action(self::ACTION_HOOK, [$this, 'processRetry'], 10, 3);
     }
 
     public function getDelayForAttempt(int $attempt): int
@@ -47,7 +47,7 @@ final class RetryScheduler
         return min(3600, (int) pow(2, max(0, $attempt - 1)) * 60);
     }
 
-    public function scheduleRetry(int $messageId, int $attempt): ?int
+    public function scheduleRetry(int $messageId, int $attempt, ?string $messageUuid = null): ?int
     {
         if ($attempt > self::MAX_RETRIES) {
             $this->messages->markFailedTerminal($messageId, self::MAX_RETRIES);
@@ -58,7 +58,7 @@ final class RetryScheduler
 
         $delay    = $this->getDelayForAttempt($attempt);
         $runAt    = time() + $delay;
-        $args     = [$messageId, $attempt];
+        $args     = [$messageId, $attempt, (string) $messageUuid];
 
         if (function_exists('as_has_scheduled_action') && as_has_scheduled_action(self::ACTION_HOOK, $args, self::GROUP)) {
             return $runAt;
@@ -76,10 +76,11 @@ final class RetryScheduler
         return null;
     }
 
-    public function processRetry($messageId, int $attempt = 1): void
+    public function processRetry($messageId, int $attempt = 1, ?string $messageUuid = null): void
     {
         if (is_array($messageId)) {
             $attempt   = isset($messageId['attempt']) ? (int) $messageId['attempt'] : $attempt;
+            $messageUuid = isset($messageId['message_uuid']) ? (string) $messageId['message_uuid'] : $messageUuid;
             $messageId = isset($messageId['message_id']) ? (int) $messageId['message_id'] : 0;
         }
 
@@ -94,15 +95,22 @@ final class RetryScheduler
         }
 
         try {
-            $this->processRetryInternal($messageId, $attempt);
+            $this->processRetryInternal($messageId, $attempt, $messageUuid);
         } finally {
             $this->releaseLock($messageId, $attempt);
         }
     }
 
-    private function processRetryInternal(int $messageId, int $attempt): void
+    private function processRetryInternal(int $messageId, int $attempt, ?string $messageUuid): void
     {
         $message = $this->messages->find($messageId);
+        if ($message === null && is_string($messageUuid) && $messageUuid !== '') {
+            $message = $this->messages->findByUuid($messageUuid);
+            if (is_array($message) && isset($message['id'])) {
+                $messageId = (int) $message['id'];
+            }
+        }
+
         if ($message === null) {
             return;
         }
@@ -135,8 +143,12 @@ final class RetryScheduler
 
         $this->messages->markRetryRunning($messageId, $attempt, $providerId);
 
+        if (($messageUuid === null || $messageUuid === '') && isset($message['message_uuid'])) {
+            $messageUuid = (string) $message['message_uuid'];
+        }
+
         $payload = $this->messages->getPayloadForMessage($messageId);
-        do_action('onesmtp_retry_attempt', $messageId, $attempt, $providerId, $payload);
+        do_action('onesmtp_retry_attempt', $messageId, $attempt, $providerId, $payload, $messageUuid);
         $this->events->add('retry_dispatched', ['attempt' => $attempt], $messageId, $providerId);
     }
 

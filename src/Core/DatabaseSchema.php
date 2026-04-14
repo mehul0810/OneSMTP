@@ -44,6 +44,7 @@ final class DatabaseSchema
             subject VARCHAR(255) NULL,
             recipients_hash CHAR(64) NOT NULL,
             body_hash CHAR(64) NOT NULL,
+            payload_json LONGTEXT NULL,
             status VARCHAR(20) NOT NULL DEFAULT 'pending',
             selected_provider_id BIGINT UNSIGNED NULL,
             current_attempt SMALLINT UNSIGNED NOT NULL DEFAULT 0,
