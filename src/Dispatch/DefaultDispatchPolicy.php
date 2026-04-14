@@ -62,7 +62,7 @@ final class DefaultDispatchPolicy implements DispatchPolicyInterface
             }
 
             $state = (string) ($provider['circuit_state'] ?? 'closed');
-            if ($state === 'open') {
+            if ($state === 'open' && $this->isCircuitStillOpen($provider)) {
                 continue;
             }
 
@@ -136,5 +136,20 @@ final class DefaultDispatchPolicy implements DispatchPolicyInterface
         }
 
         return abs($messageId) % $poolSize;
+    }
+
+    private function isCircuitStillOpen(array $provider): bool
+    {
+        $until = isset($provider['circuit_until']) ? (string) $provider['circuit_until'] : '';
+        if ($until === '') {
+            return true;
+        }
+
+        $untilTs = strtotime($until);
+        if ($untilTs === false) {
+            return true;
+        }
+
+        return $untilTs > time();
     }
 }
