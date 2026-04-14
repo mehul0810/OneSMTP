@@ -23,4 +23,53 @@ final class Capabilities
             ],
         ];
     }
+
+    /**
+     * Provision default capabilities for supported roles.
+     */
+    public static function provisionDefaults(): void
+    {
+        foreach (self::defaultRoleCaps() as $roleName => $caps) {
+            $role = get_role((string) $roleName);
+            if (! $role) {
+                continue;
+            }
+
+            foreach ($caps as $capability) {
+                $role->add_cap((string) $capability);
+            }
+        }
+    }
+
+    /**
+     * Remove plugin-specific capabilities from roles.
+     */
+    public static function revokeDefaults(): void
+    {
+        foreach (self::defaultRoleCaps() as $roleName => $caps) {
+            $role = get_role((string) $roleName);
+            if (! $role) {
+                continue;
+            }
+
+            foreach ($caps as $capability) {
+                $role->remove_cap((string) $capability);
+            }
+        }
+    }
+
+    public static function canManage(): bool
+    {
+        return current_user_can(self::MANAGE_PLUGIN) || current_user_can('manage_options');
+    }
+
+    public static function canViewLogs(): bool
+    {
+        return current_user_can(self::VIEW_LOGS) || current_user_can('manage_options');
+    }
+
+    public static function canResendEmails(): bool
+    {
+        return current_user_can(self::RESEND_EMAILS) || current_user_can('manage_options');
+    }
 }

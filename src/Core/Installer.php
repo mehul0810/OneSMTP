@@ -9,7 +9,13 @@ final class Installer
     public static function activate(): void
     {
         DatabaseSchema::createTables();
+        Capabilities::provisionDefaults();
         self::storeDefaults();
+    }
+
+    public static function deactivate(): void
+    {
+        Capabilities::revokeDefaults();
     }
 
     private static function storeDefaults(): void
