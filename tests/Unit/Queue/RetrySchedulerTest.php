@@ -52,7 +52,7 @@ final class RetrySchedulerTest extends TestCase
         self::assertSame(3600, $eighth['timestamp'] - $before);
     }
 
-    public function test_schedule_retry_skips_duplicate_action_for_same_message_and_attempt(): void
+    public function test_duplicate_attempt_prevention_uses_message_and_attempt_key(): void
     {
         $policy = $this->createMock(DispatchPolicyInterface::class);
         $scheduler = new RetryScheduler($policy);
@@ -63,6 +63,10 @@ final class RetrySchedulerTest extends TestCase
         $scheduler->scheduleRetry(999, 3);
 
         self::assertSame($countAfterFirst, count($GLOBALS['onesmtp_test_scheduled_actions']));
+
+        $scheduler->scheduleRetry(999, 4);
+
+        self::assertSame($countAfterFirst + 1, count($GLOBALS['onesmtp_test_scheduled_actions']));
     }
 
     public function test_process_retry_ignores_invalid_message_id(): void

@@ -8,6 +8,7 @@ This document defines the QA baseline scaffold for MVP deliverability behavior.
 - Provider rotation: deterministic behavior when 3+ providers exist.
 - Retry policy: capped retries (`max = 6`) with stop conditions.
 - Retention policy: default and bounded log retention via filter.
+- Duplicate-attempt prevention: avoid re-enqueueing identical message/attempt jobs.
 - Manual resend behavior: provider override and lineage.
 - Logging: attempt-level events and final terminal status.
 
@@ -31,6 +32,7 @@ tests/
       RetrySchedulerTest.php
   Integration/
     Dispatch/
+      ConcurrencyIdempotencyTest.php
       LoggingIntegrationTest.php
       ResendFlowTest.php
   E2E/
@@ -45,26 +47,30 @@ tests/
   - `php -l tests/Unit/Core/RetentionPolicyTest.php`
   - `php -l tests/Unit/Queue/RetrySchedulerTest.php`
   - `php -l tests/Unit/Dispatch/DefaultDispatchPolicyTest.php`
+  - `php -l tests/Unit/Policy/RetryPolicyTest.php`
+  - `php -l tests/Unit/Policy/FailoverPolicyTest.php`
+  - `php -l tests/Integration/Dispatch/ConcurrencyIdempotencyTest.php`
 - PHPUnit (after dependencies installed):
   - `vendor/bin/phpunit -c phpunit.xml.dist tests/Unit/Core/RetentionPolicyTest.php`
   - `vendor/bin/phpunit -c phpunit.xml.dist tests/Unit/Queue/RetrySchedulerTest.php`
-  - `vendor/bin/phpunit -c phpunit.xml.dist tests/Unit/Dispatch/DefaultDispatchPolicyTest.php`
+  - `vendor/bin/phpunit -c phpunit.xml.dist tests/Unit/Policy/RetryPolicyTest.php`
+  - `vendor/bin/phpunit -c phpunit.xml.dist tests/Unit/Policy/FailoverPolicyTest.php`
   - `vendor/bin/phpunit -c phpunit.xml.dist`
 - Current expected result:
-  - New Core/Queue tests should pass.
-  - Existing policy/integration/e2e placeholders intentionally report `incomplete` until core behavior lands.
+  - New core/queue/policy tests pass as executable policy specs.
+  - Integration/E2E placeholders intentionally report `incomplete` until core behavior lands.
 
 ## Pending / Blocked
 
 - `DefaultDispatchPolicy` provider-selection logic is still TODO.
-- `FailoverPolicy` and `RetryPolicy` concrete classes are not yet implemented under `src/`.
+- Concrete `FailoverPolicy`/`RetryPolicy` classes are not yet implemented under `src/`.
 - Integration tests need repository + persistence wiring for attempts/logs.
 - E2E tests need admin UI routes and browser-runner setup.
 
 ## Regression Guard Backlog (Priority)
 
-1. Assert switch to secondary on second failure of primary provider.
-2. Assert no attempt beyond retry `6` and terminal failed state persists.
+1. Assert switch to secondary on second failure of primary provider via production dispatch policy.
+2. Assert no attempt beyond retry `6` and terminal failed state persists in storage.
 3. Assert deterministic provider rotation order for 3+ providers.
 4. Assert manual resend honors explicitly selected provider.
 5. Assert logs include provider, attempt number, result, and error reason per attempt.
