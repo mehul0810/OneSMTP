@@ -3,6 +3,7 @@
 /build/
 /dist/
 /coverage/
+/artifacts/
 /.phpunit.cache/
 /.phpunit.result.cache
 /.phpstan/

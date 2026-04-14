@@ -26,6 +26,12 @@ OneSMTP routes transactional emails across multiple providers with automatic fai
 - Default log retention is 30 days
 - Retention can be extended up to 120 days through a plugin filter
 
+## Performance Baseline
+
+- Baseline and targets: `docs/developer/performance/baseline-and-benchmarking.md`
+- Run lightweight harness: `./scripts/benchmarks/run-baseline.sh smoke`
+- Output artifacts are written to `artifacts/perf/<profile>-<timestamp>/`
+
 ## Docs
 
 - Admin docs: `docs/admin/`
