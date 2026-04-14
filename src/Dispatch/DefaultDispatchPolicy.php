@@ -20,6 +20,11 @@ final class DefaultDispatchPolicy implements DispatchPolicyInterface
             return null;
         }
 
+        $forcedProviderId = isset($context['forced_provider_id']) ? (int) $context['forced_provider_id'] : 0;
+        if ($forcedProviderId > 0 && $this->providerExists($providers, $forcedProviderId)) {
+            return $forcedProviderId;
+        }
+
         $lastProviderId = isset($context['last_provider_id']) ? (int) $context['last_provider_id'] : 0;
         $consecutive    = isset($context['consecutive_failures_for_last_provider'])
             ? (int) $context['consecutive_failures_for_last_provider']
@@ -52,5 +57,16 @@ final class DefaultDispatchPolicy implements DispatchPolicyInterface
         }
 
         return (int) $providers[0]['id'];
+    }
+
+    private function providerExists(array $providers, int $providerId): bool
+    {
+        foreach ($providers as $provider) {
+            if ((int) ($provider['id'] ?? 0) === $providerId) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

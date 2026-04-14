@@ -4,40 +4,41 @@ declare(strict_types=1);
 
 namespace OneSMTP\Tests\Unit\Policy;
 
+use OneSMTP\Dispatch\DefaultDispatchPolicy;
 use PHPUnit\Framework\TestCase;
 
 final class FailoverPolicyTest extends TestCase
 {
     public function test_two_failure_switch_invariant_triggers_on_second_failure(): void
     {
-        self::assertFalse($this->shouldSwitchProvider(0));
-        self::assertFalse($this->shouldSwitchProvider(1));
-        self::assertTrue($this->shouldSwitchProvider(2));
-        self::assertTrue($this->shouldSwitchProvider(3));
+        $policy = new DefaultDispatchPolicy();
+
+        $providerId = $policy->chooseNextProvider(501, 3, [
+            'providers' => [
+                ['id' => 10],
+                ['id' => 20],
+            ],
+            'last_provider_id' => 10,
+            'consecutive_failures_for_last_provider' => 2,
+        ]);
+
+        self::assertSame(20, $providerId);
     }
 
-    public function test_two_failure_switch_is_provider_agnostic(): void
+    public function test_rotation_invariant_for_three_providers_after_failover_threshold(): void
     {
-        self::assertSame('secondary', $this->nextProviderAfterFailures('primary', 2));
-        self::assertSame('primary', $this->nextProviderAfterFailures('secondary', 2));
-    }
+        $policy = new DefaultDispatchPolicy();
 
-    public function test_rotation_placeholder_for_more_than_two_providers(): void
-    {
-        self::markTestIncomplete('TODO: Wire to concrete dispatch policy once weighted rotation is implemented in src/Dispatch.');
-    }
+        $providerId = $policy->chooseNextProvider(502, 4, [
+            'providers' => [
+                ['id' => 10],
+                ['id' => 20],
+                ['id' => 30],
+            ],
+            'last_provider_id' => 20,
+            'consecutive_failures_for_last_provider' => 2,
+        ]);
 
-    private function shouldSwitchProvider(int $consecutiveFailures): bool
-    {
-        return $consecutiveFailures >= 2;
-    }
-
-    private function nextProviderAfterFailures(string $currentProvider, int $consecutiveFailures): string
-    {
-        if (! $this->shouldSwitchProvider($consecutiveFailures)) {
-            return $currentProvider;
-        }
-
-        return $currentProvider === 'primary' ? 'secondary' : 'primary';
+        self::assertSame(30, $providerId);
     }
 }
