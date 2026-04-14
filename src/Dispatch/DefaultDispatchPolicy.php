@@ -35,7 +35,9 @@ final class DefaultDispatchPolicy implements DispatchPolicyInterface
             : 0;
 
         if ($attemptNumber <= 1 || $lastProviderId <= 0) {
-            return (int) $weightedPool[0]['id'];
+            $startIndex = $this->initialPoolIndex($messageId, count($weightedPool));
+
+            return (int) $weightedPool[$startIndex]['id'];
         }
 
         // Invariant: after 2 consecutive failures, switch away from the current provider.
@@ -125,5 +127,14 @@ final class DefaultDispatchPolicy implements DispatchPolicyInterface
         }
 
         return false;
+    }
+
+    private function initialPoolIndex(int $messageId, int $poolSize): int
+    {
+        if ($poolSize <= 1) {
+            return 0;
+        }
+
+        return abs($messageId) % $poolSize;
     }
 }
