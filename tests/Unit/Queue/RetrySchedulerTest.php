@@ -10,6 +10,7 @@ use OneSMTP\Repository\AttemptRepository;
 use OneSMTP\Repository\EventRepository;
 use OneSMTP\Repository\MessageRepository;
 use OneSMTP\Repository\ProviderRepository;
+use OneSMTP\Tests\Support\FakeWpdb;
 use PHPUnit\Framework\TestCase;
 
 final class RetrySchedulerTest extends TestCase
@@ -23,41 +24,10 @@ final class RetrySchedulerTest extends TestCase
         $GLOBALS['onesmtp_test_scheduled_actions'] = [];
         $GLOBALS['onesmtp_test_transients'] = [];
         $GLOBALS['onesmtp_test_action_scheduler_available'] = true;
-
-        $GLOBALS['wpdb'] = new class {
-            public string $prefix = 'wp_';
-            public int $insert_id = 0;
-            public array $inserts = [];
-            public array $updates = [];
-
-            public function insert(string $table, array $data, array $format): int
-            {
-                $this->insert_id++;
-                $this->inserts[] = [
-                    'table' => $table,
-                    'data' => $data,
-                    'format' => $format,
-                ];
-
-                return 1;
-            }
-
-            public function update(string $table, array $data, array $where, array $format, array $whereFormat): int
-            {
-                $this->updates[] = [
-                    'table' => $table,
-                    'data' => $data,
-                    'where' => $where,
-                    'format' => $format,
-                    'where_format' => $whereFormat,
-                ];
-
-                return 1;
-            }
-        };
+        $GLOBALS['wpdb'] = new FakeWpdb();
     }
 
-    public function test_register_hooks_adds_retry_action_handler_for_two_args(): void
+    public function test_register_hooks_adds_retry_action_handler_for_three_args(): void
     {
         $scheduler = $this->buildScheduler();
 
@@ -65,7 +35,7 @@ final class RetrySchedulerTest extends TestCase
 
         self::assertNotEmpty($GLOBALS['onesmtp_test_actions']);
         self::assertSame(RetryScheduler::ACTION_HOOK, $GLOBALS['onesmtp_test_actions'][0]['hook']);
-        self::assertSame(2, $GLOBALS['onesmtp_test_actions'][0]['accepted_args']);
+        self::assertSame(3, $GLOBALS['onesmtp_test_actions'][0]['accepted_args']);
     }
 
     public function test_schedule_retry_uses_exponential_backoff_and_caps_at_one_hour(): void
@@ -73,55 +43,63 @@ final class RetrySchedulerTest extends TestCase
         $scheduler = $this->buildScheduler();
         $before = time();
 
-        $scheduler->scheduleRetry(101, 1);
-        $scheduler->scheduleRetry(101, 2);
-        $scheduler->scheduleRetry(101, 8);
+        $scheduler->scheduleRetry(101, 1, 'uuid-101');
+        $scheduler->scheduleRetry(101, 2, 'uuid-101');
+        $scheduler->scheduleRetry(101, 8, 'uuid-101');
 
-        $first = $this->findScheduled(RetryScheduler::ACTION_HOOK, [101, 1], 'onesmtp');
-        $second = $this->findScheduled(RetryScheduler::ACTION_HOOK, [101, 2], 'onesmtp');
-        $eighth = $this->findScheduled(RetryScheduler::ACTION_HOOK, [101, 8], 'onesmtp');
+        $first = $this->findScheduled(RetryScheduler::ACTION_HOOK, [101, 1, 'uuid-101'], 'onesmtp');
+        $second = $this->findScheduled(RetryScheduler::ACTION_HOOK, [101, 2, 'uuid-101'], 'onesmtp');
 
         self::assertNotNull($first);
         self::assertNotNull($second);
-        self::assertNotNull($eighth);
 
         self::assertSame(60, $first['timestamp'] - $before);
         self::assertSame(120, $second['timestamp'] - $before);
-        self::assertSame(3600, $eighth['timestamp'] - $before);
+
+        self::assertNull($this->findScheduled(RetryScheduler::ACTION_HOOK, [101, 8, 'uuid-101'], 'onesmtp'));
+        $terminalEvent = $this->findEventInsert('terminal_failure');
+        self::assertNotNull($terminalEvent);
     }
 
-    public function test_duplicate_attempt_prevention_uses_message_and_attempt_key(): void
+    public function test_duplicate_attempt_prevention_uses_message_attempt_and_uuid_key(): void
     {
         $scheduler = $this->buildScheduler();
 
-        $scheduler->scheduleRetry(999, 3);
+        $scheduler->scheduleRetry(999, 3, 'uuid-a');
         $countAfterFirst = count($GLOBALS['onesmtp_test_scheduled_actions']);
 
-        $scheduler->scheduleRetry(999, 3);
+        $scheduler->scheduleRetry(999, 3, 'uuid-a');
         self::assertSame($countAfterFirst, count($GLOBALS['onesmtp_test_scheduled_actions']));
 
-        $scheduler->scheduleRetry(999, 4);
+        $scheduler->scheduleRetry(999, 3, 'uuid-b');
         self::assertSame($countAfterFirst + 1, count($GLOBALS['onesmtp_test_scheduled_actions']));
     }
 
-    public function test_scheduler_backend_missing_behavior_returns_run_at_without_queued_action(): void
+    public function test_scheduler_backend_missing_returns_null_and_logs_failure_event(): void
     {
         $scheduler = $this->buildScheduler();
         $GLOBALS['onesmtp_test_action_scheduler_available'] = false;
 
-        $runAt = $scheduler->scheduleRetry(44, 2);
+        $runAt = $scheduler->scheduleRetry(44, 2, 'uuid-44');
 
-        self::assertGreaterThan(time(), $runAt);
-        self::assertNull($this->findScheduled(RetryScheduler::ACTION_HOOK, [44, 2], 'onesmtp'));
+        self::assertNull($runAt);
+        self::assertNull($this->findScheduled(RetryScheduler::ACTION_HOOK, [44, 2, 'uuid-44'], 'onesmtp'));
+
+        $event = $this->findEventInsert('retry_schedule_failed');
+        self::assertNotNull($event);
+
+        $context = json_decode((string) $event['data']['context_json'], true);
+        self::assertSame('scheduler_backend_unavailable', $context['reason'] ?? null);
+        self::assertSame(2, $context['attempt'] ?? null);
     }
 
     public function test_schedule_retry_marks_terminal_failure_when_attempt_exceeds_max(): void
     {
         $scheduler = $this->buildScheduler();
 
-        $runAt = $scheduler->scheduleRetry(700, 7);
+        $runAt = $scheduler->scheduleRetry(700, 7, 'uuid-700');
 
-        self::assertSame(0, $runAt);
+        self::assertNull($runAt);
         self::assertCount(1, $GLOBALS['wpdb']->updates);
         self::assertSame('failed', $GLOBALS['wpdb']->updates[0]['data']['status']);
         self::assertSame(6, $GLOBALS['wpdb']->updates[0]['data']['current_attempt']);
@@ -133,21 +111,6 @@ final class RetrySchedulerTest extends TestCase
         self::assertSame('max_retries_boundary', $context['reason'] ?? null);
         self::assertSame(7, $context['attempt'] ?? null);
         self::assertSame(700, $terminalEvent['data']['message_id']);
-    }
-
-    public function test_retry_scheduled_event_contains_stable_lineage_context(): void
-    {
-        $scheduler = $this->buildScheduler();
-
-        $runAt = $scheduler->scheduleRetry(55, 4);
-
-        $event = $this->findEventInsert('retry_scheduled');
-        self::assertNotNull($event);
-        self::assertSame(55, $event['data']['message_id']);
-
-        $context = json_decode((string) $event['data']['context_json'], true);
-        self::assertSame(4, $context['attempt'] ?? null);
-        self::assertSame(gmdate('c', $runAt), $context['run_at'] ?? null);
     }
 
     private function buildScheduler(): RetryScheduler

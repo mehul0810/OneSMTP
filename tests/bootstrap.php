@@ -17,6 +17,50 @@ foreach ($autoloadPaths as $autoloadPath) {
     }
 }
 
+if (! defined('ARRAY_A')) {
+    define('ARRAY_A', 'ARRAY_A');
+}
+
+if (! class_exists('WP_Error')) {
+    class WP_Error
+    {
+        /** @var array<string,string> */
+        private array $errors = [];
+
+        /** @var array<string,mixed> */
+        private array $errorData = [];
+
+        public function __construct(string $code = '', string $message = '', mixed $data = null)
+        {
+            if ($code !== '') {
+                $this->errors[$code] = $message;
+                if ($data !== null) {
+                    $this->errorData[$code] = $data;
+                }
+            }
+        }
+
+        public function get_error_code(): string
+        {
+            return array_key_first($this->errors) ?? '';
+        }
+
+        public function get_error_message(string $code = ''): string
+        {
+            $target = $code !== '' ? $code : $this->get_error_code();
+
+            return $this->errors[$target] ?? '';
+        }
+
+        public function get_error_data(string $code = ''): mixed
+        {
+            $target = $code !== '' ? $code : $this->get_error_code();
+
+            return $this->errorData[$target] ?? null;
+        }
+    }
+}
+
 if (! function_exists('add_filter')) {
     function add_filter(string $hook, callable $callback, int $priority = 10, int $acceptedArgs = 1): bool
     {
@@ -120,6 +164,23 @@ if (! function_exists('wp_json_encode')) {
     function wp_json_encode(mixed $value, int $flags = 0, int $depth = 512): string|false
     {
         return json_encode($value, $flags, $depth);
+    }
+}
+
+if (! function_exists('wp_generate_uuid4')) {
+    function wp_generate_uuid4(): string
+    {
+        return sprintf(
+            '%04x%04x-%04x-%04x-%04x-%04x%04x%04x',
+            random_int(0, 0xffff),
+            random_int(0, 0xffff),
+            random_int(0, 0xffff),
+            random_int(0, 0x0fff) | 0x4000,
+            random_int(0, 0x3fff) | 0x8000,
+            random_int(0, 0xffff),
+            random_int(0, 0xffff),
+            random_int(0, 0xffff)
+        );
     }
 }
 
