@@ -1,0 +1,23 @@
+name: Performance Smoke
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  placeholder:
+    name: Placeholder performance smoke
+    runs-on: ubuntu-latest
+    continue-on-error: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Performance harness status
+        run: |
+          echo "Performance smoke harness is not wired yet."
+          echo "This non-blocking job reserves the CI stage for upcoming load/latency checks."
