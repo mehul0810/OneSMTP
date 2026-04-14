@@ -33,6 +33,14 @@ jobs:
       - name: Validate composer.json
         run: composer validate --strict
 
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache/files
+          key: ${{ runner.os }}-php-${{ matrix.php }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-php-${{ matrix.php }}-composer-
+
       - name: Install Composer dependencies
         run: composer install --prefer-dist --no-interaction --no-progress
 
@@ -67,3 +75,76 @@ jobs:
 
       - name: Build assets
         run: npm run build
+
+      - name: npm audit (high+critical)
+        run: npm audit --audit-level=high
+
+  codeql:
+    name: CodeQL (PHP + JavaScript)
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ['php', 'javascript']
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@v3
+
+  package-verification:
+    name: Package verification
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build package artifact
+        run: |
+          set -euo pipefail
+          PLUGIN_SLUG="onesmtp"
+          rm -rf build
+          mkdir -p build/$PLUGIN_SLUG
+
+          rsync -av ./ build/$PLUGIN_SLUG/ \
+            --exclude ".git" \
+            --exclude ".github" \
+            --exclude "node_modules" \
+            --exclude "vendor" \
+            --exclude "tests" \
+            --exclude "build"
+
+          cd build
+          zip -r "$PLUGIN_SLUG.zip" "$PLUGIN_SLUG"
+          shasum -a 256 "$PLUGIN_SLUG.zip" > "$PLUGIN_SLUG.zip.sha256"
+
+      - name: Verify package checksum file
+        run: |
+          set -euo pipefail
+          test -s build/onesmtp.zip
+          test -s build/onesmtp.zip.sha256
+          shasum -a 256 -c build/onesmtp.zip.sha256
+
+      - name: Upload verification artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: onesmtp-package-verification
+          path: |
+            build/onesmtp.zip
+            build/onesmtp.zip.sha256

@@ -19,8 +19,11 @@ jobs:
 
       - name: Build release package
         run: |
+          set -euo pipefail
           PLUGIN_SLUG="onesmtp"
+          rm -rf build
           mkdir -p build/$PLUGIN_SLUG
+
           rsync -av ./ build/$PLUGIN_SLUG/ \
             --exclude ".git" \
             --exclude ".github" \
@@ -28,9 +31,13 @@ jobs:
             --exclude "vendor" \
             --exclude "tests" \
             --exclude "build"
+
           cd build
           zip -r "$PLUGIN_SLUG.zip" "$PLUGIN_SLUG"
           shasum -a 256 "$PLUGIN_SLUG.zip" > "$PLUGIN_SLUG.zip.sha256"
+
+      - name: Verify package checksum
+        run: shasum -a 256 -c build/onesmtp.zip.sha256
 
       - name: Upload package artifact
         uses: actions/upload-artifact@v4
