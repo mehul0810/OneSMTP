@@ -4,7 +4,7 @@ This project aims for low operational overhead with strong reliability and clear
 
 ## Workflow
 
-1. Create a feature branch from the active development branch.
+1. Create a feature branch from the currently verified base branch in `AGENTS.md` and live repo state.
 2. Keep pull requests focused on one feature/fix.
 3. Include tests for behavior changes where practical.
 4. Update docs for user-visible or operational changes.
