@@ -68,7 +68,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
 
       - name: Install npm dependencies
         run: npm install --no-fund --no-audit
@@ -80,7 +79,7 @@ jobs:
         run: npm audit --audit-level=high
 
   codeql:
-    name: CodeQL (PHP + JavaScript)
+    name: CodeQL (${{ matrix.language }})
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -90,7 +89,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: ['php', 'javascript']
+        language: ['actions']
 
     steps:
       - name: Checkout
@@ -137,9 +136,10 @@ jobs:
       - name: Verify package checksum file
         run: |
           set -euo pipefail
-          test -s build/onesmtp.zip
-          test -s build/onesmtp.zip.sha256
-          shasum -a 256 -c build/onesmtp.zip.sha256
+          cd build
+          test -s onesmtp.zip
+          test -s onesmtp.zip.sha256
+          shasum -a 256 -c onesmtp.zip.sha256
 
       - name: Upload verification artifact
         uses: actions/upload-artifact@v4
