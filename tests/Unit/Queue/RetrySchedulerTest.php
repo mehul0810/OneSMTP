@@ -84,6 +84,7 @@ final class RetrySchedulerTest extends TestCase
 
         self::assertNull($runAt);
         self::assertNull($this->findScheduled(RetryScheduler::ACTION_HOOK, [44, 2, 'uuid-44'], 'onesmtp'));
+        self::assertNull($this->findEventInsert('retry_scheduled'));
 
         $event = $this->findEventInsert('retry_schedule_failed');
         self::assertNotNull($event);

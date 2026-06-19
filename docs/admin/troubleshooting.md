@@ -13,3 +13,4 @@
 2. Send a test email from settings.
 3. Inspect latest attempt in Email Logs.
 4. Confirm retries are scheduled in Action Scheduler.
+5. If no retry job exists, check for a retry scheduling failure event before assuming the message will retry automatically.

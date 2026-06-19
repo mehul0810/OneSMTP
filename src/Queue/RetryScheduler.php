@@ -65,10 +65,13 @@ final class RetryScheduler
         }
 
         if (function_exists('as_schedule_single_action')) {
-            as_schedule_single_action($runAt, self::ACTION_HOOK, $args, self::GROUP);
-            $this->events->add('retry_scheduled', ['attempt' => $attempt, 'run_at' => gmdate('c', $runAt)], $messageId);
+            $scheduled = as_schedule_single_action($runAt, self::ACTION_HOOK, $args, self::GROUP);
 
-            return $runAt;
+            if ($scheduled) {
+                $this->events->add('retry_scheduled', ['attempt' => $attempt, 'run_at' => gmdate('c', $runAt)], $messageId);
+
+                return $runAt;
+            }
         }
 
         $this->events->add('retry_schedule_failed', ['reason' => 'scheduler_backend_unavailable', 'attempt' => $attempt], $messageId);
