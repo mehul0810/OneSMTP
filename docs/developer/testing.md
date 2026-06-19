@@ -7,6 +7,7 @@ This document defines the QA baseline scaffold for MVP deliverability behavior.
 - Provider failover: primary to secondary switch after repeated failures.
 - Provider rotation: deterministic behavior when 3+ providers exist.
 - Retry policy: capped retries (`max = 6`) with stop conditions.
+- Scheduler fallback: unavailable background queue never creates a hidden retry job and records a failure event instead.
 - Retention policy: default and bounded log retention via filter.
 - Duplicate-attempt prevention: avoid re-enqueueing identical message/attempt jobs.
 - Manual resend behavior: provider override and lineage.
@@ -58,6 +59,7 @@ tests/
   - `vendor/bin/phpunit -c phpunit.xml.dist`
 - Current expected result:
   - New core/queue/policy tests pass as executable policy specs.
+  - Retry scheduler coverage includes both available and unavailable Action Scheduler states.
   - Integration/E2E placeholders intentionally report `incomplete` until core behavior lands.
 
 ## Pending / Blocked

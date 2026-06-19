@@ -12,6 +12,10 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Baseline contribution and coding standards documentation.
 - Changelog policy and feature documentation update protocol.
 
+### Changed
+
+- Retry scheduling now fails closed and records a scheduling failure event when Action Scheduler is unavailable instead of reporting a queued retry.
+
 ## [0.1.0] - 2026-04-14
 
 ### Added
