@@ -72,7 +72,7 @@ final class RetrySchedulerTest extends TestCase
         self::assertSame($countAfterFirst, count($GLOBALS['onesmtp_test_scheduled_actions']));
 
         $scheduler->scheduleRetry(999, 3, 'uuid-b');
-        self::assertSame($countAfterFirst + 1, count($GLOBALS['onesmtp_test_scheduled_actions']));
+        self::assertSame($countAfterFirst, count($GLOBALS['onesmtp_test_scheduled_actions']));
     }
 
     public function test_scheduler_backend_missing_returns_null_and_logs_failure_event(): void
@@ -112,6 +112,68 @@ final class RetrySchedulerTest extends TestCase
         self::assertSame('max_retries_boundary', $context['reason'] ?? null);
         self::assertSame(7, $context['attempt'] ?? null);
         self::assertSame(700, $terminalEvent['data']['message_id']);
+    }
+
+    public function test_schedule_retry_updates_message_state_after_successful_enqueue(): void
+    {
+        $scheduler = $this->buildScheduler();
+
+        $runAt = $scheduler->scheduleRetry(45, 2, 'uuid-45');
+
+        self::assertIsInt($runAt);
+        self::assertNotEmpty($GLOBALS['wpdb']->updates);
+
+        $update = $GLOBALS['wpdb']->updates[0];
+        self::assertSame(['id' => 45], $update['where']);
+        self::assertSame('retry_scheduled', $update['data']['status']);
+        self::assertSame(2, $update['data']['current_attempt']);
+        self::assertSame(gmdate('Y-m-d H:i:s', $runAt), $update['data']['next_retry_at']);
+    }
+
+    public function test_schedule_retry_does_not_enqueue_terminal_messages(): void
+    {
+        $GLOBALS['wpdb']->messageRowsById[88] = [
+            'id' => 88,
+            'status' => 'sent',
+            'max_attempts' => 6,
+        ];
+
+        $scheduler = $this->buildScheduler();
+
+        $runAt = $scheduler->scheduleRetry(88, 2, 'uuid-88');
+
+        self::assertNull($runAt);
+        self::assertSame([], $GLOBALS['onesmtp_test_scheduled_actions']);
+        self::assertSame([], $GLOBALS['wpdb']->updates);
+
+        $event = $this->findEventInsert('retry_not_scheduled');
+        self::assertNotNull($event);
+
+        $context = json_decode((string) $event['data']['context_json'], true);
+        self::assertSame('terminal_status', $context['reason'] ?? null);
+    }
+
+    public function test_process_retry_skips_missing_payload_without_dispatching(): void
+    {
+        $GLOBALS['wpdb']->messageRowsById[89] = [
+            'id' => 89,
+            'status' => 'retry_scheduled',
+            'message_uuid' => 'uuid-89',
+            'max_attempts' => 6,
+            'payload_json' => '',
+        ];
+
+        $scheduler = $this->buildScheduler();
+        $scheduler->processRetry(89, 2, 'uuid-89');
+
+        self::assertSame([], $GLOBALS['onesmtp_test_fired_actions']);
+        self::assertSame([], $GLOBALS['wpdb']->updates);
+
+        $event = $this->findEventInsert('retry_skipped');
+        self::assertNotNull($event);
+
+        $context = json_decode((string) $event['data']['context_json'], true);
+        self::assertSame('payload_missing', $context['reason'] ?? null);
     }
 
     private function buildScheduler(): RetryScheduler
