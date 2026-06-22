@@ -5,6 +5,10 @@ This project aims for low operational overhead with strong reliability and clear
 ## Workflow
 
 1. Create a feature branch from the currently verified base branch in `AGENTS.md` and live repo state.
+   - Use `release/0.1.0` for active 0.1.0 milestone work.
+   - Use `release/<milestone-number>` for any issue or pull request assigned to a milestone.
+   - Use `develop` only for unmilestoned development integration or as the source for creating a missing milestone branch.
+   - Do not target implementation pull requests directly to `main`.
 2. Keep pull requests focused on one feature/fix.
 3. Include tests for behavior changes where practical.
 4. Update docs for user-visible or operational changes.

@@ -9,32 +9,37 @@ Guidance for AI coding agents working in the OneSMTP plugin repository.
   - PHPUnit, PHPCS/WPCS, PHPStan
   - Minimal Node-based build tooling for packaging and future assets
 - Current remote branch layout:
-  - `main` is the only verified long-lived branch in this repository today
-  - Do not assume `develop` or `release/*` exists unless live Git and GitHub state confirm it in the current run
+  - `main` is production release space only
+  - `develop` is the development integration branch
+  - `release/0.1.0` is the active milestone stabilization branch
+  - Re-verify live Git and GitHub state before assuming any future `release/*` branch exists
 
 ## Branch And PR Workflow
 - Rehydrate branch state before changes:
   - `git status --short --branch`
   - `git branch -a`
   - verify the GitHub default branch and open PR base branches live
-- Until a separate integration branch exists, treat `main` as both the default development branch and the production branch.
 - Create one focused work branch per issue or direct fix:
   - issue work: `issue/<issue-number>-<short-slug>`
   - docs/workflow updates: `docs/<short-slug>`
 - Never rely on GitHub's default PR base. Set the base branch explicitly when opening every PR.
-- If a milestone-specific stabilization branch is created later, name it `release/<milestone>` and branch milestone work from that release branch instead of from `main`.
+- Target 0.1.0 milestone work to `release/0.1.0`.
+- Target every milestone-assigned issue or PR to its specific `release/<milestone-number>` branch.
+- Use `develop` only for unmilestoned development integration or as the verified source for creating a missing milestone branch when repo policy supports it.
+- Do not open implementation PRs against `main`.
+- When a new milestone stabilization branch is needed, name it `release/<milestone-number>` and create it from the verified development base before opening milestone work.
 - If branch policy becomes ambiguous or multiple candidate bases exist, stop and tag `@mehul0810` rather than guessing.
 
 ## Release Workflow
 - Keep release approval manual and explicit.
 - Agents may prepare docs, changelog, packaging, and validation work, but must not create releases, publish tags, or merge production release PRs without current maintainer approval.
 - The existing release automation lives in `.github/workflows/release.yml` and publishes artifacts only from version tags.
+- After a production release, sync the released changes back into `develop` before starting unrelated future milestone work.
 - Before any release recommendation, verify:
   - milestone scope is resolved or explicitly deferred
   - `CHANGELOG.md` is ready
   - CI is green for the candidate branch
   - package verification still succeeds
-- If a future long-lived integration branch is introduced, document the post-release sync path in this file and related repo docs in the same change. Until then, there is no separate post-release sync step to assume.
 
 ## Validation Gates
 - For PHP changes, prefer this minimum local gate:
@@ -47,6 +52,7 @@ Guidance for AI coding agents working in the OneSMTP plugin repository.
   - `.github/workflows/ci.yml`
   - `.github/workflows/performance-smoke.yml`
   - `.github/workflows/release.yml`
+- CI and performance smoke should run for pull requests and for pushes to `main`, `develop`, and `release/**`.
 - If a touched area cannot be validated locally, call out the gap clearly in the PR body.
 
 ## Docs And Changelog Rules
@@ -63,4 +69,4 @@ Guidance for AI coding agents working in the OneSMTP plugin repository.
 ## When Unsure
 - Prefer small docs-only or validation-only PRs over speculative workflow changes.
 - Prefer live verification over static branch or milestone assumptions.
-- Escalate ambiguous release-scope or branch-policy decisions to `@mehul0810`.
+- Escalate only hard gates to `@mehul0810`: production or beta releases, tags, publishing, issue closure, milestone due-date or ambiguous retargeting, destructive migrations, pricing/licensing, privacy/security, public API/schema, broad positioning, or genuinely ambiguous tradeoffs.
