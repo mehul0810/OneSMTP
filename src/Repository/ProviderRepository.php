@@ -7,17 +7,20 @@ namespace OneSMTP\Repository;
 use OneSMTP\Core\TableNames;
 use OneSMTP\Providers\ProviderStateCache;
 use OneSMTP\Providers\ProviderTypes;
+use OneSMTP\Security\Redactor;
 use OneSMTP\Security\SecretVault;
 
 final class ProviderRepository
 {
     private SecretVault $vault;
     private ProviderStateCache $cache;
+    private Redactor $redactor;
 
-    public function __construct(?SecretVault $vault = null, ?ProviderStateCache $cache = null)
+    public function __construct(?SecretVault $vault = null, ?ProviderStateCache $cache = null, ?Redactor $redactor = null)
     {
         $this->vault = $vault ?? new SecretVault();
         $this->cache = $cache ?? new ProviderStateCache();
+        $this->redactor = $redactor ?? new Redactor();
     }
 
     public function getActiveProviders(): array
@@ -48,6 +51,11 @@ final class ProviderRepository
         return is_array($rows) ? array_map([$this, 'mapProviderRow'], $rows) : [];
     }
 
+    public function getAllSafe(): array
+    {
+        return array_map([$this, 'safeProvider'], $this->getAll());
+    }
+
     public function find(int $providerId): ?array
     {
         global $wpdb;
@@ -56,6 +64,13 @@ final class ProviderRepository
         $row = $wpdb->get_row($sql, ARRAY_A);
 
         return is_array($row) ? $this->mapProviderRow($row) : null;
+    }
+
+    public function findSafe(int $providerId): ?array
+    {
+        $provider = $this->find($providerId);
+
+        return is_array($provider) ? $this->safeProvider($provider) : null;
     }
 
     public function save(array $provider): int
@@ -157,6 +172,17 @@ final class ProviderRepository
         $row['config'] = $this->decodeConfig(isset($row['config_json']) ? (string) $row['config_json'] : '');
 
         return $row;
+    }
+
+    private function safeProvider(array $provider): array
+    {
+        unset($provider['config_json']);
+
+        $provider['config'] = $this->redactor->redactArray(
+            isset($provider['config']) && is_array($provider['config']) ? $provider['config'] : []
+        );
+
+        return $provider;
     }
 
     private function decodeConfig(string $json): array
