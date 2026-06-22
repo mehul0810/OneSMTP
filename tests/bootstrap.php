@@ -400,9 +400,34 @@ if (! function_exists('wp_cache_add')) {
     }
 }
 
+if (! function_exists('wp_cache_get')) {
+    function wp_cache_get(string $key, string $group = '', bool $force = false, mixed &$found = null): mixed
+    {
+        $index = $group . ':' . $key;
+        $found = array_key_exists($index, $GLOBALS['onesmtp_test_object_cache'] ?? []);
+
+        return $found ? $GLOBALS['onesmtp_test_object_cache'][$index] : false;
+    }
+}
+
+if (! function_exists('wp_cache_set')) {
+    function wp_cache_set(string $key, mixed $data, string $group = '', int $expire = 0): bool
+    {
+        if (! isset($GLOBALS['onesmtp_test_object_cache'])) {
+            $GLOBALS['onesmtp_test_object_cache'] = [];
+        }
+
+        $GLOBALS['onesmtp_test_object_cache'][$group . ':' . $key] = $data;
+
+        return true;
+    }
+}
+
 if (! function_exists('wp_cache_delete')) {
     function wp_cache_delete(string $key, string $group = ''): bool
     {
+        unset($GLOBALS['onesmtp_test_object_cache'][$group . ':' . $key]);
+
         return true;
     }
 }
