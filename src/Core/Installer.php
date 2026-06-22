@@ -6,6 +6,9 @@ namespace OneSMTP\Core;
 
 final class Installer
 {
+    public const VERSION_OPTION       = 'onesmtp_version';
+    public const RETENTION_DAYS_OPTION = 'onesmtp_log_retention_days';
+
     public static function activate(): void
     {
         DatabaseSchema::createTables();
@@ -18,9 +21,22 @@ final class Installer
         Capabilities::revokeDefaults();
     }
 
+    public static function uninstall(): void
+    {
+        /*
+         * Preserve delivery records and settings by default. A destructive
+         * uninstall path needs an explicit product decision and migration plan.
+         */
+    }
+
     private static function storeDefaults(): void
     {
-        add_option('onesmtp_version', ONESMTP_VERSION);
-        add_option('onesmtp_log_retention_days', RetentionPolicy::normalizeDays(30));
+        $version = defined('ONESMTP_VERSION') ? (string) constant('ONESMTP_VERSION') : '0.1.0';
+
+        update_option(self::VERSION_OPTION, $version, false);
+
+        if (get_option(self::RETENTION_DAYS_OPTION, null) === null) {
+            add_option(self::RETENTION_DAYS_OPTION, RetentionPolicy::normalizeDays(30), '', false);
+        }
     }
 }

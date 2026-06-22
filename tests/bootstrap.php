@@ -21,6 +21,10 @@ if (! defined('ARRAY_A')) {
     define('ARRAY_A', 'ARRAY_A');
 }
 
+if (! defined('ONESMTP_VERSION')) {
+    define('ONESMTP_VERSION', '0.1.0');
+}
+
 if (! class_exists('WP_Error')) {
     class WP_Error
     {
@@ -124,6 +128,85 @@ if (! function_exists('register_rest_route')) {
         ];
 
         return true;
+    }
+}
+
+if (! function_exists('register_uninstall_hook')) {
+    function register_uninstall_hook(string $file, callable $callback): void
+    {
+        $GLOBALS['onesmtp_test_uninstall_hook'] = [
+            'file' => $file,
+            'callback' => $callback,
+        ];
+    }
+}
+
+if (! function_exists('add_option')) {
+    function add_option(string $option, mixed $value = '', string $deprecated = '', bool $autoload = true): bool
+    {
+        if (! isset($GLOBALS['onesmtp_test_options'])) {
+            $GLOBALS['onesmtp_test_options'] = [];
+        }
+
+        if (array_key_exists($option, $GLOBALS['onesmtp_test_options'])) {
+            return false;
+        }
+
+        $GLOBALS['onesmtp_test_options'][$option] = [
+            'value' => $value,
+            'autoload' => $autoload,
+        ];
+
+        return true;
+    }
+}
+
+if (! function_exists('update_option')) {
+    function update_option(string $option, mixed $value, bool|string|null $autoload = null): bool
+    {
+        if (! isset($GLOBALS['onesmtp_test_options'])) {
+            $GLOBALS['onesmtp_test_options'] = [];
+        }
+
+        $GLOBALS['onesmtp_test_options'][$option] = [
+            'value' => $value,
+            'autoload' => $autoload,
+        ];
+
+        return true;
+    }
+}
+
+if (! function_exists('get_option')) {
+    function get_option(string $option, mixed $default = false): mixed
+    {
+        if (! array_key_exists($option, $GLOBALS['onesmtp_test_options'] ?? [])) {
+            return $default;
+        }
+
+        return $GLOBALS['onesmtp_test_options'][$option]['value'];
+    }
+}
+
+if (! function_exists('delete_option')) {
+    function delete_option(string $option): bool
+    {
+        unset($GLOBALS['onesmtp_test_options'][$option]);
+
+        return true;
+    }
+}
+
+if (! function_exists('dbDelta')) {
+    function dbDelta(string $queries = '', bool $execute = true): array
+    {
+        if (! isset($GLOBALS['onesmtp_test_dbdelta_queries'])) {
+            $GLOBALS['onesmtp_test_dbdelta_queries'] = [];
+        }
+
+        $GLOBALS['onesmtp_test_dbdelta_queries'][] = $queries;
+
+        return [];
     }
 }
 
@@ -279,6 +362,13 @@ if (! function_exists('current_user_can')) {
     function current_user_can(string $capability): bool
     {
         return (bool) ($GLOBALS['onesmtp_test_current_user_can'] ?? true);
+    }
+}
+
+if (! function_exists('get_role')) {
+    function get_role(string $role): mixed
+    {
+        return $GLOBALS['onesmtp_test_roles'][$role] ?? null;
     }
 }
 
