@@ -347,6 +347,20 @@ if (! function_exists('sanitize_text_field')) {
     }
 }
 
+if (! function_exists('sanitize_textarea_field')) {
+    function sanitize_textarea_field(string $value): string
+    {
+        return trim(strip_tags($value));
+    }
+}
+
+if (! function_exists('sanitize_email')) {
+    function sanitize_email(string $email): string
+    {
+        return filter_var(trim($email), FILTER_SANITIZE_EMAIL) ?: '';
+    }
+}
+
 if (! function_exists('current_time')) {
     function current_time(string $type, bool $gmt = false): string
     {

@@ -5,6 +5,10 @@ declare(strict_types=1);
 namespace OneSMTP\Tests\Unit\Api;
 
 use OneSMTP\Api\RestController;
+use OneSMTP\Providers\ProviderAdapterInterface;
+use OneSMTP\Providers\ProviderAdapterRegistry;
+use OneSMTP\Providers\ProviderConfig;
+use OneSMTP\Providers\SendResult;
 use OneSMTP\Repository\ProviderRepository;
 use OneSMTP\Tests\Support\FakeWpdb;
 use PHPUnit\Framework\TestCase;
@@ -33,6 +37,14 @@ final class RestControllerTest extends TestCase
         self::assertArrayHasKey('args', $providerWriteRoute);
         self::assertArrayHasKey('adapter_type', $providerWriteRoute['args']);
         self::assertSame(['smtp', 'php_mail', 'gmail', 'sendgrid', 'postmark', 'brevo'], $providerWriteRoute['args']['adapter_type']['enum']);
+
+        $testRoute = $routes[2]['args'][0];
+        self::assertSame([RestController::class, 'canManage'], $testRoute['permission_callback']);
+        self::assertArrayHasKey('id', $testRoute['args']);
+        self::assertArrayHasKey('to', $testRoute['args']);
+        self::assertArrayHasKey('subject', $testRoute['args']);
+        self::assertArrayHasKey('message', $testRoute['args']);
+        self::assertArrayHasKey('body', $testRoute['args']);
 
         $messagesRoute = $routes[3]['args'][0];
         self::assertArrayHasKey('limit', $messagesRoute['args']);
@@ -150,6 +162,122 @@ final class RestControllerTest extends TestCase
         self::assertStringNotContainsString('plain-api-key', wp_json_encode($response->data));
     }
 
+    public function test_provider_test_email_sends_through_selected_adapter_with_safe_response(): void
+    {
+        $adapter = new TestEmailAdapter(new SendResult(true, 'accepted', 'Accepted by provider.', 'provider-message-id'));
+        $controller = $this->controllerWithProviders(
+            [
+                7 => [
+                    'id' => 7,
+                    'slug' => 'primary',
+                    'name' => 'Primary API',
+                    'adapter_type' => 'sendgrid',
+                    'priority' => 1,
+                    'weight' => 1,
+                    'is_active' => 1,
+                    'circuit_state' => 'closed',
+                    'config_json' => wp_json_encode(
+                        [
+                            'api_key' => 'secret-api-key',
+                            'timeout' => 10,
+                        ]
+                    ),
+                ],
+            ],
+            ['sendgrid' => $adapter]
+        );
+
+        $request = new WP_REST_Request(
+            ['id' => 7, 'to' => 'recipient@example.test', 'subject' => '  Test <b>subject</b>  '],
+            null
+        );
+
+        $response = $controller->testProvider($request);
+
+        self::assertSame(200, $response->status);
+        self::assertTrue($response->data['ok']);
+        self::assertSame('accepted', $response->data['code']);
+        self::assertSame('Accepted by provider.', $response->data['message']);
+        self::assertSame(
+            [
+                'provider_id' => 7,
+                'adapter_type' => 'sendgrid',
+                'to' => ['recipient@example.test'],
+            ],
+            $response->data['test']
+        );
+        self::assertSame(['recipient@example.test'], $adapter->lastMessage['to'] ?? []);
+        self::assertSame('Test subject', $adapter->lastMessage['subject'] ?? '');
+        self::assertSame('This is a test email sent by OneSMTP.', $adapter->lastMessage['message'] ?? '');
+        self::assertSame('secret-api-key', $adapter->lastConfig['api_key'] ?? null);
+        self::assertStringNotContainsString('secret-api-key', wp_json_encode($response->data));
+        self::assertStringNotContainsString('provider-message-id', wp_json_encode($response->data));
+    }
+
+    public function test_provider_test_email_returns_safe_failure_details(): void
+    {
+        $adapter = new TestEmailAdapter(new SendResult(false, 'sendgrid_api_error', 'Provider rejected the message.'));
+        $controller = $this->controllerWithProviders(
+            [
+                9 => [
+                    'id' => 9,
+                    'slug' => 'primary',
+                    'name' => 'Primary API',
+                    'adapter_type' => 'sendgrid',
+                    'priority' => 1,
+                    'weight' => 1,
+                    'is_active' => 1,
+                    'circuit_state' => 'closed',
+                    'config_json' => wp_json_encode(['api_key' => 'secret-api-key']),
+                ],
+            ],
+            ['sendgrid' => $adapter]
+        );
+
+        $response = $controller->testProvider(new WP_REST_Request(['id' => 9, 'to' => 'recipient@example.test'], null));
+
+        self::assertSame(422, $response->status);
+        self::assertFalse($response->data['ok']);
+        self::assertSame('sendgrid_api_error', $response->data['code']);
+        self::assertSame('Provider rejected the message.', $response->data['message']);
+        self::assertArrayNotHasKey('config', $response->data);
+        self::assertStringNotContainsString('secret-api-key', wp_json_encode($response->data));
+    }
+
+    public function test_provider_test_email_rejects_missing_provider_invalid_recipient_and_missing_adapter(): void
+    {
+        $controller = $this->controllerWithProviders(
+            [
+                12 => [
+                    'id' => 12,
+                    'slug' => 'unsupported',
+                    'name' => 'Unsupported',
+                    'adapter_type' => 'unknown',
+                    'priority' => 1,
+                    'weight' => 1,
+                    'is_active' => 1,
+                    'circuit_state' => 'closed',
+                    'config_json' => wp_json_encode([]),
+                ],
+            ],
+            []
+        );
+
+        $missing = $controller->testProvider(new WP_REST_Request(['id' => 99, 'to' => 'recipient@example.test'], null));
+        self::assertInstanceOf(WP_Error::class, $missing);
+        self::assertSame('missing_provider', $missing->get_error_code());
+
+        $invalidRecipient = $controller->testProvider(new WP_REST_Request(['id' => 12, 'to' => 'not-an-email'], null));
+        self::assertInstanceOf(WP_Error::class, $invalidRecipient);
+        self::assertSame('invalid_test_recipient', $invalidRecipient->get_error_code());
+
+        $missingAdapter = $controller->testProvider(new WP_REST_Request(['id' => 12, 'to' => 'recipient@example.test'], null));
+        self::assertSame(422, $missingAdapter->status);
+        self::assertFalse($missingAdapter->data['ok']);
+        self::assertSame('adapter_missing', $missingAdapter->data['code']);
+        self::assertSame('unknown', $missingAdapter->data['test']['adapter_type']);
+    }
+
     private function controllerWithoutConstructor(): RestController
     {
         $reflection = new \ReflectionClass(RestController::class);
@@ -161,5 +289,66 @@ final class RestControllerTest extends TestCase
     {
         $reflection = new \ReflectionProperty(RestController::class, $property);
         $reflection->setValue($controller, $value);
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $providers
+     * @param array<string,ProviderAdapterInterface> $adapters
+     */
+    private function controllerWithProviders(array $providers, array $adapters): RestController
+    {
+        $GLOBALS['wpdb'] = new FakeWpdb();
+        $GLOBALS['wpdb']->providerRowsById = $providers;
+
+        return new RestController(
+            new ProviderRepository(),
+            new \OneSMTP\Repository\MessageRepository(),
+            new \OneSMTP\Repository\AttemptRepository(),
+            $this->instanceWithoutConstructor(\OneSMTP\Pipeline\SendPipeline::class),
+            new ProviderAdapterRegistry($adapters)
+        );
+    }
+
+    /**
+     * @template T of object
+     * @param class-string<T> $className
+     * @return T
+     */
+    private function instanceWithoutConstructor(string $className): object
+    {
+        $reflection = new \ReflectionClass($className);
+
+        return $reflection->newInstanceWithoutConstructor();
+    }
+}
+
+final class TestEmailAdapter implements ProviderAdapterInterface
+{
+    /** @var array<string,mixed>|null */
+    public ?array $lastMessage = null;
+
+    /** @var array<string,mixed>|null */
+    public ?array $lastConfig = null;
+
+    public function __construct(private SendResult $result)
+    {
+    }
+
+    public function getSlug(): string
+    {
+        return 'sendgrid';
+    }
+
+    public function send(array $message, ProviderConfig $config): SendResult
+    {
+        $this->lastMessage = $message;
+        $this->lastConfig = $config->all();
+
+        return $this->result;
+    }
+
+    public function testConnection(ProviderConfig $config): SendResult
+    {
+        return new SendResult(false, 'wrong_path', 'testConnection should not be used for test emails.');
     }
 }
