@@ -7,6 +7,7 @@ namespace OneSMTP\Tests\Unit\Admin;
 use OneSMTP\Admin\AdminPage;
 use OneSMTP\Core\Capabilities;
 use OneSMTP\Plugin;
+use OneSMTP\Tests\Support\FakeWpdb;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
@@ -20,6 +21,7 @@ final class AdminPageTest extends TestCase
         $GLOBALS['onesmtp_test_admin_menu_pages'] = [];
         $GLOBALS['onesmtp_test_admin_submenu_pages'] = [];
         $GLOBALS['onesmtp_test_current_user_can'] = true;
+        $GLOBALS['wpdb'] = new FakeWpdb();
         unset($GLOBALS['onesmtp_test_wp_die']);
     }
 
@@ -69,7 +71,8 @@ final class AdminPageTest extends TestCase
         self::assertStringContainsString('id="onesmtp-logs"', $output);
         self::assertStringContainsString('id="onesmtp-diagnostics"', $output);
         self::assertStringContainsString('id="onesmtp-settings"', $output);
-        self::assertStringContainsString('Provider connection controls will appear here', $output);
+        self::assertStringContainsString('Create and manage the delivery providers', $output);
+        self::assertStringContainsString('Add or update provider', $output);
     }
 
     public function test_render_blocks_users_without_manage_capability(): void

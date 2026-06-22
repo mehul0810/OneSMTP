@@ -25,6 +25,10 @@ if (! defined('ONESMTP_VERSION')) {
     define('ONESMTP_VERSION', '0.1.0');
 }
 
+if (! defined('ONESMTP_TESTING')) {
+    define('ONESMTP_TESTING', true);
+}
+
 if (! defined('HOUR_IN_SECONDS')) {
     define('HOUR_IN_SECONDS', 3600);
 }
@@ -443,6 +447,24 @@ if (! function_exists('sanitize_textarea_field')) {
     }
 }
 
+if (! function_exists('wp_unslash')) {
+    function wp_unslash(mixed $value): mixed
+    {
+        if (is_array($value)) {
+            return array_map('wp_unslash', $value);
+        }
+
+        return is_string($value) ? stripslashes($value) : $value;
+    }
+}
+
+if (! function_exists('absint')) {
+    function absint(mixed $value): int
+    {
+        return abs((int) $value);
+    }
+}
+
 if (! function_exists('sanitize_email')) {
     function sanitize_email(string $email): string
     {
@@ -472,6 +494,13 @@ if (! function_exists('get_role')) {
     function get_role(string $role): mixed
     {
         return $GLOBALS['onesmtp_test_roles'][$role] ?? null;
+    }
+}
+
+if (! function_exists('__')) {
+    function __(string $text, string $domain = 'default'): string
+    {
+        return $text;
     }
 }
 
@@ -510,10 +539,72 @@ if (! function_exists('esc_url')) {
     }
 }
 
+if (! function_exists('wp_nonce_field')) {
+    function wp_nonce_field(string $action = '-1', string $name = '_wpnonce', bool $referer = true, bool $display = true): string
+    {
+        $field = '<input type="hidden" name="' . esc_attr($name) . '" value="test-nonce">';
+        if ($display) {
+            echo $field;
+        }
+
+        return $field;
+    }
+}
+
+if (! function_exists('check_admin_referer')) {
+    function check_admin_referer(string $action = '-1', string $queryArg = '_wpnonce'): int|false
+    {
+        if (($GLOBALS['onesmtp_test_nonce_valid'] ?? true) === false) {
+            wp_die('Invalid nonce.');
+        }
+
+        return 1;
+    }
+}
+
+if (! function_exists('submit_button')) {
+    function submit_button(string $text = '', string $type = 'primary', string $name = 'submit', bool $wrap = true, array|string $otherAttributes = ''): void
+    {
+        $button = '<input type="submit" name="' . esc_attr($name) . '" class="button ' . esc_attr($type) . '" value="' . esc_attr($text) . '">';
+        echo $wrap ? '<p class="submit">' . $button . '</p>' : $button;
+    }
+}
+
 if (! function_exists('admin_url')) {
     function admin_url(string $path = ''): string
     {
         return 'https://example.org/wp-admin/' . ltrim($path, '/');
+    }
+}
+
+if (! function_exists('add_query_arg')) {
+    function add_query_arg(array|string $key, mixed $value = null, string|false $url = false): string
+    {
+        $args = is_array($key) ? $key : [$key => $value];
+        $base = is_string($url) && $url !== '' ? $url : 'https://example.org/wp-admin/admin.php';
+        $fragment = '';
+
+        if (str_contains($base, '#')) {
+            [$base, $fragment] = explode('#', $base, 2);
+            $fragment = '#' . $fragment;
+        }
+
+        $separator = str_contains($base, '?') ? '&' : '?';
+
+        return $base . $separator . http_build_query($args) . $fragment;
+    }
+}
+
+if (! function_exists('wp_safe_redirect')) {
+    function wp_safe_redirect(string $location, int $status = 302, string $xRedirectBy = 'WordPress'): bool
+    {
+        $GLOBALS['onesmtp_test_redirect'] = [
+            'location' => $location,
+            'status' => $status,
+            'x_redirect_by' => $xRedirectBy,
+        ];
+
+        return true;
     }
 }
 

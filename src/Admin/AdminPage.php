@@ -5,14 +5,23 @@ declare(strict_types=1);
 namespace OneSMTP\Admin;
 
 use OneSMTP\Core\Capabilities;
+use OneSMTP\Repository\ProviderRepository;
 
 final class AdminPage
 {
     private const MENU_SLUG = 'onesmtp';
 
+    private ProviderAdmin $providers;
+
+    public function __construct(?ProviderAdmin $providers = null)
+    {
+        $this->providers = $providers ?? new ProviderAdmin(new ProviderRepository());
+    }
+
     public function registerHooks(): void
     {
         add_action('admin_menu', [$this, 'registerMenu']);
+        add_action('admin_init', [$this->providers, 'handleRequest']);
     }
 
     public function registerMenu(): void
@@ -63,7 +72,13 @@ final class AdminPage
         foreach ($sections as $section) {
             echo '<section id="' . esc_attr($section['id']) . '" class="onesmtp-admin-section">';
             echo '<h2>' . esc_html($section['title']) . '</h2>';
-            echo '<p>' . esc_html($section['description']) . '</p>';
+
+            if ($section['id'] === 'onesmtp-providers') {
+                $this->providers->render();
+            } else {
+                echo '<p>' . esc_html($section['description']) . '</p>';
+            }
+
             echo '</section>';
         }
 
@@ -82,7 +97,7 @@ final class AdminPage
             [
                 'id' => 'onesmtp-providers',
                 'title' => esc_html__('Providers', 'onesmtp'),
-                'description' => esc_html__('Provider connection controls will appear here as the provider setup flow is completed.', 'onesmtp'),
+                'description' => esc_html__('Manage delivery providers, priority, weights, and activation state.', 'onesmtp'),
                 'href' => $baseUrl . '#onesmtp-providers',
             ],
             [

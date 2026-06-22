@@ -17,6 +17,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Retry scheduler health detection with an admin notice when Action Scheduler is unavailable.
 - REST route schemas and strict request validation for provider and message operations.
 - Provider-specific test email REST flow with safe success and failure response metadata.
+- Server-rendered provider management UI for MVP provider setup, activation, priority, weight, and safe credential entry.
 - WordPress.org-ready readme metadata, 0.1.0 release notes draft, and screenshot checklist.
 
 ### Changed
