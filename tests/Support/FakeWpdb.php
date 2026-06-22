@@ -27,6 +27,9 @@ final class FakeWpdb
     /** @var array<int,array<string,mixed>> */
     public array $activeProviders = [];
 
+    /** @var array<int,array<string,mixed>> */
+    public array $providerRowsById = [];
+
     /** @var array{query:string,args:array<int,mixed>}|null */
     private ?array $lastPrepared = null;
 
@@ -97,6 +100,12 @@ final class FakeWpdb
             $history   = $this->attemptHistoryByMessage[$messageId] ?? [];
 
             return $history[0] ?? null;
+        }
+
+        if (str_contains($query, $this->prefix . 'onesmtp_providers') && str_contains($query, 'WHERE id = %d')) {
+            $providerId = isset($args[0]) ? (int) $args[0] : 0;
+
+            return $this->providerRowsById[$providerId] ?? null;
         }
 
         return null;
