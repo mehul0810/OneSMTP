@@ -14,3 +14,9 @@
 3. Inspect latest attempt in Email Logs.
 4. Confirm retries are scheduled in Action Scheduler.
 5. If no retry job exists, check for a retry scheduling failure event before assuming the message will retry automatically.
+
+## Retry Scheduler Unavailable Notice
+
+OneSMTP treats Action Scheduler as the MVP retry backend. If Action Scheduler is not loaded, OneSMTP fails closed instead of pretending a retry was queued.
+
+Admins who can manage OneSMTP see a dashboard notice when the scheduler backend is unavailable. Before packaging or approving a release build, confirm the notice is absent on a normal WordPress admin request and that retry scheduling tests pass.

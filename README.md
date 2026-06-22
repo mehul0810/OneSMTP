@@ -10,6 +10,7 @@ OneSMTP routes transactional emails across multiple providers with automatic fai
 - Smart provider rotation when multiple providers are configured
 - Email logging with provider-level delivery context
 - Action Scheduler-powered retry workflow with auto-switching behavior
+- Admin-visible retry scheduler health warning when Action Scheduler is unavailable
 - Manual resend with provider override
 - Provider support target: PHP mail, Gmail, SendGrid, Postmark, Brevo
 

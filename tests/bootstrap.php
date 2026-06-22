@@ -195,6 +195,20 @@ if (! function_exists('current_time')) {
     }
 }
 
+if (! function_exists('current_user_can')) {
+    function current_user_can(string $capability): bool
+    {
+        return (bool) ($GLOBALS['onesmtp_test_current_user_can'] ?? true);
+    }
+}
+
+if (! function_exists('esc_html__')) {
+    function esc_html__(string $text, string $domain = 'default'): string
+    {
+        return htmlspecialchars($text, ENT_QUOTES, 'UTF-8');
+    }
+}
+
 if (! function_exists('get_current_user_id')) {
     function get_current_user_id(): int
     {

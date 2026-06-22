@@ -13,7 +13,8 @@
 2. Trigger a test send.
 3. Simulate provider failure.
 4. Verify retry scheduling + provider switching.
-5. Verify log records and retention behavior.
+5. Confirm Action Scheduler is loaded in admin requests; OneSMTP should not show the retry scheduler unavailable notice in a healthy environment.
+6. Verify log records and retention behavior.
 
 ## Internationalization
 
