@@ -13,12 +13,14 @@ This project aims for low operational overhead with strong reliability and clear
 3. Include tests for behavior changes where practical.
 4. Update docs for user-visible or operational changes.
 5. Add a changelog entry in `CHANGELOG.md` under `Unreleased`.
+6. Check `DESIGN.md` for admin UI, docs, and launch-asset expectations.
 
 ## Pull Request Checklist
 
 - [ ] Code follows `CODE_STANDARDS.md`
 - [ ] Tests added or existing tests updated
 - [ ] Docs updated (or marked "No Docs Impact")
+- [ ] Design contract checked for admin UI, docs, or launch-asset changes
 - [ ] Changelog entry added
 - [ ] Backward compatibility considered
 

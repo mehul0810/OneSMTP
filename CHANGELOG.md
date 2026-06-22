@@ -11,6 +11,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Initial documentation scaffold for admin, developer, policies, and templates.
 - Baseline contribution and coding standards documentation.
 - Changelog policy and feature documentation update protocol.
+- Product design contract for admin UI, docs, and launch-asset decisions.
 
 ### Changed
 

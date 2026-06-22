@@ -39,6 +39,7 @@ OneSMTP routes transactional emails across multiple providers with automatic fai
 - Developer docs: `docs/developer/`
 - Policies: `docs/policies/`
 - Templates: `docs/templates/`
+- Product design contract: `DESIGN.md`
 
 ## Contributing
 
