@@ -7,7 +7,7 @@ namespace OneSMTP\Api;
 use OneSMTP\Core\Capabilities;
 use OneSMTP\Pipeline\SendPipeline;
 use OneSMTP\Providers\ProviderAdapterRegistry;
-use OneSMTP\Providers\ProviderConfig;
+use OneSMTP\Providers\ProviderDeliveryManager;
 use OneSMTP\Providers\ProviderTypes;
 use OneSMTP\Repository\AttemptRepository;
 use OneSMTP\Repository\MessageRepository;
@@ -24,6 +24,7 @@ final class RestController
     private AttemptRepository $attempts;
     private SendPipeline $pipeline;
     private ProviderAdapterRegistry $registry;
+    private ProviderDeliveryManager $deliveryManager;
 
     public function __construct(
         ProviderRepository $providers,
@@ -37,6 +38,7 @@ final class RestController
         $this->attempts = $attempts;
         $this->pipeline = $pipeline;
         $this->registry = $registry ?? new ProviderAdapterRegistry();
+        $this->deliveryManager = new ProviderDeliveryManager($this->registry);
     }
 
     public function registerRoutes(): void
@@ -86,7 +88,7 @@ final class RestController
                     'methods' => WP_REST_Server::CREATABLE,
                     'callback' => [$this, 'testProvider'],
                     'permission_callback' => [self::class, 'canManage'],
-                    'args' => self::idRequestArgs(),
+                    'args' => array_merge(self::idRequestArgs(), self::testEmailRequestArgs()),
                 ],
             ]
         );
@@ -204,19 +206,25 @@ final class RestController
             return new WP_Error('missing_provider', 'Provider not found.', ['status' => 404]);
         }
 
-        $adapterType = (string) ($provider['adapter_type'] ?? '');
-        $adapter = $this->registry->get($adapterType);
-        if ($adapter === null) {
-            return new WP_Error('unsupported_provider', 'Unsupported provider adapter.', ['status' => 422]);
+        $payload = $this->normalizeTestEmailPayload($request);
+        if ($payload instanceof WP_Error) {
+            return $payload;
         }
 
-        $result = $adapter->testConnection(new ProviderConfig((array) ($provider['config'] ?? [])));
+        $result = $this->deliveryManager->send($provider, $payload);
+        $providerId = (int) ($provider['id'] ?? $id);
+        $adapterType = sanitize_key((string) ($provider['adapter_type'] ?? ''));
 
         return new WP_REST_Response(
             [
                 'ok' => $result->isSuccess(),
                 'code' => $result->getCode(),
                 'message' => $result->getMessage(),
+                'test' => [
+                    'provider_id' => $providerId,
+                    'adapter_type' => $adapterType,
+                    'to' => $payload['to'],
+                ],
             ],
             $result->isSuccess() ? 200 : 422
         );
@@ -341,6 +349,32 @@ final class RestController
         ];
     }
 
+    private static function testEmailRequestArgs(): array
+    {
+        return [
+            'to' => [
+                'type' => 'string',
+                'required' => true,
+                'sanitize_callback' => 'sanitize_email',
+            ],
+            'subject' => [
+                'type' => 'string',
+                'required' => false,
+                'sanitize_callback' => 'sanitize_text_field',
+            ],
+            'message' => [
+                'type' => 'string',
+                'required' => false,
+                'sanitize_callback' => 'sanitize_textarea_field',
+            ],
+            'body' => [
+                'type' => 'string',
+                'required' => false,
+                'sanitize_callback' => 'sanitize_textarea_field',
+            ],
+        ];
+    }
+
     private function normalizeProviderPayload(WP_REST_Request $request): array|WP_Error
     {
         $payload = $request->get_json_params();
@@ -430,5 +464,38 @@ final class RestController
         }
 
         return $normalized;
+    }
+
+    private function normalizeTestEmailPayload(WP_REST_Request $request): array|WP_Error
+    {
+        $to = sanitize_email((string) $request->get_param('to'));
+        if ($to === '' || ! filter_var($to, FILTER_VALIDATE_EMAIL)) {
+            return new WP_Error('invalid_test_recipient', 'A valid recipient email address is required.', ['status' => 400]);
+        }
+
+        $subject = sanitize_text_field((string) ($request->get_param('subject') ?? ''));
+        if ($subject === '') {
+            $subject = '[OneSMTP] Test email';
+        }
+
+        $message = (string) ($request->get_param('message') ?? '');
+        if ($message === '') {
+            $message = (string) ($request->get_param('body') ?? '');
+        }
+
+        $message = sanitize_textarea_field($message);
+        if ($message === '') {
+            $message = 'This is a test email sent by OneSMTP.';
+        }
+
+        return [
+            'to' => [$to],
+            'subject' => $subject,
+            'message' => $message,
+            'headers' => [],
+            'meta' => [
+                'source' => 'rest_test_email',
+            ],
+        ];
     }
 }

@@ -15,6 +15,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Translation template generation workflow and baseline `languages/onesmtp.pot` release artifact.
 - Retry scheduler health detection with an admin notice when Action Scheduler is unavailable.
 - REST route schemas and strict request validation for provider and message operations.
+- Provider-specific test email REST flow with safe success and failure response metadata.
 
 ### Changed
 
