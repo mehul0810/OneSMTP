@@ -27,6 +27,7 @@ require_once ONESMTP_PATH . 'src/Autoloader.php';
 
 register_activation_hook(ONESMTP_FILE, ['\\OneSMTP\\Core\\Installer', 'activate']);
 register_deactivation_hook(ONESMTP_FILE, ['\\OneSMTP\\Core\\Installer', 'deactivate']);
+register_uninstall_hook(ONESMTP_FILE, ['\\OneSMTP\\Core\\Installer', 'uninstall']);
 
 add_action('plugins_loaded', static function (): void {
     $plugin = new \OneSMTP\Plugin();

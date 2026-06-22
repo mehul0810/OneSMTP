@@ -30,6 +30,11 @@ final class FakeWpdb
     /** @var array{query:string,args:array<int,mixed>}|null */
     private ?array $lastPrepared = null;
 
+    public function get_charset_collate(): string
+    {
+        return 'DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci';
+    }
+
     public function insert(string $table, array $data, array $format): int
     {
         $this->insert_id++;
