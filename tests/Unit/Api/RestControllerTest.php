@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace OneSMTP\Tests\Unit\Api;
 
 use OneSMTP\Api\RestController;
+use OneSMTP\Repository\ProviderRepository;
+use OneSMTP\Tests\Support\FakeWpdb;
 use PHPUnit\Framework\TestCase;
 use WP_Error;
 use WP_REST_Request;
@@ -105,10 +107,59 @@ final class RestControllerTest extends TestCase
         self::assertSame('invalid_provider_type', $result->get_error_code());
     }
 
+    public function test_list_providers_returns_safe_provider_config(): void
+    {
+        $GLOBALS['wpdb'] = new FakeWpdb();
+        $GLOBALS['wpdb']->activeProviders = [
+            [
+                'id' => 1,
+                'slug' => 'primary',
+                'name' => 'Primary SMTP',
+                'adapter_type' => 'smtp',
+                'priority' => 1,
+                'weight' => 1,
+                'is_active' => 1,
+                'circuit_state' => 'closed',
+                'config_json' => wp_json_encode(
+                    [
+                        'host' => 'smtp.example.test',
+                        'password' => 'plain-password',
+                        'api_key' => 'plain-api-key',
+                        'apikey' => 'plain-apikey',
+                        'nested' => [
+                            'access_token' => 'plain-token',
+                        ],
+                    ]
+                ),
+            ],
+        ];
+
+        $controller = $this->controllerWithoutConstructor();
+        $this->setControllerProperty($controller, 'providers', new ProviderRepository());
+
+        $response = $controller->listProviders();
+        $provider = $response->data['providers'][0];
+
+        self::assertArrayNotHasKey('config_json', $provider);
+        self::assertSame('smtp.example.test', $provider['config']['host']);
+        self::assertSame('[REDACTED]', $provider['config']['password']);
+        self::assertSame('[REDACTED]', $provider['config']['api_key']);
+        self::assertSame('[REDACTED]', $provider['config']['apikey']);
+        self::assertSame('[REDACTED]', $provider['config']['nested']['access_token']);
+        self::assertStringNotContainsString('plain-password', wp_json_encode($response->data));
+        self::assertStringNotContainsString('plain-api-key', wp_json_encode($response->data));
+    }
+
     private function controllerWithoutConstructor(): RestController
     {
         $reflection = new \ReflectionClass(RestController::class);
 
         return $reflection->newInstanceWithoutConstructor();
+    }
+
+    private function setControllerProperty(RestController $controller, string $property, mixed $value): void
+    {
+        $reflection = new \ReflectionProperty(RestController::class, $property);
+        $reflection->setValue($controller, $value);
     }
 }

@@ -152,7 +152,7 @@ final class RestController
 
     public function listProviders(): WP_REST_Response
     {
-        return new WP_REST_Response(['providers' => $this->providers->getAll()]);
+        return new WP_REST_Response(['providers' => $this->providers->getAllSafe()]);
     }
 
     public function saveProvider(WP_REST_Request $request)
@@ -172,7 +172,7 @@ final class RestController
             return new WP_Error('provider_save_failed', 'Unable to save provider.', ['status' => 422]);
         }
 
-        $provider = $this->providers->find($savedId);
+        $provider = $this->providers->findSafe($savedId);
 
         return new WP_REST_Response(['provider' => $provider], 201);
     }
