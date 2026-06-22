@@ -12,6 +12,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Baseline contribution and coding standards documentation.
 - Changelog policy and feature documentation update protocol.
 - Product design contract for admin UI, docs, and launch-asset decisions.
+- Translation template generation workflow and baseline `languages/onesmtp.pot` release artifact.
 
 ### Changed
 
