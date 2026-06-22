@@ -13,6 +13,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Changelog policy and feature documentation update protocol.
 - Product design contract for admin UI, docs, and launch-asset decisions.
 - Translation template generation workflow and baseline `languages/onesmtp.pot` release artifact.
+- Minimal admin menu and settings shell for providers, logs, diagnostics, and settings entry points.
 - Retry scheduler health detection with an admin notice when Action Scheduler is unavailable.
 - REST route schemas and strict request validation for provider and message operations.
 - Provider-specific test email REST flow with safe success and failure response metadata.

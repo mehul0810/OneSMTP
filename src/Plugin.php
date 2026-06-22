@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OneSMTP;
 
+use OneSMTP\Admin\AdminPage;
 use OneSMTP\Admin\SchedulerNotice;
 use OneSMTP\Api\RestController;
 use OneSMTP\Delivery\DeliveryEngine;
@@ -34,6 +35,9 @@ final class Plugin
         $schedulerHealth = new ActionSchedulerHealth();
         $schedulerNotice = new SchedulerNotice($schedulerHealth);
         $schedulerNotice->registerHooks();
+
+        $adminPage = new AdminPage();
+        $adminPage->registerHooks();
 
         $retryScheduler = new RetryScheduler($dispatchPolicy, $messages, $attempts, $providers, $events);
         $retryScheduler->registerHooks();

@@ -25,6 +25,14 @@ if (! defined('ONESMTP_VERSION')) {
     define('ONESMTP_VERSION', '0.1.0');
 }
 
+if (! defined('HOUR_IN_SECONDS')) {
+    define('HOUR_IN_SECONDS', 3600);
+}
+
+if (! defined('DAY_IN_SECONDS')) {
+    define('DAY_IN_SECONDS', 86400);
+}
+
 if (! class_exists('WP_Error')) {
     class WP_Error
     {
@@ -258,6 +266,62 @@ if (! function_exists('add_action')) {
     }
 }
 
+if (! function_exists('add_menu_page')) {
+    function add_menu_page(
+        string $pageTitle,
+        string $menuTitle,
+        string $capability,
+        string $menuSlug,
+        ?callable $callback = null,
+        string $iconUrl = '',
+        int|float|null $position = null
+    ): string {
+        if (! isset($GLOBALS['onesmtp_test_admin_menu_pages'])) {
+            $GLOBALS['onesmtp_test_admin_menu_pages'] = [];
+        }
+
+        $GLOBALS['onesmtp_test_admin_menu_pages'][] = [
+            'page_title' => $pageTitle,
+            'menu_title' => $menuTitle,
+            'capability' => $capability,
+            'menu_slug' => $menuSlug,
+            'callback' => $callback,
+            'icon_url' => $iconUrl,
+            'position' => $position,
+        ];
+
+        return 'toplevel_page_' . $menuSlug;
+    }
+}
+
+if (! function_exists('add_submenu_page')) {
+    function add_submenu_page(
+        string $parentSlug,
+        string $pageTitle,
+        string $menuTitle,
+        string $capability,
+        string $menuSlug,
+        ?callable $callback = null,
+        int|float|null $position = null
+    ): string|false {
+        if (! isset($GLOBALS['onesmtp_test_admin_submenu_pages'])) {
+            $GLOBALS['onesmtp_test_admin_submenu_pages'] = [];
+        }
+
+        $GLOBALS['onesmtp_test_admin_submenu_pages'][] = [
+            'parent_slug' => $parentSlug,
+            'page_title' => $pageTitle,
+            'menu_title' => $menuTitle,
+            'capability' => $capability,
+            'menu_slug' => $menuSlug,
+            'callback' => $callback,
+            'position' => $position,
+        ];
+
+        return $parentSlug . '_page_' . $menuSlug;
+    }
+}
+
 if (! function_exists('do_action')) {
     function do_action(string $hook, mixed ...$args): void
     {
@@ -269,6 +333,31 @@ if (! function_exists('do_action')) {
             'hook' => $hook,
             'args' => $args,
         ];
+    }
+}
+
+if (! function_exists('wp_next_scheduled')) {
+    function wp_next_scheduled(string $hook): int|false
+    {
+        return $GLOBALS['onesmtp_test_cron_events'][$hook]['timestamp'] ?? false;
+    }
+}
+
+if (! function_exists('wp_schedule_event')) {
+    function wp_schedule_event(int $timestamp, string $recurrence, string $hook, array $args = []): bool
+    {
+        if (! isset($GLOBALS['onesmtp_test_cron_events'])) {
+            $GLOBALS['onesmtp_test_cron_events'] = [];
+        }
+
+        $GLOBALS['onesmtp_test_cron_events'][$hook] = [
+            'timestamp' => $timestamp,
+            'recurrence' => $recurrence,
+            'hook' => $hook,
+            'args' => $args,
+        ];
+
+        return true;
     }
 }
 
@@ -390,6 +479,54 @@ if (! function_exists('esc_html__')) {
     function esc_html__(string $text, string $domain = 'default'): string
     {
         return htmlspecialchars($text, ENT_QUOTES, 'UTF-8');
+    }
+}
+
+if (! function_exists('esc_attr__')) {
+    function esc_attr__(string $text, string $domain = 'default'): string
+    {
+        return htmlspecialchars($text, ENT_QUOTES, 'UTF-8');
+    }
+}
+
+if (! function_exists('esc_html')) {
+    function esc_html(string $text): string
+    {
+        return htmlspecialchars($text, ENT_QUOTES, 'UTF-8');
+    }
+}
+
+if (! function_exists('esc_attr')) {
+    function esc_attr(string $text): string
+    {
+        return htmlspecialchars($text, ENT_QUOTES, 'UTF-8');
+    }
+}
+
+if (! function_exists('esc_url')) {
+    function esc_url(string $url): string
+    {
+        return htmlspecialchars($url, ENT_QUOTES, 'UTF-8');
+    }
+}
+
+if (! function_exists('admin_url')) {
+    function admin_url(string $path = ''): string
+    {
+        return 'https://example.org/wp-admin/' . ltrim($path, '/');
+    }
+}
+
+if (! function_exists('wp_die')) {
+    function wp_die(string $message = '', string $title = '', array|string|int $args = []): void
+    {
+        $GLOBALS['onesmtp_test_wp_die'] = [
+            'message' => $message,
+            'title' => $title,
+            'args' => $args,
+        ];
+
+        throw new RuntimeException($message);
     }
 }
 
