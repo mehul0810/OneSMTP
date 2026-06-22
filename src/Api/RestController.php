@@ -8,6 +8,7 @@ use OneSMTP\Core\Capabilities;
 use OneSMTP\Pipeline\SendPipeline;
 use OneSMTP\Providers\ProviderAdapterRegistry;
 use OneSMTP\Providers\ProviderConfig;
+use OneSMTP\Providers\ProviderTypes;
 use OneSMTP\Repository\AttemptRepository;
 use OneSMTP\Repository\MessageRepository;
 use OneSMTP\Repository\ProviderRepository;
@@ -53,6 +54,7 @@ final class RestController
                     'methods' => WP_REST_Server::CREATABLE,
                     'callback' => [$this, 'saveProvider'],
                     'permission_callback' => [self::class, 'canManage'],
+                    'args' => self::providerRequestArgs(),
                 ],
             ]
         );
@@ -65,11 +67,13 @@ final class RestController
                     'methods' => WP_REST_Server::EDITABLE,
                     'callback' => [$this, 'saveProvider'],
                     'permission_callback' => [self::class, 'canManage'],
+                    'args' => array_merge(self::idRequestArgs(), self::providerRequestArgs()),
                 ],
                 [
                     'methods' => WP_REST_Server::DELETABLE,
                     'callback' => [$this, 'deleteProvider'],
                     'permission_callback' => [self::class, 'canManage'],
+                    'args' => self::idRequestArgs(),
                 ],
             ]
         );
@@ -82,6 +86,7 @@ final class RestController
                     'methods' => WP_REST_Server::CREATABLE,
                     'callback' => [$this, 'testProvider'],
                     'permission_callback' => [self::class, 'canManage'],
+                    'args' => self::idRequestArgs(),
                 ],
             ]
         );
@@ -94,6 +99,16 @@ final class RestController
                     'methods' => WP_REST_Server::READABLE,
                     'callback' => [$this, 'listMessages'],
                     'permission_callback' => [self::class, 'canViewLogs'],
+                    'args' => [
+                        'limit' => [
+                            'type' => 'integer',
+                            'required' => false,
+                            'default' => 50,
+                            'minimum' => 1,
+                            'maximum' => 200,
+                            'validate_callback' => [self::class, 'validateListLimit'],
+                        ],
+                    ],
                 ],
             ]
         );
@@ -106,6 +121,7 @@ final class RestController
                     'methods' => WP_REST_Server::READABLE,
                     'callback' => [$this, 'listAttempts'],
                     'permission_callback' => [self::class, 'canViewLogs'],
+                    'args' => self::idRequestArgs(),
                 ],
             ]
         );
@@ -118,6 +134,17 @@ final class RestController
                     'methods' => WP_REST_Server::CREATABLE,
                     'callback' => [$this, 'resendMessage'],
                     'permission_callback' => [self::class, 'canResend'],
+                    'args' => array_merge(
+                        self::idRequestArgs(),
+                        [
+                            'provider_id' => [
+                                'type' => 'integer',
+                                'required' => false,
+                                'minimum' => 1,
+                                'validate_callback' => [self::class, 'validateOptionalPositiveId'],
+                            ],
+                        ]
+                    ),
                 ],
             ]
         );
@@ -130,9 +157,9 @@ final class RestController
 
     public function saveProvider(WP_REST_Request $request)
     {
-        $payload = $request->get_json_params();
-        if (! is_array($payload)) {
-            return new WP_Error('invalid_payload', 'Request body must be JSON.', ['status' => 400]);
+        $payload = $this->normalizeProviderPayload($request);
+        if ($payload instanceof WP_Error) {
+            return $payload;
         }
 
         $id = (int) $request->get_param('id');
@@ -231,6 +258,21 @@ final class RestController
         return new WP_REST_Response(['resent' => true, 'message_id' => $messageId, 'provider_id' => $providerId], 200);
     }
 
+    public static function validatePositiveId(mixed $value): bool
+    {
+        return is_numeric($value) && (int) $value > 0;
+    }
+
+    public static function validateOptionalPositiveId(mixed $value): bool
+    {
+        return $value === null || $value === '' || self::validatePositiveId($value);
+    }
+
+    public static function validateListLimit(mixed $value): bool
+    {
+        return is_numeric($value) && (int) $value >= 1 && (int) $value <= 200;
+    }
+
     public static function canManage(): bool
     {
         return Capabilities::canManage();
@@ -244,5 +286,149 @@ final class RestController
     public static function canResend(): bool
     {
         return Capabilities::canResendEmails();
+    }
+
+    private static function idRequestArgs(): array
+    {
+        return [
+            'id' => [
+                'type' => 'integer',
+                'required' => true,
+                'minimum' => 1,
+                'validate_callback' => [self::class, 'validatePositiveId'],
+            ],
+        ];
+    }
+
+    private static function providerRequestArgs(): array
+    {
+        return [
+            'slug' => [
+                'type' => 'string',
+                'required' => false,
+                'sanitize_callback' => 'sanitize_key',
+            ],
+            'name' => [
+                'type' => 'string',
+                'required' => true,
+                'minLength' => 1,
+                'sanitize_callback' => 'sanitize_text_field',
+            ],
+            'adapter_type' => [
+                'type' => 'string',
+                'required' => true,
+                'enum' => ProviderTypes::all(),
+                'sanitize_callback' => 'sanitize_key',
+            ],
+            'priority' => [
+                'type' => 'integer',
+                'required' => false,
+                'minimum' => 1,
+            ],
+            'weight' => [
+                'type' => 'integer',
+                'required' => false,
+                'minimum' => 1,
+            ],
+            'is_active' => [
+                'type' => 'boolean',
+                'required' => false,
+            ],
+            'config' => [
+                'type' => 'object',
+                'required' => false,
+            ],
+        ];
+    }
+
+    private function normalizeProviderPayload(WP_REST_Request $request): array|WP_Error
+    {
+        $payload = $request->get_json_params();
+        if (! is_array($payload)) {
+            return new WP_Error('invalid_payload', 'Request body must be JSON.', ['status' => 400]);
+        }
+
+        $allowed = array_keys(self::providerRequestArgs());
+        $unknown = array_values(array_diff(array_keys($payload), $allowed));
+        if ($unknown !== []) {
+            return new WP_Error(
+                'invalid_provider_fields',
+                'Provider payload contains unsupported fields.',
+                ['status' => 400, 'fields' => $unknown]
+            );
+        }
+
+        $adapterType = isset($payload['adapter_type']) ? sanitize_key((string) $payload['adapter_type']) : '';
+        if (! ProviderTypes::isSupported($adapterType)) {
+            return new WP_Error('invalid_provider_type', 'Provider adapter type is not supported.', ['status' => 400]);
+        }
+
+        $name = isset($payload['name']) ? trim((string) $payload['name']) : '';
+        if ($name === '') {
+            return new WP_Error('invalid_provider_name', 'Provider name is required.', ['status' => 400]);
+        }
+
+        $normalized = [
+            'adapter_type' => $adapterType,
+            'name' => sanitize_text_field($name),
+        ];
+
+        if (isset($payload['slug']) && trim((string) $payload['slug']) !== '') {
+            $normalized['slug'] = sanitize_key((string) $payload['slug']);
+        }
+
+        if (isset($payload['priority'])) {
+            if (! self::validatePositiveId($payload['priority'])) {
+                return new WP_Error('invalid_provider_priority', 'Provider priority must be a positive integer.', ['status' => 400]);
+            }
+
+            $normalized['priority'] = (int) $payload['priority'];
+        }
+
+        if (isset($payload['weight'])) {
+            if (! self::validatePositiveId($payload['weight'])) {
+                return new WP_Error('invalid_provider_weight', 'Provider weight must be a positive integer.', ['status' => 400]);
+            }
+
+            $normalized['weight'] = (int) $payload['weight'];
+        }
+
+        if (array_key_exists('is_active', $payload)) {
+            $normalized['is_active'] = filter_var($payload['is_active'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+            if ($normalized['is_active'] === null) {
+                return new WP_Error('invalid_provider_status', 'Provider active state must be boolean.', ['status' => 400]);
+            }
+        }
+
+        if (array_key_exists('config', $payload)) {
+            if (! is_array($payload['config'])) {
+                return new WP_Error('invalid_provider_config', 'Provider config must be an object.', ['status' => 400]);
+            }
+
+            $normalized['config'] = $this->normalizeProviderConfig($payload['config']);
+        }
+
+        return $normalized;
+    }
+
+    private function normalizeProviderConfig(array $config): array
+    {
+        $normalized = [];
+
+        foreach ($config as $key => $value) {
+            $key = sanitize_key((string) $key);
+            if ($key === '' || is_array($value) || is_object($value)) {
+                continue;
+            }
+
+            if (is_bool($value) || is_numeric($value)) {
+                $normalized[$key] = $value;
+                continue;
+            }
+
+            $normalized[$key] = sanitize_text_field((string) $value);
+        }
+
+        return $normalized;
     }
 }
