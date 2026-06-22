@@ -200,6 +200,17 @@ if (! function_exists('get_option')) {
     }
 }
 
+if (! function_exists('get_bloginfo')) {
+    function get_bloginfo(string $show = ''): string
+    {
+        if ($show === 'name') {
+            return 'Test Site';
+        }
+
+        return '';
+    }
+}
+
 if (! function_exists('delete_option')) {
     function delete_option(string $option): bool
     {
@@ -455,6 +466,13 @@ if (! function_exists('wp_unslash')) {
         }
 
         return is_string($value) ? stripslashes($value) : $value;
+    }
+}
+
+if (! function_exists('wp_generate_password')) {
+    function wp_generate_password(int $length = 12, bool $specialChars = true, bool $extraSpecialChars = false): string
+    {
+        return substr(str_repeat('a', max(1, $length)), 0, $length);
     }
 }
 

@@ -12,15 +12,18 @@ final class AdminPage
     private const MENU_SLUG = 'onesmtp';
 
     private ProviderAdmin $providers;
+    private SetupWizard $setupWizard;
 
-    public function __construct(?ProviderAdmin $providers = null)
+    public function __construct(?ProviderAdmin $providers = null, ?SetupWizard $setupWizard = null)
     {
         $this->providers = $providers ?? new ProviderAdmin(new ProviderRepository());
+        $this->setupWizard = $setupWizard ?? new SetupWizard(new ProviderRepository());
     }
 
     public function registerHooks(): void
     {
         add_action('admin_menu', [$this, 'registerMenu']);
+        add_action('admin_init', [$this->setupWizard, 'handleRequest']);
         add_action('admin_init', [$this->providers, 'handleRequest']);
     }
 
@@ -73,7 +76,9 @@ final class AdminPage
             echo '<section id="' . esc_attr($section['id']) . '" class="onesmtp-admin-section">';
             echo '<h2>' . esc_html($section['title']) . '</h2>';
 
-            if ($section['id'] === 'onesmtp-providers') {
+            if ($section['id'] === 'onesmtp-setup') {
+                $this->setupWizard->render();
+            } elseif ($section['id'] === 'onesmtp-providers') {
                 $this->providers->render();
             } else {
                 echo '<p>' . esc_html($section['description']) . '</p>';
@@ -94,6 +99,12 @@ final class AdminPage
         $baseUrl = admin_url('admin.php?page=' . self::MENU_SLUG);
 
         return [
+            [
+                'id' => 'onesmtp-setup',
+                'title' => esc_html__('Setup', 'onesmtp'),
+                'description' => esc_html__('Complete first-run setup for sender identity, provider configuration, test email verification, and setup log confirmation.', 'onesmtp'),
+                'href' => $baseUrl . '#onesmtp-setup',
+            ],
             [
                 'id' => 'onesmtp-providers',
                 'title' => esc_html__('Providers', 'onesmtp'),
