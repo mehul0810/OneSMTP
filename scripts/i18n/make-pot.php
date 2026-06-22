@@ -243,7 +243,7 @@ POT;
         $output .= 'msgstr ""' . PHP_EOL . PHP_EOL;
     }
 
-    return $output;
+    return rtrim($output) . PHP_EOL;
 }
 
 /**

@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace OneSMTP;
 
+use OneSMTP\Admin\SchedulerNotice;
 use OneSMTP\Api\RestController;
 use OneSMTP\Delivery\DeliveryEngine;
 use OneSMTP\Dispatch\DefaultDispatchPolicy;
 use OneSMTP\Logging\RetentionPruner;
 use OneSMTP\Pipeline\SendPipeline;
 use OneSMTP\Providers\ProviderStateCache;
+use OneSMTP\Queue\ActionSchedulerHealth;
 use OneSMTP\Queue\RetryScheduler;
 use OneSMTP\Repository\AttemptRepository;
 use OneSMTP\Repository\EventRepository;
@@ -28,6 +30,10 @@ final class Plugin
         $events    = new EventRepository();
         $stateCache = new ProviderStateCache();
         $stateCache->registerInvalidationHooks();
+
+        $schedulerHealth = new ActionSchedulerHealth();
+        $schedulerNotice = new SchedulerNotice($schedulerHealth);
+        $schedulerNotice->registerHooks();
 
         $retryScheduler = new RetryScheduler($dispatchPolicy, $messages, $attempts, $providers, $events);
         $retryScheduler->registerHooks();
