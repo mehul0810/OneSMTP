@@ -182,7 +182,6 @@ final class SendPipeline
 
         $runAt = $this->retryScheduler->scheduleRetry($messageId, $nextAttempt, $messageUuid);
         if (is_int($runAt) && $runAt > 0) {
-            $this->messages->markRetryScheduled($messageId, $attemptNo, $runAt);
             return;
         }
 
