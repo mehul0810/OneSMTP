@@ -61,6 +61,72 @@ if (! class_exists('WP_Error')) {
     }
 }
 
+if (! class_exists('WP_REST_Request')) {
+    class WP_REST_Request
+    {
+        /** @var array<string,mixed> */
+        private array $params = [];
+
+        /** @var mixed */
+        private mixed $json = null;
+
+        /**
+         * @param array<string,mixed> $params Request params.
+         */
+        public function __construct(array $params = [], mixed $json = null)
+        {
+            $this->params = $params;
+            $this->json = $json;
+        }
+
+        public function get_param(string $key): mixed
+        {
+            return $this->params[$key] ?? null;
+        }
+
+        public function get_json_params(): mixed
+        {
+            return $this->json;
+        }
+    }
+}
+
+if (! class_exists('WP_REST_Response')) {
+    class WP_REST_Response
+    {
+        public function __construct(public mixed $data = null, public int $status = 200)
+        {
+        }
+    }
+}
+
+if (! class_exists('WP_REST_Server')) {
+    class WP_REST_Server
+    {
+        public const READABLE = 'GET';
+        public const CREATABLE = 'POST';
+        public const EDITABLE = 'POST, PUT, PATCH';
+        public const DELETABLE = 'DELETE';
+    }
+}
+
+if (! function_exists('register_rest_route')) {
+    function register_rest_route(string $namespace, string $route, array $args): bool
+    {
+        if (! isset($GLOBALS['onesmtp_test_rest_routes'])) {
+            $GLOBALS['onesmtp_test_rest_routes'] = [];
+        }
+
+        $GLOBALS['onesmtp_test_rest_routes'][] = [
+            'namespace' => $namespace,
+            'route' => $route,
+            'args' => $args,
+        ];
+
+        return true;
+    }
+}
+
 if (! function_exists('add_filter')) {
     function add_filter(string $hook, callable $callback, int $priority = 10, int $acceptedArgs = 1): bool
     {
@@ -181,6 +247,20 @@ if (! function_exists('wp_generate_uuid4')) {
             random_int(0, 0xffff),
             random_int(0, 0xffff)
         );
+    }
+}
+
+if (! function_exists('sanitize_key')) {
+    function sanitize_key(string $key): string
+    {
+        return preg_replace('/[^a-z0-9_-]/', '', strtolower($key)) ?? '';
+    }
+}
+
+if (! function_exists('sanitize_text_field')) {
+    function sanitize_text_field(string $value): string
+    {
+        return trim(strip_tags($value));
     }
 }
 
