@@ -504,6 +504,10 @@ if (! function_exists('current_time')) {
 if (! function_exists('current_user_can')) {
     function current_user_can(string $capability): bool
     {
+        if (isset($GLOBALS['onesmtp_test_current_user_caps']) && is_array($GLOBALS['onesmtp_test_current_user_caps'])) {
+            return (bool) ($GLOBALS['onesmtp_test_current_user_caps'][$capability] ?? false);
+        }
+
         return (bool) ($GLOBALS['onesmtp_test_current_user_can'] ?? true);
     }
 }

@@ -18,6 +18,9 @@ final class FakeWpdb
     /** @var array<int,array<string,mixed>> */
     public array $messageRowsById = [];
 
+    /** @var array<int,array<string,mixed>> */
+    public array $recentMessageRows = [];
+
     /** @var array<string,array<string,mixed>> */
     public array $messageRowsByUuid = [];
 
@@ -125,6 +128,23 @@ final class FakeWpdb
         if (
             str_contains($prepared['query'], $this->prefix . 'onesmtp_attempts')
             && str_contains($prepared['query'], 'ORDER BY id DESC LIMIT 6')
+        ) {
+            $messageId = isset($prepared['args'][0]) ? (int) $prepared['args'][0] : 0;
+
+            return $this->attemptHistoryByMessage[$messageId] ?? [];
+        }
+
+        if (
+            str_contains($prepared['query'], $this->prefix . 'onesmtp_messages')
+            && str_contains($prepared['query'], 'FROM ' . $this->prefix . 'onesmtp_attempts')
+            && str_contains($prepared['query'], 'attempt_count')
+        ) {
+            return $this->recentMessageRows;
+        }
+
+        if (
+            str_contains($prepared['query'], $this->prefix . 'onesmtp_attempts')
+            && str_contains($prepared['query'], 'ORDER BY attempt_no ASC, id ASC')
         ) {
             $messageId = isset($prepared['args'][0]) ? (int) $prepared['args'][0] : 0;
 

@@ -192,4 +192,28 @@ final class MessageRepository
 
         return is_array($rows) ? $rows : [];
     }
+
+    public function listRecentWithAttemptCounts(int $limit = 50): array
+    {
+        global $wpdb;
+
+        $limit = max(1, min(200, $limit));
+        $messagesTable = TableNames::messages();
+        $attemptsTable = TableNames::attempts();
+        $sql = $wpdb->prepare(
+            "SELECT m.id, m.message_uuid, m.recipients_hash, m.payload_json, m.status, m.selected_provider_id, m.current_attempt, m.max_attempts, m.next_retry_at, m.created_at, m.updated_at, COALESCE(a.attempt_count, 0) AS attempt_count
+            FROM {$messagesTable} m
+            LEFT JOIN (
+                SELECT message_id, COUNT(id) AS attempt_count
+                FROM {$attemptsTable}
+                GROUP BY message_id
+            ) a ON a.message_id = m.id
+            ORDER BY m.id DESC
+            LIMIT %d",
+            $limit
+        );
+        $rows = $wpdb->get_results($sql, ARRAY_A);
+
+        return is_array($rows) ? $rows : [];
+    }
 }
