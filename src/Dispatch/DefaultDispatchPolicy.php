@@ -57,7 +57,7 @@ final class DefaultDispatchPolicy implements DispatchPolicyInterface
                 continue;
             }
 
-            if ((int) ($provider['is_active'] ?? 0) !== 1) {
+            if (array_key_exists('is_active', $provider) && (int) $provider['is_active'] !== 1) {
                 continue;
             }
 

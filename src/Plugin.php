@@ -36,15 +36,25 @@ final class Plugin
         $schedulerNotice = new SchedulerNotice($schedulerHealth);
         $schedulerNotice->registerHooks();
 
-        $adminPage = new AdminPage();
-        $adminPage->registerHooks();
-
         $retryScheduler = new RetryScheduler($dispatchPolicy, $messages, $attempts, $providers, $events);
         $retryScheduler->registerHooks();
 
         $deliveryEngine = new DeliveryEngine($providers, $attempts, $dispatchPolicy);
         $sendPipeline = new SendPipeline($messages, $attempts, $providers, $events, $retryScheduler, $deliveryEngine);
         $sendPipeline->registerHooks();
+
+        $adminPage = new AdminPage(
+            null,
+            null,
+            new Admin\LogAdmin(
+                $messages,
+                $attempts,
+                $providers,
+                null,
+                static fn (int $messageId, ?int $providerId): bool => $sendPipeline->resendMessage($messageId, $providerId)
+            )
+        );
+        $adminPage->registerHooks();
 
         add_action(
             'rest_api_init',

@@ -88,6 +88,33 @@ final class DeliveryEngineTest extends TestCase
         self::assertSame('provider_pool_exhausted', $context['reason'] ?? null);
     }
 
+    public function test_forced_provider_override_rejects_ineligible_provider_without_fallback(): void
+    {
+        $GLOBALS['wpdb']->activeProviders = [
+            ['id' => 100, 'adapter_type' => 'missing', 'is_active' => 1, 'priority' => 1, 'weight' => 1],
+        ];
+        $GLOBALS['wpdb']->providerRowsById[100] = [
+            'id' => 100,
+            'adapter_type' => 'missing',
+            'is_active' => 1,
+            'priority' => 1,
+            'weight' => 1,
+            'config_json' => '{}',
+        ];
+
+        $engine = $this->buildEngine();
+        $outcome = $engine->deliver(503, 2, ['to' => ['qa@example.com'], 'subject' => 'forced'], 999);
+
+        self::assertFalse($outcome->isSuccess());
+        self::assertSame(999, $outcome->getProviderId());
+        self::assertSame('ineligible_provider', $outcome->getCode());
+
+        $event = $this->findEventInsert('manual_resend_rejected');
+        self::assertNotNull($event);
+        self::assertSame(503, $event['data']['message_id']);
+        self::assertSame(999, $event['data']['provider_id']);
+    }
+
     private function buildEngine(): DeliveryEngine
     {
         return new DeliveryEngine(

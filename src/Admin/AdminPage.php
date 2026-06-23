@@ -29,6 +29,7 @@ final class AdminPage
         add_action('admin_menu', [$this, 'registerMenu']);
         add_action('admin_init', [$this->setupWizard, 'handleRequest']);
         add_action('admin_init', [$this->providers, 'handleRequest']);
+        add_action('admin_init', [$this->logs, 'handleRequest']);
     }
 
     public function registerMenu(): void
