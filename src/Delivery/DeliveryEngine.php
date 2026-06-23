@@ -34,6 +34,17 @@ final class DeliveryEngine
 
     public function deliver(int $messageId, int $attemptNo, array $payload, ?int $forcedProviderId = null): DeliveryOutcome
     {
+        if ($forcedProviderId !== null && $forcedProviderId > 0 && ! $this->isEligibleForcedProvider($forcedProviderId)) {
+            $this->events->add(
+                'manual_resend_rejected',
+                ['attempt' => $attemptNo, 'reason' => 'ineligible_provider'],
+                $messageId,
+                $forcedProviderId
+            );
+
+            return new DeliveryOutcome(false, $forcedProviderId, 'ineligible_provider', 'Selected provider is not eligible for resend.');
+        }
+
         $providerId = $this->resolveProviderId($messageId, $attemptNo, $forcedProviderId);
         if ($providerId <= 0) {
             $this->events->add('terminal_failure', ['attempt' => $attemptNo, 'reason' => 'provider_pool_exhausted'], $messageId);
@@ -88,6 +99,29 @@ final class DeliveryEngine
         $this->recordProviderSwitch($messageId, $attemptNo, $lastProviderId, (int) $providerId);
 
         return (int) $providerId;
+    }
+
+    private function isEligibleForcedProvider(int $providerId): bool
+    {
+        foreach ($this->providers->getActiveProviders() as $provider) {
+            if ((int) ($provider['id'] ?? 0) !== $providerId) {
+                continue;
+            }
+
+            if ((int) ($provider['is_active'] ?? 0) !== 1) {
+                return false;
+            }
+
+            if ((string) ($provider['circuit_state'] ?? 'closed') !== 'open') {
+                return true;
+            }
+
+            $until = isset($provider['circuit_until']) ? strtotime((string) $provider['circuit_until']) : false;
+
+            return ! is_int($until) || $until <= time();
+        }
+
+        return false;
     }
 
     private function recordProviderSwitch(int $messageId, int $attemptNo, int $fromProviderId, int $toProviderId): void

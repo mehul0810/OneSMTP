@@ -100,6 +100,45 @@ final class SendPipelineIntegrationTest extends TestCase
         self::assertNotNull($retryEvent);
     }
 
+    public function test_manual_resend_uses_forced_provider_and_records_lineage_attempt(): void
+    {
+        $this->seedProvider(30, 'test_resend');
+        $GLOBALS['wpdb']->messageRowsById[501] = [
+            'id' => 501,
+            'message_uuid' => 'lineage-501',
+            'payload_json' => wp_json_encode(
+                [
+                    'to' => ['qa@example.com'],
+                    'subject' => 'Manual resend',
+                    'message' => 'Hello',
+                    'headers' => ['X-OneSMTP-Message-ID: lineage-501'],
+                ]
+            ),
+            'status' => 'failed',
+            'max_attempts' => 6,
+        ];
+        $GLOBALS['wpdb']->attemptHistoryByMessage[501] = [
+            ['id' => 1, 'message_id' => 501, 'attempt_no' => 1, 'provider_id' => 30, 'result' => 'fail'],
+        ];
+
+        $pipeline = $this->buildPipeline(new StaticAdapter('test_resend', new SendResult(true, 'sent', 'resent', 'provider-resend-123')));
+
+        self::assertTrue($pipeline->resendMessage(501, 30));
+
+        $attemptInsert = $this->findInsert('onesmtp_attempts');
+        self::assertNotNull($attemptInsert);
+        self::assertSame(501, $attemptInsert['data']['message_id']);
+        self::assertSame(2, $attemptInsert['data']['attempt_no']);
+        self::assertSame(30, $attemptInsert['data']['provider_id']);
+        self::assertSame('manual_resend', $attemptInsert['data']['trigger_type']);
+        self::assertSame('sent', $attemptInsert['data']['result']);
+        self::assertSame('provider-resend-123', $attemptInsert['data']['provider_message_id']);
+
+        $sentUpdate = $this->findUpdate('onesmtp_messages', 'sent');
+        self::assertNotNull($sentUpdate);
+        self::assertSame(30, $sentUpdate['data']['selected_provider_id']);
+    }
+
     private function buildPipeline(StaticAdapter $adapter): SendPipeline
     {
         $dispatch = new DefaultDispatchPolicy();

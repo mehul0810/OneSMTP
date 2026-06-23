@@ -13,23 +13,66 @@ use OneSMTP\Security\Redactor;
 final class LogAdmin
 {
     private const DETAIL_PARAM = 'onesmtp_message_id';
+    private const ACTION_NAME  = 'onesmtp_log_action';
+    private const NONCE_NAME   = 'onesmtp_log_nonce';
     private const ERROR_LIMIT = 220;
 
     private MessageRepository $messages;
     private AttemptRepository $attempts;
     private ProviderRepository $providers;
     private Redactor $redactor;
+    /** @var callable(int,?int):bool|null */
+    private $resendHandler;
 
     public function __construct(
         MessageRepository $messages,
         AttemptRepository $attempts,
         ProviderRepository $providers,
-        ?Redactor $redactor = null
+        ?Redactor $redactor = null,
+        ?callable $resendHandler = null
     ) {
         $this->messages = $messages;
         $this->attempts = $attempts;
         $this->providers = $providers;
         $this->redactor = $redactor ?? new Redactor();
+        $this->resendHandler = $resendHandler;
+    }
+
+    public function handleRequest(): void
+    {
+        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+            return;
+        }
+
+        $action = isset($_POST[self::ACTION_NAME]) ? sanitize_key(wp_unslash((string) $_POST[self::ACTION_NAME])) : '';
+        if ($action !== 'resend') {
+            return;
+        }
+
+        if (! Capabilities::canResendEmails()) {
+            wp_die(
+                esc_html__('You do not have permission to resend OneSMTP emails.', 'onesmtp'),
+                esc_html__('OneSMTP access denied', 'onesmtp'),
+                ['response' => 403]
+            );
+        }
+
+        check_admin_referer(self::ACTION_NAME, self::NONCE_NAME);
+
+        $messageId = isset($_POST[self::DETAIL_PARAM]) ? absint(wp_unslash((string) $_POST[self::DETAIL_PARAM])) : 0;
+        if ($messageId <= 0 || ! is_array($this->messages->find($messageId))) {
+            $this->redirect('missing', $messageId);
+        }
+
+        $providerId = isset($_POST['provider_id']) ? absint(wp_unslash((string) $_POST['provider_id'])) : 0;
+        if ($providerId > 0 && ! $this->isEligibleProvider($providerId)) {
+            $this->redirect('ineligible_provider', $messageId);
+        }
+
+        $handler = $this->resendHandler;
+        $sent = is_callable($handler) && (bool) $handler($messageId, $providerId > 0 ? $providerId : null);
+
+        $this->redirect($sent ? 'resent' : 'failed', $messageId);
     }
 
     public function render(): void
@@ -46,6 +89,7 @@ final class LogAdmin
 
         $messageId = isset($_GET[self::DETAIL_PARAM]) ? absint(wp_unslash((string) $_GET[self::DETAIL_PARAM])) : 0;
         if ($messageId > 0) {
+            $this->renderNotice($messageId);
             $this->renderDetail($messageId);
             echo '<hr>';
         }
@@ -108,6 +152,7 @@ final class LogAdmin
 
         $payload = $this->payloadFor($message);
         $attempts = $this->attempts->listByMessageId($messageId);
+        $eligibleProviders = $this->eligibleProviders();
 
         echo '<h3>' . esc_html__('Message detail', 'onesmtp') . '</h3>';
         echo '<table class="widefat striped"><tbody>';
@@ -121,6 +166,8 @@ final class LogAdmin
         $this->renderDetailRow(__('Created', 'onesmtp'), (string) ($message['created_at'] ?? ''));
         $this->renderDetailRow(__('Updated', 'onesmtp'), (string) ($message['updated_at'] ?? ''));
         echo '</tbody></table>';
+
+        $this->renderResendForm($messageId, $payload, $eligibleProviders);
 
         echo '<h4>' . esc_html__('Attempt lineage', 'onesmtp') . '</h4>';
         if ($attempts === []) {
@@ -155,6 +202,54 @@ final class LogAdmin
         }
 
         echo '</tbody></table>';
+    }
+
+    /**
+     * @param array<string,mixed> $payload
+     * @param array<int,array<string,mixed>> $providers
+     */
+    private function renderResendForm(int $messageId, array $payload, array $providers): void
+    {
+        echo '<h4>' . esc_html__('Manual resend', 'onesmtp') . '</h4>';
+
+        if (! Capabilities::canResendEmails()) {
+            echo '<p>' . esc_html__('You do not have permission to resend this message.', 'onesmtp') . '</p>';
+
+            return;
+        }
+
+        if ($payload === []) {
+            echo '<div class="notice notice-warning inline"><p>' . esc_html__('This message cannot be resent because the stored safe payload is unavailable.', 'onesmtp') . '</p></div>';
+
+            return;
+        }
+
+        if ($providers === []) {
+            echo '<div class="notice notice-warning inline"><p>' . esc_html__('No eligible active providers are available for manual resend.', 'onesmtp') . '</p></div>';
+
+            return;
+        }
+
+        echo '<form method="post" class="onesmtp-resend-form">';
+        wp_nonce_field(self::ACTION_NAME, self::NONCE_NAME);
+        echo '<input type="hidden" name="' . esc_attr(self::ACTION_NAME) . '" value="resend">';
+        echo '<input type="hidden" name="' . esc_attr(self::DETAIL_PARAM) . '" value="' . esc_attr((string) $messageId) . '">';
+        echo '<p><label for="onesmtp-resend-provider">' . esc_html__('Provider override', 'onesmtp') . '</label><br>';
+        echo '<select id="onesmtp-resend-provider" name="provider_id">';
+        echo '<option value="0">' . esc_html__('Use normal provider selection', 'onesmtp') . '</option>';
+
+        foreach ($providers as $provider) {
+            $providerId = (int) ($provider['id'] ?? 0);
+            if ($providerId <= 0) {
+                continue;
+            }
+
+            echo '<option value="' . esc_attr((string) $providerId) . '">' . esc_html($this->providerLabel($provider)) . '</option>';
+        }
+
+        echo '</select></p>';
+        submit_button(__('Resend message', 'onesmtp'), 'secondary', 'submit', false);
+        echo '</form>';
     }
 
     private function renderDetailRow(string $label, string $value): void
@@ -237,6 +332,106 @@ final class LogAdmin
         $type = trim((string) ($provider['adapter_type'] ?? ''));
 
         return trim($name . ($type !== '' ? ' (' . $type . ')' : ''));
+    }
+
+    /**
+     * @return array<int,array<string,mixed>>
+     */
+    private function eligibleProviders(): array
+    {
+        return array_values(
+            array_filter(
+                $this->providers->getActiveProviders(),
+                fn (array $provider): bool => $this->providerIsEligible($provider)
+            )
+        );
+    }
+
+    private function isEligibleProvider(int $providerId): bool
+    {
+        foreach ($this->eligibleProviders() as $provider) {
+            if ((int) ($provider['id'] ?? 0) === $providerId) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * @param array<string,mixed> $provider
+     */
+    private function providerIsEligible(array $provider): bool
+    {
+        if ((int) ($provider['is_active'] ?? 0) !== 1) {
+            return false;
+        }
+
+        if ((string) ($provider['circuit_state'] ?? 'closed') !== 'open') {
+            return true;
+        }
+
+        $until = isset($provider['circuit_until']) ? strtotime((string) $provider['circuit_until']) : false;
+
+        return ! is_int($until) || $until <= time();
+    }
+
+    /**
+     * @param array<string,mixed> $provider
+     */
+    private function providerLabel(array $provider): string
+    {
+        $name = trim((string) ($provider['name'] ?? ''));
+        $type = trim((string) ($provider['adapter_type'] ?? ''));
+        $id = (int) ($provider['id'] ?? 0);
+
+        if ($name === '') {
+            $name = sprintf(
+                /* translators: %d: provider id. */
+                __('Provider #%d', 'onesmtp'),
+                $id
+            );
+        }
+
+        return trim($name . ($type !== '' ? ' (' . $type . ')' : ''));
+    }
+
+    private function renderNotice(int $messageId): void
+    {
+        $status = isset($_GET['onesmtp_resend_status']) ? sanitize_key(wp_unslash((string) $_GET['onesmtp_resend_status'])) : '';
+        if ($status === '') {
+            return;
+        }
+
+        $messages = [
+            'resent' => __('Manual resend completed. Review the attempt lineage for the recorded provider and result.', 'onesmtp'),
+            'failed' => __('Manual resend failed safely. Review the latest attempt lineage for sanitized failure context.', 'onesmtp'),
+            'missing' => __('The requested message could not be found for resend.', 'onesmtp'),
+            'ineligible_provider' => __('The selected provider is not eligible for manual resend.', 'onesmtp'),
+        ];
+
+        $message = $messages[$status] ?? __('Manual resend action could not be completed.', 'onesmtp');
+        $class = $status === 'resent' ? 'notice-success' : 'notice-error';
+
+        echo '<div class="notice ' . esc_attr($class) . '"><p>' . esc_html($message) . '</p></div>';
+    }
+
+    private function redirect(string $status, int $messageId): void
+    {
+        $url = add_query_arg(
+            [
+                self::DETAIL_PARAM => $messageId,
+                'onesmtp_resend_status' => $status,
+            ],
+            admin_url('admin.php?page=onesmtp#onesmtp-logs')
+        );
+
+        wp_safe_redirect($url);
+        if (defined('ONESMTP_TESTING') && ONESMTP_TESTING) {
+            throw new \RuntimeException('OneSMTP log admin redirected.');
+        }
+
+        exit;
     }
 
     private function formatStatus(string $status): string

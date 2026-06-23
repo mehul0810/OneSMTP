@@ -21,6 +21,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - WordPress.org-ready readme metadata, 0.1.0 release notes draft, and screenshot checklist.
 - First-run setup wizard for sender identity, first provider configuration, backup provider prompt, test email verification, and setup log confirmation.
 - Privacy-safe admin email log list and detail views with delivery lineage, safe recipient metadata, attempt status, provider, retry, and redacted error context.
+- Manual resend controls on log details with optional eligible-provider override and lineage-linked delivery attempts.
 
 ### Changed
 

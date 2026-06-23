@@ -18,17 +18,24 @@ final class LogAdminTest extends TestCase
     protected function setUp(): void
     {
         $_GET = [];
+        $_POST = [];
+        $_SERVER['REQUEST_METHOD'] = 'GET';
         $GLOBALS['wpdb'] = new FakeWpdb();
+        $GLOBALS['onesmtp_test_object_cache'] = [];
         $GLOBALS['onesmtp_test_current_user_caps'] = [
             Capabilities::VIEW_LOGS => true,
+            Capabilities::RESEND_EMAILS => false,
             'manage_options' => false,
         ];
         unset($GLOBALS['onesmtp_test_wp_die']);
+        unset($GLOBALS['onesmtp_test_redirect']);
     }
 
     protected function tearDown(): void
     {
-        unset($GLOBALS['onesmtp_test_current_user_caps'], $GLOBALS['onesmtp_test_wp_die']);
+        unset($GLOBALS['onesmtp_test_current_user_caps'], $GLOBALS['onesmtp_test_wp_die'], $GLOBALS['onesmtp_test_redirect'], $GLOBALS['onesmtp_test_object_cache']);
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+        $_POST = [];
     }
 
     public function test_render_requires_log_view_capability(): void
@@ -160,6 +167,149 @@ final class LogAdminTest extends TestCase
         self::assertStringNotContainsString('hunter2', $html);
         self::assertStringNotContainsString('abc123', $html);
         self::assertStringNotContainsString('person@example.net', $html);
+    }
+
+    public function test_render_detail_shows_resend_form_with_only_eligible_active_providers(): void
+    {
+        $GLOBALS['onesmtp_test_current_user_caps'][Capabilities::RESEND_EMAILS] = true;
+        $_GET['onesmtp_message_id'] = '99';
+        $GLOBALS['wpdb']->messageRowsById[99] = [
+            'id' => 99,
+            'message_uuid' => 'lineage-99',
+            'payload_json' => wp_json_encode(['to' => 'person@example.net', 'message' => 'Private body']),
+            'status' => 'failed',
+            'selected_provider_id' => 7,
+            'current_attempt' => 2,
+            'max_attempts' => 6,
+        ];
+        $GLOBALS['wpdb']->recentMessageRows = [$GLOBALS['wpdb']->messageRowsById[99] + ['attempt_count' => 2]];
+        $GLOBALS['wpdb']->activeProviders = [
+            ['id' => 7, 'name' => 'Primary SMTP', 'adapter_type' => 'smtp', 'is_active' => 1, 'priority' => 1, 'weight' => 1],
+            ['id' => 8, 'name' => 'Inactive SMTP', 'adapter_type' => 'smtp', 'is_active' => 0, 'priority' => 2, 'weight' => 1],
+            [
+                'id' => 9,
+                'name' => 'Open Circuit',
+                'adapter_type' => 'smtp',
+                'is_active' => 1,
+                'priority' => 3,
+                'weight' => 1,
+                'circuit_state' => 'open',
+                'circuit_until' => gmdate('Y-m-d H:i:s', time() + 300),
+            ],
+        ];
+
+        $html = $this->renderLogs();
+
+        self::assertStringContainsString('Manual resend', $html);
+        self::assertStringContainsString('name="onesmtp_log_action" value="resend"', $html);
+        self::assertStringContainsString('Use normal provider selection', $html);
+        self::assertStringContainsString('Primary SMTP (smtp)', $html);
+        self::assertStringNotContainsString('Inactive SMTP', $html);
+        self::assertStringNotContainsString('Open Circuit', $html);
+        self::assertStringNotContainsString('Private body', $html);
+        self::assertStringNotContainsString('person@example.net', $html);
+    }
+
+    public function test_resend_action_requires_resend_capability(): void
+    {
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = [
+            'onesmtp_log_action' => 'resend',
+            'onesmtp_log_nonce' => 'test-nonce',
+            'onesmtp_message_id' => '99',
+        ];
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('You do not have permission to resend OneSMTP emails.');
+
+        (new LogAdmin(new MessageRepository(), new AttemptRepository(), new ProviderRepository()))->handleRequest();
+    }
+
+    public function test_resend_action_invokes_pipeline_with_eligible_provider_override(): void
+    {
+        $GLOBALS['onesmtp_test_current_user_caps'][Capabilities::RESEND_EMAILS] = true;
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = [
+            'onesmtp_log_action' => 'resend',
+            'onesmtp_log_nonce' => 'test-nonce',
+            'onesmtp_message_id' => '99',
+            'provider_id' => '7',
+        ];
+        $GLOBALS['wpdb']->messageRowsById[99] = [
+            'id' => 99,
+            'message_uuid' => 'lineage-99',
+            'payload_json' => wp_json_encode(['to' => 'person@example.net']),
+        ];
+        $GLOBALS['wpdb']->activeProviders = [
+            ['id' => 7, 'name' => 'Primary SMTP', 'adapter_type' => 'smtp', 'is_active' => 1, 'priority' => 1, 'weight' => 1],
+        ];
+        $called = [];
+
+        $admin = new LogAdmin(
+            new MessageRepository(),
+            new AttemptRepository(),
+            new ProviderRepository(),
+            null,
+            static function (int $messageId, ?int $providerId) use (&$called): bool {
+                $called = [$messageId, $providerId];
+
+                return true;
+            }
+        );
+
+        try {
+            $admin->handleRequest();
+            self::fail('Expected redirect exception.');
+        } catch (RuntimeException $exception) {
+            self::assertSame('OneSMTP log admin redirected.', $exception->getMessage());
+        }
+
+        self::assertSame([99, 7], $called);
+        self::assertStringContainsString('onesmtp_resend_status=resent', (string) $GLOBALS['onesmtp_test_redirect']['location']);
+        self::assertStringContainsString('onesmtp_message_id=99', (string) $GLOBALS['onesmtp_test_redirect']['location']);
+    }
+
+    public function test_resend_action_rejects_ineligible_provider_before_pipeline_call(): void
+    {
+        $GLOBALS['onesmtp_test_current_user_caps'][Capabilities::RESEND_EMAILS] = true;
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = [
+            'onesmtp_log_action' => 'resend',
+            'onesmtp_log_nonce' => 'test-nonce',
+            'onesmtp_message_id' => '99',
+            'provider_id' => '8',
+        ];
+        $GLOBALS['wpdb']->messageRowsById[99] = [
+            'id' => 99,
+            'message_uuid' => 'lineage-99',
+            'payload_json' => wp_json_encode(['to' => 'person@example.net']),
+        ];
+        $GLOBALS['wpdb']->activeProviders = [
+            ['id' => 7, 'name' => 'Primary SMTP', 'adapter_type' => 'smtp', 'is_active' => 1, 'priority' => 1, 'weight' => 1],
+        ];
+        $called = false;
+
+        $admin = new LogAdmin(
+            new MessageRepository(),
+            new AttemptRepository(),
+            new ProviderRepository(),
+            null,
+            static function () use (&$called): bool {
+                $called = true;
+
+                return true;
+            }
+        );
+
+        try {
+            $admin->handleRequest();
+            self::fail('Expected redirect exception.');
+        } catch (RuntimeException $exception) {
+            self::assertSame('OneSMTP log admin redirected.', $exception->getMessage());
+        }
+
+        self::assertFalse($called);
+        self::assertStringContainsString('onesmtp_resend_status=ineligible_provider', (string) $GLOBALS['onesmtp_test_redirect']['location']);
     }
 
     public function test_render_missing_detail_row(): void
