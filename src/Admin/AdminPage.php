@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace OneSMTP\Admin;
 
 use OneSMTP\Core\Capabilities;
+use OneSMTP\Repository\AttemptRepository;
+use OneSMTP\Repository\MessageRepository;
 use OneSMTP\Repository\ProviderRepository;
 
 final class AdminPage
@@ -13,11 +15,13 @@ final class AdminPage
 
     private ProviderAdmin $providers;
     private SetupWizard $setupWizard;
+    private LogAdmin $logs;
 
-    public function __construct(?ProviderAdmin $providers = null, ?SetupWizard $setupWizard = null)
+    public function __construct(?ProviderAdmin $providers = null, ?SetupWizard $setupWizard = null, ?LogAdmin $logs = null)
     {
         $this->providers = $providers ?? new ProviderAdmin(new ProviderRepository());
         $this->setupWizard = $setupWizard ?? new SetupWizard(new ProviderRepository());
+        $this->logs = $logs ?? new LogAdmin(new MessageRepository(), new AttemptRepository(), new ProviderRepository());
     }
 
     public function registerHooks(): void
@@ -80,6 +84,8 @@ final class AdminPage
                 $this->setupWizard->render();
             } elseif ($section['id'] === 'onesmtp-providers') {
                 $this->providers->render();
+            } elseif ($section['id'] === 'onesmtp-logs') {
+                $this->logs->render();
             } else {
                 echo '<p>' . esc_html($section['description']) . '</p>';
             }
