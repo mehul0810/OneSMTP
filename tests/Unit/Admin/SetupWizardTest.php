@@ -9,6 +9,7 @@ use OneSMTP\Providers\ProviderAdapterInterface;
 use OneSMTP\Providers\ProviderAdapterRegistry;
 use OneSMTP\Providers\ProviderConfig;
 use OneSMTP\Providers\ProviderDeliveryManager;
+use OneSMTP\Providers\ProviderTypes;
 use OneSMTP\Providers\SendResult;
 use OneSMTP\Repository\EventRepository;
 use OneSMTP\Repository\ProviderRepository;
@@ -51,6 +52,39 @@ final class SetupWizardTest extends TestCase
         self::assertStringContainsString('Save first provider', $output);
         self::assertStringContainsString('Add and activate a provider before sending a setup test email.', $output);
         self::assertStringNotContainsString('plain-password', $output);
+    }
+
+    public function test_render_includes_provider_capability_matrix_from_metadata(): void
+    {
+        $wizard = new SetupWizard(new ProviderRepository());
+
+        ob_start();
+        $wizard->render();
+        $output = (string) ob_get_clean();
+
+        self::assertStringContainsString('Provider capability matrix', $output);
+        self::assertStringContainsString('API delivery', $output);
+        self::assertStringContainsString('Provider message ID', $output);
+
+        foreach (ProviderTypes::metadata() as $type => $provider) {
+            self::assertStringContainsString('<code>' . $type . '</code>', $output);
+            self::assertStringContainsString($provider['label'], $output);
+        }
+    }
+
+    public function test_render_marks_unavailable_capabilities_without_blocking_setup(): void
+    {
+        $wizard = new SetupWizard(new ProviderRepository());
+
+        ob_start();
+        $wizard->render();
+        $output = (string) ob_get_clean();
+
+        self::assertStringContainsString('Unavailable', $output);
+        self::assertStringContainsString('Unavailable capabilities do not block setup.', $output);
+        self::assertStringContainsString('Save first provider', $output);
+        self::assertStringNotContainsString('secret-api-key', $output);
+        self::assertStringNotContainsString('secret-password', $output);
     }
 
     public function test_non_manager_cannot_mutate_setup_state(): void
