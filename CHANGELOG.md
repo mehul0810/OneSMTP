@@ -8,6 +8,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ### Added
 
+- Sender identity settings for From Email, From Name, Reply-To, and BCC with explicit force controls.
 - Initial documentation scaffold for admin, developer, policies, and templates.
 - Baseline contribution and coding standards documentation.
 - Changelog policy and feature documentation update protocol.

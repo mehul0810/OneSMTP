@@ -29,6 +29,8 @@ final class PostmarkAdapter extends AbstractAdapter implements ProviderAdapterIn
 
         $headers = $this->normalizeHeaders($message['headers'] ?? []);
         $from = $this->extractFrom($headers);
+        $replyTo = $this->extractFirstAddress($this->extractReplyTo($headers));
+        $bcc = $this->extractBcc($headers);
 
         $payload = [
             'From' => $from['email'],
@@ -36,6 +38,14 @@ final class PostmarkAdapter extends AbstractAdapter implements ProviderAdapterIn
             'Subject' => $this->getSubject($message),
             'TextBody' => $this->getBody($message),
         ];
+
+        if ($replyTo !== '') {
+            $payload['ReplyTo'] = $replyTo;
+        }
+
+        if ($bcc !== []) {
+            $payload['Bcc'] = implode(',', $bcc);
+        }
 
         $response = wp_remote_post(
             'https://api.postmarkapp.com/email',
@@ -76,4 +86,3 @@ final class PostmarkAdapter extends AbstractAdapter implements ProviderAdapterIn
         return $this->send($probe, $config);
     }
 }
-

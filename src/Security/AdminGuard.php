@@ -50,7 +50,7 @@ final class AdminGuard
 
     private function shouldEnforceForCurrentRequest(): bool
     {
-        if (! function_exists('is_admin') || ! is_admin()) {
+        if (function_exists('is_admin') && ! is_admin()) {
             return false;
         }
 

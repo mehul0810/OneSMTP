@@ -29,6 +29,8 @@ final class BrevoAdapter extends AbstractAdapter implements ProviderAdapterInter
 
         $headers = $this->normalizeHeaders($message['headers'] ?? []);
         $from = $this->extractFrom($headers);
+        $replyTo = $this->extractFirstAddress($this->extractReplyTo($headers));
+        $bcc = $this->extractBcc($headers);
 
         $payload = [
             'sender' => [
@@ -39,6 +41,14 @@ final class BrevoAdapter extends AbstractAdapter implements ProviderAdapterInter
             'subject' => $this->getSubject($message),
             'textContent' => $this->getBody($message),
         ];
+
+        if ($replyTo !== '') {
+            $payload['replyTo'] = ['email' => $replyTo];
+        }
+
+        if ($bcc !== []) {
+            $payload['bcc'] = array_map(static fn (string $email): array => ['email' => $email], $bcc);
+        }
 
         $response = wp_remote_post(
             'https://api.brevo.com/v3/smtp/email',
@@ -79,4 +89,3 @@ final class BrevoAdapter extends AbstractAdapter implements ProviderAdapterInter
         return $this->send($probe, $config);
     }
 }
-
