@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace OneSMTP;
 
 use OneSMTP\Admin\AdminPage;
+use OneSMTP\Admin\MailConflictNotice;
 use OneSMTP\Admin\SchedulerNotice;
+use OneSMTP\Conflict\MailConflictDetector;
 use OneSMTP\Api\RestController;
 use OneSMTP\Delivery\DeliveryEngine;
 use OneSMTP\Dispatch\DefaultDispatchPolicy;
@@ -35,6 +37,9 @@ final class Plugin
         $schedulerHealth = new ActionSchedulerHealth();
         $schedulerNotice = new SchedulerNotice($schedulerHealth);
         $schedulerNotice->registerHooks();
+
+        $mailConflictNotice = new MailConflictNotice(new MailConflictDetector());
+        $mailConflictNotice->registerHooks();
 
         $retryScheduler = new RetryScheduler($dispatchPolicy, $messages, $attempts, $providers, $events);
         $retryScheduler->registerHooks();

@@ -22,6 +22,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - First-run setup wizard for sender identity, first provider configuration, backup provider prompt, test email verification, and setup log confirmation.
 - Privacy-safe admin email log list and detail views with delivery lineage, safe recipient metadata, attempt status, provider, retry, and redacted error context.
 - Manual resend controls on log details with optional eligible-provider override and lineage-linked delivery attempts.
+- Conservative conflict detection notice for active mail delivery plugins and mail-related hooks.
 
 ### Changed
 

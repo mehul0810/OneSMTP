@@ -200,6 +200,13 @@ if (! function_exists('get_option')) {
     }
 }
 
+if (! function_exists('get_site_option')) {
+    function get_site_option(string $option, mixed $default = false): mixed
+    {
+        return get_option($option, $default);
+    }
+}
+
 if (! function_exists('get_bloginfo')) {
     function get_bloginfo(string $show = ''): string
     {
@@ -278,6 +285,13 @@ if (! function_exists('add_action')) {
         ];
 
         return true;
+    }
+}
+
+if (! function_exists('has_filter')) {
+    function has_filter(string $hookName, callable|false $callback = false): bool
+    {
+        return isset($GLOBALS['wp_filter'][$hookName]) || isset($GLOBALS['onesmtp_test_filters'][$hookName]);
     }
 }
 
