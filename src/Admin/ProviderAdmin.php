@@ -71,6 +71,7 @@ final class ProviderAdmin
 
         $this->renderNotice();
         echo '<p>' . esc_html__('Create and manage the delivery providers OneSMTP can use for failover and rotation.', 'onesmtp') . '</p>';
+        (new ProviderCapabilityMatrix())->render();
         $this->renderProviderTable($providers);
         $this->renderForm();
     }

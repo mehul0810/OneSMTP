@@ -54,6 +54,9 @@ final class ProviderAdminTest extends TestCase
         $output = (string) ob_get_clean();
 
         self::assertStringContainsString('Primary SMTP', $output);
+        self::assertStringContainsString('Provider capability matrix', $output);
+        self::assertStringContainsString('API delivery', $output);
+        self::assertStringContainsString('Unavailable', $output);
         self::assertStringContainsString('smtp.example.test', $output);
         self::assertStringContainsString('[REDACTED]', $output);
         self::assertStringNotContainsString('plain-password', $output);

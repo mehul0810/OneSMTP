@@ -73,6 +73,7 @@ final class SetupWizard
         $this->renderNotice();
         echo '<p>' . esc_html__('Use this guided setup to configure a sender identity, add the first delivery provider, verify delivery, and confirm logging is recording setup activity.', 'onesmtp') . '</p>';
         $this->renderProgress($providers);
+        (new ProviderCapabilityMatrix())->render();
         $this->renderProviderForm($providers);
         $this->renderTestForm($providers);
         $this->renderCompletion($providers);

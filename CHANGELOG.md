@@ -24,6 +24,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Privacy-safe admin email log list and detail views with delivery lineage, safe recipient metadata, attempt status, provider, retry, and redacted error context.
 - Manual resend controls on log details with optional eligible-provider override and lineage-linked delivery attempts.
 - Conservative conflict detection notice for active mail delivery plugins and mail-related hooks.
+- Provider capability matrix for comparing MVP provider delivery, testing, OAuth, attachment, and message identifier support before credential entry.
 
 ### Changed
 
