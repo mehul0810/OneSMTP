@@ -16,12 +16,14 @@ final class AdminPage
     private ProviderAdmin $providers;
     private SetupWizard $setupWizard;
     private LogAdmin $logs;
+    private SettingsAdmin $settings;
 
-    public function __construct(?ProviderAdmin $providers = null, ?SetupWizard $setupWizard = null, ?LogAdmin $logs = null)
+    public function __construct(?ProviderAdmin $providers = null, ?SetupWizard $setupWizard = null, ?LogAdmin $logs = null, ?SettingsAdmin $settings = null)
     {
         $this->providers = $providers ?? new ProviderAdmin(new ProviderRepository());
         $this->setupWizard = $setupWizard ?? new SetupWizard(new ProviderRepository());
         $this->logs = $logs ?? new LogAdmin(new MessageRepository(), new AttemptRepository(), new ProviderRepository());
+        $this->settings = $settings ?? new SettingsAdmin();
     }
 
     public function registerHooks(): void
@@ -30,6 +32,7 @@ final class AdminPage
         add_action('admin_init', [$this->setupWizard, 'handleRequest']);
         add_action('admin_init', [$this->providers, 'handleRequest']);
         add_action('admin_init', [$this->logs, 'handleRequest']);
+        add_action('admin_init', [$this->settings, 'handleRequest']);
     }
 
     public function registerMenu(): void
@@ -87,6 +90,8 @@ final class AdminPage
                 $this->providers->render();
             } elseif ($section['id'] === 'onesmtp-logs') {
                 $this->logs->render();
+            } elseif ($section['id'] === 'onesmtp-settings') {
+                $this->settings->render();
             } else {
                 echo '<p>' . esc_html($section['description']) . '</p>';
             }

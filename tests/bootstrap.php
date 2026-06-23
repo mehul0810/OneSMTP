@@ -504,6 +504,24 @@ if (! function_exists('sanitize_email')) {
     }
 }
 
+if (! function_exists('is_email')) {
+    function is_email(string $email): string|false
+    {
+        return filter_var($email, FILTER_VALIDATE_EMAIL) ? $email : false;
+    }
+}
+
+if (! function_exists('wp_verify_nonce')) {
+    function wp_verify_nonce(string $nonce, string $action = '-1'): int|false
+    {
+        if (($GLOBALS['onesmtp_test_nonce_valid'] ?? true) === false) {
+            return false;
+        }
+
+        return $nonce !== '' ? 1 : false;
+    }
+}
+
 if (! function_exists('current_time')) {
     function current_time(string $type, bool $gmt = false): string
     {
@@ -641,6 +659,50 @@ if (! function_exists('wp_safe_redirect')) {
         ];
 
         return true;
+    }
+}
+
+if (! function_exists('wp_remote_post')) {
+    function wp_remote_post(string $url, array $args = []): array|WP_Error
+    {
+        $GLOBALS['onesmtp_test_remote_posts'][] = [
+            'url' => $url,
+            'args' => $args,
+        ];
+
+        return $GLOBALS['onesmtp_test_remote_response'] ?? [
+            'response' => ['code' => 202],
+            'body' => '{}',
+        ];
+    }
+}
+
+if (! function_exists('is_wp_error')) {
+    function is_wp_error(mixed $thing): bool
+    {
+        return $thing instanceof WP_Error;
+    }
+}
+
+if (! function_exists('wp_remote_retrieve_response_code')) {
+    function wp_remote_retrieve_response_code(array|WP_Error $response): int
+    {
+        if ($response instanceof WP_Error) {
+            return 0;
+        }
+
+        return (int) ($response['response']['code'] ?? 0);
+    }
+}
+
+if (! function_exists('wp_remote_retrieve_body')) {
+    function wp_remote_retrieve_body(array|WP_Error $response): string
+    {
+        if ($response instanceof WP_Error) {
+            return '';
+        }
+
+        return (string) ($response['body'] ?? '');
     }
 }
 

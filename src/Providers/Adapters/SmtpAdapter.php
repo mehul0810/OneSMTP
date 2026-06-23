@@ -33,7 +33,8 @@ class SmtpAdapter extends AbstractAdapter implements ProviderAdapterInterface
             $mailer->SMTPSecure = (string) $config->get('encryption', PHPMailer::ENCRYPTION_STARTTLS);
             $mailer->Timeout = max(5, (int) $config->get('timeout', 30));
 
-            $from = $this->extractFrom($this->normalizeHeaders($message['headers'] ?? []));
+            $headers = $this->normalizeHeaders($message['headers'] ?? []);
+            $from = $this->extractFrom($headers);
             $mailer->setFrom((string) $from['email'], (string) $from['name']);
 
             $to = $this->normalizeRecipients($message['to'] ?? []);
@@ -43,6 +44,14 @@ class SmtpAdapter extends AbstractAdapter implements ProviderAdapterInterface
 
             foreach ($to as $recipient) {
                 $mailer->addAddress($recipient);
+            }
+
+            foreach ($this->extractReplyTo($headers) as $replyTo) {
+                $mailer->addReplyTo($replyTo, $this->extractFirstAddressName($headers, 'reply-to'));
+            }
+
+            foreach ($this->extractBcc($headers) as $bcc) {
+                $mailer->addBCC($bcc);
             }
 
             $mailer->Subject = $this->getSubject($message);
@@ -84,4 +93,3 @@ class SmtpAdapter extends AbstractAdapter implements ProviderAdapterInterface
         require_once ABSPATH . WPINC . '/PHPMailer/Exception.php';
     }
 }
-

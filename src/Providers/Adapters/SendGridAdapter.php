@@ -29,6 +29,8 @@ final class SendGridAdapter extends AbstractAdapter implements ProviderAdapterIn
 
         $headers = $this->normalizeHeaders($message['headers'] ?? []);
         $from = $this->extractFrom($headers);
+        $replyTo = $this->extractFirstAddress($this->extractReplyTo($headers));
+        $bcc = $this->extractBcc($headers);
         $subject = $this->getSubject($message);
         $body = $this->getBody($message);
 
@@ -50,6 +52,14 @@ final class SendGridAdapter extends AbstractAdapter implements ProviderAdapterIn
                 ],
             ],
         ];
+
+        if ($replyTo !== '') {
+            $payload['reply_to'] = ['email' => $replyTo];
+        }
+
+        if ($bcc !== []) {
+            $payload['personalizations'][0]['bcc'] = array_map(static fn (string $email): array => ['email' => $email], $bcc);
+        }
 
         $response = wp_remote_post(
             'https://api.sendgrid.com/v3/mail/send',
@@ -92,4 +102,3 @@ final class SendGridAdapter extends AbstractAdapter implements ProviderAdapterIn
         return new SendResult(false, $provider . '_api_error', (string) wp_remote_retrieve_body($response));
     }
 }
-
