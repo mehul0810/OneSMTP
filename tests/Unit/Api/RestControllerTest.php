@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace OneSMTP\Tests\Unit\Api;
 
 use OneSMTP\Api\RestController;
+use OneSMTP\Core\Capabilities;
 use OneSMTP\Providers\ProviderAdapterInterface;
 use OneSMTP\Providers\ProviderAdapterRegistry;
 use OneSMTP\Providers\ProviderConfig;
@@ -22,6 +23,7 @@ final class RestControllerTest extends TestCase
         parent::setUp();
 
         $GLOBALS['onesmtp_test_rest_routes'] = [];
+        unset($GLOBALS['onesmtp_test_current_user_caps'], $GLOBALS['onesmtp_test_current_user_can']);
     }
 
     public function test_register_routes_adds_validation_arguments(): void
@@ -53,6 +55,107 @@ final class RestControllerTest extends TestCase
         $resendRoute = $routes[5]['args'][0];
         self::assertArrayHasKey('id', $resendRoute['args']);
         self::assertArrayHasKey('provider_id', $resendRoute['args']);
+    }
+
+    /**
+     * @dataProvider sensitiveRoutePermissionProvider
+     *
+     * @param array{0:class-string,1:string} $expectedCallback
+     */
+    public function test_sensitive_route_permissions_reject_unauthenticated_and_low_privilege_users(
+        string $route,
+        int $operationIndex,
+        array $expectedCallback,
+        string $requiredCapability
+    ): void {
+        $operation = $this->registeredRouteOperation($route, $operationIndex);
+
+        self::assertSame($expectedCallback, $operation['permission_callback']);
+
+        $this->setCurrentUserCaps([]);
+        self::assertFalse($this->callPermissionCallback($operation['permission_callback']));
+
+        $this->setCurrentUserCaps(['read' => true, $requiredCapability => false, 'manage_options' => false]);
+        self::assertFalse($this->callPermissionCallback($operation['permission_callback']));
+    }
+
+    /**
+     * @dataProvider sensitiveRoutePermissionProvider
+     *
+     * @param array{0:class-string,1:string} $expectedCallback
+     */
+    public function test_sensitive_route_permissions_allow_route_capability_and_manage_options(
+        string $route,
+        int $operationIndex,
+        array $expectedCallback,
+        string $requiredCapability
+    ): void {
+        $operation = $this->registeredRouteOperation($route, $operationIndex);
+
+        self::assertSame($expectedCallback, $operation['permission_callback']);
+
+        $this->setCurrentUserCaps([$requiredCapability => true]);
+        self::assertTrue($this->callPermissionCallback($operation['permission_callback']));
+
+        $this->setCurrentUserCaps(['manage_options' => true]);
+        self::assertTrue($this->callPermissionCallback($operation['permission_callback']));
+    }
+
+    /**
+     * @return array<string,array{0:string,1:int,2:array{0:class-string,1:string},3:string}>
+     */
+    public static function sensitiveRoutePermissionProvider(): array
+    {
+        return [
+            'provider list' => [
+                '/providers',
+                0,
+                [RestController::class, 'canManage'],
+                Capabilities::MANAGE_PLUGIN,
+            ],
+            'provider create' => [
+                '/providers',
+                1,
+                [RestController::class, 'canManage'],
+                Capabilities::MANAGE_PLUGIN,
+            ],
+            'provider update' => [
+                '/providers/(?P<id>\d+)',
+                0,
+                [RestController::class, 'canManage'],
+                Capabilities::MANAGE_PLUGIN,
+            ],
+            'provider delete' => [
+                '/providers/(?P<id>\d+)',
+                1,
+                [RestController::class, 'canManage'],
+                Capabilities::MANAGE_PLUGIN,
+            ],
+            'provider test send' => [
+                '/providers/(?P<id>\d+)/test',
+                0,
+                [RestController::class, 'canManage'],
+                Capabilities::MANAGE_PLUGIN,
+            ],
+            'message log list' => [
+                '/messages',
+                0,
+                [RestController::class, 'canViewLogs'],
+                Capabilities::VIEW_LOGS,
+            ],
+            'message attempts' => [
+                '/messages/(?P<id>\d+)/attempts',
+                0,
+                [RestController::class, 'canViewLogs'],
+                Capabilities::VIEW_LOGS,
+            ],
+            'message resend' => [
+                '/messages/(?P<id>\d+)/resend',
+                0,
+                [RestController::class, 'canResend'],
+                Capabilities::RESEND_EMAILS,
+            ],
+        ];
     }
 
     public function test_id_and_limit_validators_reject_invalid_values(): void
@@ -289,6 +392,38 @@ final class RestControllerTest extends TestCase
     {
         $reflection = new \ReflectionProperty(RestController::class, $property);
         $reflection->setValue($controller, $value);
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function registeredRouteOperation(string $route, int $operationIndex): array
+    {
+        $controller = $this->controllerWithoutConstructor();
+        $controller->registerRoutes();
+
+        foreach ($GLOBALS['onesmtp_test_rest_routes'] as $registeredRoute) {
+            if ($registeredRoute['route'] !== $route) {
+                continue;
+            }
+
+            return $registeredRoute['args'][$operationIndex];
+        }
+
+        self::fail(sprintf('REST route %s was not registered.', $route));
+    }
+
+    /**
+     * @param array<string,bool> $caps
+     */
+    private function setCurrentUserCaps(array $caps): void
+    {
+        $GLOBALS['onesmtp_test_current_user_caps'] = $caps;
+    }
+
+    private function callPermissionCallback(callable $callback): bool
+    {
+        return (bool) $callback();
     }
 
     /**
