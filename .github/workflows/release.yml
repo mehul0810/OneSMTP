@@ -37,7 +37,9 @@ jobs:
           shasum -a 256 "$PLUGIN_SLUG.zip" > "$PLUGIN_SLUG.zip.sha256"
 
       - name: Verify package checksum
-        run: shasum -a 256 -c build/onesmtp.zip.sha256
+        run: |
+          cd build
+          shasum -a 256 -c onesmtp.zip.sha256
 
       - name: Upload package artifact
         uses: actions/upload-artifact@v4
