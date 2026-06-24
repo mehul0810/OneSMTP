@@ -7,6 +7,7 @@ namespace OneSMTP\Tests\Unit\Providers;
 use OneSMTP\Providers\Adapters\BrevoAdapter;
 use OneSMTP\Providers\Adapters\PostmarkAdapter;
 use OneSMTP\Providers\Adapters\SendGridAdapter;
+use OneSMTP\Providers\FailureCategory;
 use OneSMTP\Providers\ProviderConfig;
 use PHPUnit\Framework\TestCase;
 
@@ -60,6 +61,39 @@ final class ApiAdapterHeaderTest extends TestCase
 
         self::assertSame('reply@example.test', $payload['ReplyTo']);
         self::assertSame('audit@example.test,archive@example.test', $payload['Bcc']);
+    }
+
+    public function test_api_adapters_classify_http_auth_quota_and_timeout_failures(): void
+    {
+        $GLOBALS['onesmtp_test_remote_response'] = [
+            'response' => ['code' => 401],
+            'body' => '{"errors":[{"message":"Unauthorized"}]}',
+        ];
+        $auth = (new SendGridAdapter())->send($this->message(), new ProviderConfig(['api_key' => 'test-key']));
+
+        self::assertFalse($auth->isSuccess());
+        self::assertSame(FailureCategory::AUTHENTICATION, $auth->getFailureCategory());
+        self::assertFalse($auth->shouldRetry());
+
+        $GLOBALS['onesmtp_test_remote_response'] = [
+            'response' => ['code' => 429],
+            'body' => '{"message":"Too many requests"}',
+        ];
+        $quota = (new PostmarkAdapter())->send($this->message(), new ProviderConfig(['api_key' => 'test-key']));
+
+        self::assertFalse($quota->isSuccess());
+        self::assertSame(FailureCategory::QUOTA, $quota->getFailureCategory());
+        self::assertTrue($quota->shouldRetry());
+
+        $GLOBALS['onesmtp_test_remote_response'] = [
+            'response' => ['code' => 504],
+            'body' => '{"message":"Gateway timeout"}',
+        ];
+        $timeout = (new BrevoAdapter())->send($this->message(), new ProviderConfig(['api_key' => 'test-key']));
+
+        self::assertFalse($timeout->isSuccess());
+        self::assertSame(FailureCategory::TIMEOUT, $timeout->getFailureCategory());
+        self::assertTrue($timeout->shouldRetry());
     }
 
     private function message(): array

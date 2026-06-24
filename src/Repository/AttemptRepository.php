@@ -22,11 +22,12 @@ final class AttemptRepository
                 'result'               => (string) ($data['result'] ?? 'fail'),
                 'error_code'           => isset($data['error_code']) ? (string) $data['error_code'] : null,
                 'error_message'        => isset($data['error_message']) ? (string) $data['error_message'] : null,
+                'failure_category'     => isset($data['failure_category']) ? (string) $data['failure_category'] : null,
                 'latency_ms'           => isset($data['latency_ms']) ? (int) $data['latency_ms'] : null,
                 'provider_message_id'  => isset($data['provider_message_id']) ? (string) $data['provider_message_id'] : null,
                 'created_at'           => current_time('mysql', true),
             ],
-            ['%d', '%d', '%d', '%s', '%s', '%s', '%s', '%d', '%s', '%s']
+            ['%d', '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s']
         );
 
         if ($inserted === false) {

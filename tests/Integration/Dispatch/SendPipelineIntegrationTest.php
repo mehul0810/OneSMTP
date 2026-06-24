@@ -7,6 +7,7 @@ namespace OneSMTP\Tests\Integration\Dispatch;
 use OneSMTP\Delivery\DeliveryEngine;
 use OneSMTP\Dispatch\DefaultDispatchPolicy;
 use OneSMTP\Pipeline\SendPipeline;
+use OneSMTP\Providers\FailureCategory;
 use OneSMTP\Providers\ProviderAdapterInterface;
 use OneSMTP\Providers\ProviderAdapterRegistry;
 use OneSMTP\Providers\ProviderConfig;
@@ -90,6 +91,7 @@ final class SendPipelineIntegrationTest extends TestCase
         self::assertSame(20, $attemptInsert['data']['provider_id']);
         self::assertSame('fail', $attemptInsert['data']['result']);
         self::assertSame('provider_failed', $attemptInsert['data']['error_code']);
+        self::assertSame(FailureCategory::RETRYABLE, $attemptInsert['data']['failure_category']);
 
         $retryUpdate = $this->findUpdate('onesmtp_messages', 'retry_scheduled');
         self::assertNotNull($retryUpdate);
@@ -98,6 +100,45 @@ final class SendPipelineIntegrationTest extends TestCase
         self::assertCount(1, $GLOBALS['onesmtp_test_scheduled_actions']);
         $retryEvent = $this->findEventInsert('retry_scheduled');
         self::assertNotNull($retryEvent);
+    }
+
+    public function test_terminal_failure_category_marks_failed_without_scheduling_retry(): void
+    {
+        $this->seedProvider(25, 'test_terminal');
+
+        $pipeline = $this->buildPipeline(
+            new StaticAdapter(
+                'test_terminal',
+                new SendResult(false, 'missing_api_key', 'Provider API key is not configured.')
+            )
+        );
+
+        $result = $pipeline->handlePreWpMail(null, [
+            'to' => ['qa@example.com'],
+            'subject' => 'Pipeline terminal failure',
+            'message' => 'Hello',
+            'headers' => [],
+        ]);
+
+        self::assertFalse($result);
+
+        $attemptInsert = $this->findInsert('onesmtp_attempts');
+        self::assertNotNull($attemptInsert);
+        self::assertSame('missing_api_key', $attemptInsert['data']['error_code']);
+        self::assertSame(FailureCategory::AUTHENTICATION, $attemptInsert['data']['failure_category']);
+
+        self::assertSame([], $GLOBALS['onesmtp_test_scheduled_actions']);
+        self::assertNull($this->findEventInsert('retry_scheduled'));
+
+        $failedUpdate = $this->findUpdate('onesmtp_messages', 'failed');
+        self::assertNotNull($failedUpdate);
+        self::assertSame(1, $failedUpdate['data']['current_attempt']);
+
+        $terminalEvent = $this->findEventInsert('terminal_failure');
+        self::assertNotNull($terminalEvent);
+        $context = json_decode((string) $terminalEvent['data']['context_json'], true);
+        self::assertSame('missing_api_key', $context['reason'] ?? null);
+        self::assertSame(FailureCategory::AUTHENTICATION, $context['failure_category'] ?? null);
     }
 
     public function test_manual_resend_uses_forced_provider_and_records_lineage_attempt(): void

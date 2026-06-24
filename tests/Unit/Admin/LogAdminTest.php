@@ -135,6 +135,7 @@ final class LogAdminTest extends TestCase
                 'result' => 'fail',
                 'error_code' => 'provider_failed',
                 'error_message' => $longError,
+                'failure_category' => 'timeout',
                 'latency_ms' => 1200,
                 'provider_message_id' => 'provider-secret-id-1234567890',
                 'created_at' => '2026-06-23 10:01:00',
@@ -160,7 +161,7 @@ final class LogAdminTest extends TestCase
         self::assertStringContainsString('lineage-99', $html);
         self::assertStringContainsString('retry scheduled', $html);
         self::assertStringContainsString('2 / 6', $html);
-        self::assertStringContainsString('provider_failed: password=[REDACTED] token=[REDACTED]', $html);
+        self::assertStringContainsString('category=timeout provider_failed: password=[REDACTED] token=[REDACTED]', $html);
         self::assertStringContainsString('...', $html);
         self::assertStringContainsString('retry', $html);
         self::assertStringContainsString('sent', $html);

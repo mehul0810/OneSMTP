@@ -9,6 +9,7 @@ use OneSMTP\Admin\MailConflictNotice;
 use OneSMTP\Admin\SchedulerNotice;
 use OneSMTP\Conflict\MailConflictDetector;
 use OneSMTP\Api\RestController;
+use OneSMTP\Core\Installer;
 use OneSMTP\Delivery\DeliveryEngine;
 use OneSMTP\Dispatch\DefaultDispatchPolicy;
 use OneSMTP\Logging\RetentionPruner;
@@ -26,6 +27,8 @@ final class Plugin
 {
     public function boot(): void
     {
+        Installer::maybeUpgrade();
+
         $dispatchPolicy = new DefaultDispatchPolicy();
 
         $messages  = new MessageRepository();

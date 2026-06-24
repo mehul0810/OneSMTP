@@ -445,11 +445,15 @@ final class LogAdmin
     {
         $code = trim((string) ($attempt['error_code'] ?? ''));
         $message = trim((string) ($attempt['error_message'] ?? ''));
-        if ($code === '' && $message === '') {
+        $category = sanitize_key((string) ($attempt['failure_category'] ?? ''));
+        if ($code === '' && $message === '' && $category === '') {
             return __('None', 'onesmtp');
         }
 
         $context = trim($code . ($message !== '' ? ': ' . $message : ''));
+        if ($category !== '') {
+            $context = trim(sprintf('category=%s%s', $category, $context !== '' ? ' ' . $context : ''));
+        }
 
         return $this->redactor->redactText($context, self::ERROR_LIMIT);
     }
