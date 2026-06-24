@@ -7,6 +7,8 @@ namespace OneSMTP\Pipeline;
 use OneSMTP\Delivery\DeliveryEngine;
 use OneSMTP\Delivery\DeliveryOutcome;
 use OneSMTP\Queue\RetryScheduler;
+use OneSMTP\RateLimit\RateLimitDecision;
+use OneSMTP\RateLimit\RateLimiter;
 use OneSMTP\Repository\AttemptRepository;
 use OneSMTP\Repository\EventRepository;
 use OneSMTP\Repository\MessageRepository;
@@ -23,6 +25,7 @@ final class SendPipeline
     private EventRepository $events;
     private RetryScheduler $retryScheduler;
     private DeliveryEngine $deliveryEngine;
+    private RateLimiter $rateLimiter;
 
     /**
      * @var array<string,int>
@@ -35,7 +38,8 @@ final class SendPipeline
         ProviderRepository $providers,
         EventRepository $events,
         RetryScheduler $retryScheduler,
-        DeliveryEngine $deliveryEngine
+        DeliveryEngine $deliveryEngine,
+        ?RateLimiter $rateLimiter = null
     ) {
         $this->messages = $messages;
         $this->attempts = $attempts;
@@ -43,6 +47,7 @@ final class SendPipeline
         $this->events = $events;
         $this->retryScheduler = $retryScheduler;
         $this->deliveryEngine = $deliveryEngine;
+        $this->rateLimiter = $rateLimiter ?? new RateLimiter($attempts);
     }
 
     public function registerHooks(): void
@@ -70,10 +75,13 @@ final class SendPipeline
         }
 
         $attemptNo = max(1, $this->attempts->getAttemptCountForMessage($messageId) + 1);
-        $outcome = $this->deliveryEngine->deliver($messageId, $attemptNo, $captured, null);
-        $this->persistOutcome($messageId, $attemptNo, 'initial', $captured, $outcome);
-
-        return $outcome->isSuccess();
+        return $this->sendWithRateLimit(
+            $messageId,
+            $attemptNo,
+            'initial',
+            $captured,
+            fn () => $this->deliveryEngine->deliver($messageId, $attemptNo, $captured, null)
+        );
     }
 
     public function captureMessage(array $args): array
@@ -120,8 +128,14 @@ final class SendPipeline
             return;
         }
 
-        $outcome = $this->deliveryEngine->deliver($messageId, $attemptNo, $payload, $providerId !== null ? (int) $providerId : null);
-        $this->persistOutcome($messageId, $attemptNo, 'retry', $payload, $outcome, $messageUuid);
+        $this->sendWithRateLimit(
+            $messageId,
+            $attemptNo,
+            'retry',
+            $payload,
+            fn () => $this->deliveryEngine->deliver($messageId, $attemptNo, $payload, $providerId !== null ? (int) $providerId : null),
+            $messageUuid
+        );
     }
 
     public function handleManualResend(int $messageId, int $forcedProviderId = 0): void
@@ -137,10 +151,97 @@ final class SendPipeline
         }
 
         $attemptNo = max(1, $this->attempts->getAttemptCountForMessage($messageId) + 1);
-        $outcome = $this->deliveryEngine->deliver($messageId, $attemptNo, $payload, $forcedProviderId);
-        $this->persistOutcome($messageId, $attemptNo, 'manual_resend', $payload, $outcome);
+        return $this->sendWithRateLimit(
+            $messageId,
+            $attemptNo,
+            'manual_resend',
+            $payload,
+            fn () => $this->deliveryEngine->deliver($messageId, $attemptNo, $payload, $forcedProviderId)
+        );
+    }
 
-        return $outcome->isSuccess();
+    private function sendWithRateLimit(
+        int $messageId,
+        int $attemptNo,
+        string $triggerType,
+        array $payload,
+        callable $send,
+        ?string $messageUuid = null
+    ): bool {
+        if (! $this->rateLimiter->acquireSendLock()) {
+            return $this->deferForRateLimit(
+                $messageId,
+                $attemptNo,
+                $triggerType,
+                $payload,
+                RateLimitDecision::limited(5, 'backpressure_lock', 0, 0),
+                $messageUuid
+            );
+        }
+
+        try {
+            $decision = $this->rateLimiter->evaluate();
+            if (! $decision->canSend()) {
+                return $this->deferForRateLimit($messageId, $attemptNo, $triggerType, $payload, $decision, $messageUuid);
+            }
+
+            $outcome = $send();
+            if (! $outcome instanceof DeliveryOutcome) {
+                return false;
+            }
+
+            $this->persistOutcome($messageId, $attemptNo, $triggerType, $payload, $outcome, $messageUuid);
+
+            return $outcome->isSuccess();
+        } finally {
+            $this->rateLimiter->releaseSendLock();
+        }
+    }
+
+    private function deferForRateLimit(
+        int $messageId,
+        int $attemptNo,
+        string $triggerType,
+        array $payload,
+        RateLimitDecision $decision,
+        ?string $messageUuid = null
+    ): bool {
+        if ($messageUuid === null || $messageUuid === '') {
+            $messageUuid = $this->extractMessageUuidFromHeaders($payload['headers'] ?? []);
+        }
+
+        if ($messageUuid === '') {
+            $message = $this->messages->find($messageId);
+            $messageUuid = is_array($message) ? (string) ($message['message_uuid'] ?? '') : '';
+        }
+
+        $runAt = $this->retryScheduler->scheduleRetry($messageId, $attemptNo, $messageUuid, $decision->getRetryAfter());
+        if (! is_int($runAt) || $runAt <= 0) {
+            $this->messages->markFailedTerminal($messageId, max(1, $attemptNo - 1));
+            $this->events->add(
+                'terminal_failure',
+                ['attempt' => $attemptNo, 'reason' => 'rate_limit_scheduler_unavailable'],
+                $messageId
+            );
+
+            return false;
+        }
+
+        $this->events->add(
+            'rate_limit_deferred',
+            [
+                'attempt'     => $attemptNo,
+                'trigger'     => $triggerType,
+                'window'      => $decision->getWindow(),
+                'limit'       => $decision->getLimit(),
+                'used'        => $decision->getUsed(),
+                'retry_after' => $decision->getRetryAfter(),
+                'run_at'      => gmdate('c', $runAt),
+            ],
+            $messageId
+        );
+
+        return true;
     }
 
     private function persistOutcome(

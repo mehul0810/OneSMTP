@@ -4,11 +4,856 @@ msgid ""
 msgstr ""
 "Project-Id-Version: OneSMTP 0.1.0\n"
 "Report-Msgid-Bugs-To: https://github.com/mehul0810/OneSMTP/issues\n"
-"POT-Creation-Date: 2026-06-22 05:42+0000\n"
+"POT-Creation-Date: 2026-06-24 12:44+0000\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "X-Domain: onesmtp\n"
+#: src/Admin/MailConflictNotice.php:46
+msgid " and more"
+msgstr ""
+
+#: src/Admin/LogAdmin.php:289
+msgid "%1$d recipients across %2$s"
+msgstr ""
+
+#: src/Admin/LogAdmin.php:271
+msgid "0 recipients"
+msgstr ""
+
+#: src/Admin/SetupWizard.php:166
+msgid "A backup provider is recommended for failover. You can add one now or return later from Providers."
+msgstr ""
+
+#: src/Providers/ProviderTypes.php:134
+msgid "API delivery"
+msgstr ""
+
+#: src/Providers/ProviderTypes.php:121
+msgid "API delivery can provide provider-side tracking identifiers."
+msgstr ""
+
+#: src/Admin/SetupWizard.php:120
+#: src/Admin/ProviderAdmin.php:193
+msgid "API key"
+msgstr ""
+
+#: src/Providers/ProviderTypes.php:91
+msgid "API key delivery can return provider message IDs."
+msgstr ""
+
+#: src/Providers/ProviderTypes.php:106
+msgid "API responses can include provider message IDs."
+msgstr ""
+
+#: src/Admin/ProviderAdmin.php:100
+msgid "Actions"
+msgstr ""
+
+#: src/Admin/ProviderAdmin.php:114
+msgid "Activate"
+msgstr ""
+
+#: src/Admin/ProviderAdmin.php:111
+#: src/Admin/ProviderAdmin.php:147
+msgid "Active"
+msgstr ""
+
+#: src/Admin/SetupWizard.php:135
+msgid "Add and activate a provider before sending a setup test email."
+msgstr ""
+
+#: src/Admin/ProviderAdmin.php:135
+msgid "Add or update provider"
+msgstr ""
+
+#: src/Providers/ProviderTypes.php:137
+msgid "Attachments"
+msgstr ""
+
+#: src/Admin/LogAdmin.php:181
+msgid "Attempt"
+msgstr ""
+
+#: src/Admin/LogAdmin.php:172
+msgid "Attempt lineage"
+msgstr ""
+
+#: src/Admin/LogAdmin.php:117
+#: src/Admin/LogAdmin.php:163
+msgid "Attempts"
+msgstr ""
+
+#: src/Admin/ProviderCapabilityMatrix.php:43
+#: src/Admin/QueueDiagnosticsAdmin.php:37
+msgid "Available"
+msgstr ""
+
+#: src/Admin/SettingsAdmin.php:90
+msgid "BCC"
+msgstr ""
+
+#: src/Admin/SetupWizard.php:91
+msgid "Backup provider prompt"
+msgstr ""
+
+#: src/Providers/ProviderTypes.php:110
+msgid "Brevo"
+msgstr ""
+
+#: src/Admin/ProviderCapabilityMatrix.php:17
+msgid "Compare supported delivery paths before entering provider credentials. Unavailable capabilities do not block setup."
+msgstr ""
+
+#: src/Admin/SetupWizard.php:90
+#: src/Admin/SetupWizard.php:91
+#: src/Admin/SetupWizard.php:92
+msgid "Complete"
+msgstr ""
+
+#: src/Admin/AdminPage.php:121
+msgid "Complete first-run setup for sender identity, provider configuration, test email verification, and setup log confirmation."
+msgstr ""
+
+#: src/Admin/SetupWizard.php:97
+msgid "Complete the first provider form to enable delivery testing."
+msgstr ""
+
+#: src/Admin/SettingsAdmin.php:82
+msgid "Configure default sender headers for outgoing WordPress mail. Existing headers are preserved unless the matching force option is enabled."
+msgstr ""
+
+#: src/Admin/ProviderAdmin.php:84
+msgid "Configured providers"
+msgstr ""
+
+#: src/Queue/QueueDiagnostics.php:89
+msgid "Confirm WP-Cron or the Action Scheduler runner is processing jobs, then review recent message logs for safe resend decisions."
+msgstr ""
+
+#: src/Admin/SetupWizard.php:157
+msgid "Confirmation"
+msgstr ""
+
+#: src/Admin/ProviderAdmin.php:73
+msgid "Create and manage the delivery providers OneSMTP can use for failover and rotation."
+msgstr ""
+
+#: src/Admin/LogAdmin.php:119
+#: src/Admin/LogAdmin.php:166
+#: src/Admin/LogAdmin.php:188
+msgid "Created"
+msgstr ""
+
+#: src/Admin/SettingsAdmin.php:110
+msgid "Daily limit"
+msgstr ""
+
+#: src/Admin/ProviderAdmin.php:114
+msgid "Deactivate"
+msgstr ""
+
+#: src/Admin/ProviderAdmin.php:115
+msgid "Delete"
+msgstr ""
+
+#: src/Admin/SettingsAdmin.php:74
+msgid "Delivery rate limit settings saved."
+msgstr ""
+
+#: src/Admin/SettingsAdmin.php:102
+msgid "Delivery rate limits"
+msgstr ""
+
+#: src/Providers/ProviderTypes.php:46
+msgid "Delivery works without provider message IDs for SMTP servers."
+msgstr ""
+
+#: src/Admin/MailConflictNotice.php:43
+msgid "Detected active mail plugins:"
+msgstr ""
+
+#: src/Admin/MailConflictNotice.php:52
+msgid "Detected mail-related hooks:"
+msgstr ""
+
+#: src/Admin/AdminPage.php:138
+msgid "Diagnostics"
+msgstr ""
+
+#: src/Admin/AdminPage.php:133
+msgid "Email delivery log views will appear here when the logging interface is available."
+msgstr ""
+
+#: src/Admin/SetupWizard.php:306
+msgid "Enter a valid recipient email address for the test email."
+msgstr ""
+
+#: src/Admin/SettingsAdmin.php:127
+msgid "Enter one email address per line or separate addresses with commas."
+msgstr ""
+
+#: src/Admin/QueueDiagnosticsAdmin.php:43
+msgid "Failed messages"
+msgstr ""
+
+#: src/Admin/SetupWizard.php:106
+msgid "First provider"
+msgstr ""
+
+#: src/Admin/SettingsAdmin.php:96
+msgid "Force BCC when a message already has BCC."
+msgstr ""
+
+#: src/Admin/SettingsAdmin.php:93
+msgid "Force From Email when a message already has a From header."
+msgstr ""
+
+#: src/Admin/SettingsAdmin.php:94
+msgid "Force From Name when a message already has a From header."
+msgstr ""
+
+#: src/Admin/SettingsAdmin.php:95
+msgid "Force Reply-To when a message already has Reply-To."
+msgstr ""
+
+#: src/Admin/SettingsAdmin.php:92
+msgid "Force settings"
+msgstr ""
+
+#: src/Admin/SettingsAdmin.php:87
+msgid "From Email"
+msgstr ""
+
+#: src/Admin/SettingsAdmin.php:88
+msgid "From Name"
+msgstr ""
+
+#: src/Admin/ProviderAdmin.php:197
+msgid "From email"
+msgstr ""
+
+#: src/Admin/ProviderAdmin.php:198
+msgid "From name"
+msgstr ""
+
+#: src/Providers/ProviderTypes.php:65
+msgid "Gmail"
+msgstr ""
+
+#: src/Admin/SettingsAdmin.php:109
+msgid "Hourly limit"
+msgstr ""
+
+#: src/Admin/ProviderAdmin.php:111
+msgid "Inactive"
+msgstr ""
+
+#: src/Admin/LogAdmin.php:187
+msgid "Latency"
+msgstr ""
+
+#: src/Admin/ProviderAdmin.php:157
+msgid "Leave credential fields blank when updating a provider to keep existing stored secrets."
+msgstr ""
+
+#: src/Admin/LogAdmin.php:160
+msgid "Lineage UUID"
+msgstr ""
+
+#: src/Queue/QueueDiagnostics.php:85
+msgid "Load or repair Action Scheduler so OneSMTP can enqueue background retries."
+msgstr ""
+
+#: src/Admin/AdminPage.php:132
+msgid "Logs"
+msgstr ""
+
+#: src/Admin/AdminPage.php:127
+msgid "Manage delivery providers, priority, weights, and activation state."
+msgstr ""
+
+#: src/Admin/LogAdmin.php:213
+msgid "Manual resend"
+msgstr ""
+
+#: src/Admin/LogAdmin.php:413
+msgid "Manual resend action could not be completed."
+msgstr ""
+
+#: src/Admin/LogAdmin.php:407
+msgid "Manual resend completed. Review the attempt lineage for the recorded provider and result."
+msgstr ""
+
+#: src/Admin/LogAdmin.php:408
+msgid "Manual resend failed safely. Review the latest attempt lineage for sanitized failure context."
+msgstr ""
+
+#: src/Admin/LogAdmin.php:114
+msgid "Message"
+msgstr ""
+
+#: src/Admin/LogAdmin.php:159
+msgid "Message ID"
+msgstr ""
+
+#: src/Admin/LogAdmin.php:157
+msgid "Message detail"
+msgstr ""
+
+#: src/Admin/ProviderAdmin.php:94
+#: src/Admin/ProviderAdmin.php:142
+msgid "Name"
+msgstr ""
+
+#: src/Admin/SetupWizard.php:90
+msgid "Needs setup"
+msgstr ""
+
+#: src/Admin/LogAdmin.php:165
+#: src/Admin/QueueDiagnosticsAdmin.php:44
+msgid "Next retry"
+msgstr ""
+
+#: src/Admin/ProviderAdmin.php:269
+msgid "No config stored"
+msgstr ""
+
+#: src/Admin/LogAdmin.php:174
+msgid "No delivery attempts have been recorded for this message yet."
+msgstr ""
+
+#: src/Admin/LogAdmin.php:228
+msgid "No eligible active providers are available for manual resend."
+msgstr ""
+
+#: src/Admin/LogAdmin.php:107
+msgid "No email log entries have been recorded yet."
+msgstr ""
+
+#: src/Providers/ProviderTypes.php:61
+msgid "No external provider message ID is available from PHP mail."
+msgstr ""
+
+#: src/Admin/ProviderAdmin.php:87
+msgid "No providers are configured yet."
+msgstr ""
+
+#: src/Queue/QueueDiagnostics.php:97
+msgid "No queued or retrying messages need administrator action."
+msgstr ""
+
+#: src/Admin/LogAdmin.php:450
+msgid "None"
+msgstr ""
+
+#: src/Admin/LogAdmin.php:165
+#: src/Admin/QueueDiagnosticsAdmin.php:44
+msgid "None scheduled"
+msgstr ""
+
+#: src/Admin/LogAdmin.php:319
+msgid "Not selected"
+msgstr ""
+
+#: src/Admin/ProviderCapabilityMatrix.php:31
+msgid "Notes"
+msgstr ""
+
+#: src/Providers/ProviderTypes.php:136
+msgid "OAuth"
+msgstr ""
+
+#: src/Admin/ProviderAdmin.php:194
+msgid "OAuth client ID"
+msgstr ""
+
+#: src/Admin/ProviderAdmin.php:195
+msgid "OAuth client secret"
+msgstr ""
+
+#: src/Providers/ProviderTypes.php:76
+msgid "OAuth credentials are required before delivery."
+msgstr ""
+
+#: src/Admin/ProviderAdmin.php:196
+msgid "OAuth refresh token"
+msgstr ""
+
+#: src/Admin/AdminPage.php:43
+#: src/Admin/AdminPage.php:44
+#: src/Admin/AdminPage.php:75
+msgid "OneSMTP"
+msgstr ""
+
+#: src/Admin/AdminPage.php:67
+#: src/Admin/SetupWizard.php:46
+#: src/Admin/LogAdmin.php:55
+#: src/Admin/LogAdmin.php:83
+#: src/Admin/ProviderAdmin.php:37
+msgid "OneSMTP access denied"
+msgstr ""
+
+#: src/Admin/QueueDiagnosticsAdmin.php:28
+msgid "OneSMTP detected queue conditions that need administrator review."
+msgstr ""
+
+#: src/Admin/MailConflictNotice.php:39
+msgid "OneSMTP found other mail delivery logic on this site."
+msgstr ""
+
+#: src/Admin/QueueDiagnosticsAdmin.php:30
+msgid "OneSMTP has no queued or retrying messages."
+msgstr ""
+
+#: src/Admin/QueueDiagnosticsAdmin.php:32
+msgid "OneSMTP retry processing is available and queue activity is within expected bounds."
+msgstr ""
+
 #: src/Admin/SchedulerNotice.php:31
 msgid "OneSMTP retry scheduling is unavailable because Action Scheduler is not loaded. Failed messages will not be queued for background retry until the scheduler is available."
+msgstr ""
+
+#: src/Admin/AdminPage.php:76
+msgid "OneSMTP sections"
+msgstr ""
+
+#: src/Admin/QueueDiagnosticsAdmin.php:41
+msgid "Overdue retries"
+msgstr ""
+
+#: src/Providers/ProviderTypes.php:50
+msgid "PHP mail"
+msgstr ""
+
+#: src/Admin/SetupWizard.php:119
+#: src/Admin/ProviderAdmin.php:192
+msgid "Password"
+msgstr ""
+
+#: src/Admin/SetupWizard.php:92
+msgid "Pending"
+msgstr ""
+
+#: src/Admin/SetupWizard.php:93
+msgid "Pending provider save"
+msgstr ""
+
+#: src/Admin/SettingsAdmin.php:108
+msgid "Per-minute limit"
+msgstr ""
+
+#: src/Admin/AdminPage.php:145
+msgid "Plugin settings will appear here once the settings form is ready."
+msgstr ""
+
+#: src/Providers/ProviderTypes.php:95
+msgid "Postmark"
+msgstr ""
+
+#: src/Admin/SetupWizard.php:114
+msgid "Primary delivery provider"
+msgstr ""
+
+#: src/Admin/ProviderAdmin.php:96
+#: src/Admin/ProviderAdmin.php:144
+msgid "Priority"
+msgstr ""
+
+#: src/Admin/ProviderCapabilityMatrix.php:27
+#: src/Admin/SetupWizard.php:268
+#: src/Admin/LogAdmin.php:116
+#: src/Admin/LogAdmin.php:182
+msgid "Provider"
+msgstr ""
+
+#: src/Admin/LogAdmin.php:326
+#: src/Admin/LogAdmin.php:391
+msgid "Provider #%d"
+msgstr ""
+
+#: src/Admin/ProviderAdmin.php:141
+msgid "Provider ID for updates"
+msgstr ""
+
+#: src/Admin/ProviderAdmin.php:289
+msgid "Provider action completed."
+msgstr ""
+
+#: src/Admin/ProviderAdmin.php:288
+msgid "Provider action failed."
+msgstr ""
+
+#: src/Admin/ProviderCapabilityMatrix.php:16
+msgid "Provider capability matrix"
+msgstr ""
+
+#: src/Admin/ProviderCapabilityMatrix.php:20
+msgid "Provider capability metadata is not available."
+msgstr ""
+
+#: src/Admin/LogAdmin.php:186
+msgid "Provider message"
+msgstr ""
+
+#: src/Providers/ProviderTypes.php:138
+msgid "Provider message ID"
+msgstr ""
+
+#: src/Admin/SetupWizard.php:114
+msgid "Provider name"
+msgstr ""
+
+#: src/Admin/LogAdmin.php:237
+msgid "Provider override"
+msgstr ""
+
+#: src/Admin/SetupWizard.php:303
+msgid "Provider saved. Send a test email to verify setup."
+msgstr ""
+
+#: src/Admin/SetupWizard.php:115
+#: src/Admin/ProviderAdmin.php:143
+msgid "Provider type"
+msgstr ""
+
+#: src/Admin/AdminPage.php:126
+msgid "Providers"
+msgstr ""
+
+#: src/Admin/QueueDiagnosticsAdmin.php:38
+msgid "Queue status"
+msgstr ""
+
+#: src/Admin/QueueDiagnosticsAdmin.php:39
+msgid "Queued messages"
+msgstr ""
+
+#: src/Admin/LogAdmin.php:104
+msgid "Recent messages"
+msgstr ""
+
+#: src/Admin/SetupWizard.php:146
+msgid "Recipient email"
+msgstr ""
+
+#: src/Admin/LogAdmin.php:118
+#: src/Admin/LogAdmin.php:164
+msgid "Recipients"
+msgstr ""
+
+#: src/Admin/SetupWizard.php:91
+msgid "Recommended next"
+msgstr ""
+
+#: src/Admin/MailConflictNotice.php:57
+msgid "Recommended next step: review active mail plugins and custom mail hooks, then keep only the delivery path you intend to manage."
+msgstr ""
+
+#: src/Admin/QueueDiagnosticsAdmin.php:48
+msgid "Recommended recovery actions"
+msgstr ""
+
+#: src/Admin/SetupWizard.php:93
+msgid "Recording setup events"
+msgstr ""
+
+#: src/Admin/MailConflictNotice.php:61
+msgid "Remind me later"
+msgstr ""
+
+#: src/Admin/SettingsAdmin.php:89
+msgid "Reply-To"
+msgstr ""
+
+#: src/Admin/LogAdmin.php:251
+msgid "Resend message"
+msgstr ""
+
+#: src/Admin/LogAdmin.php:184
+msgid "Result"
+msgstr ""
+
+#: src/Queue/QueueDiagnostics.php:93
+msgid "Retry processing is available. Monitor the queue and only intervene if counts stop moving."
+msgstr ""
+
+#: src/Admin/QueueDiagnosticsAdmin.php:25
+msgid "Review aggregate queue health without exposing recipients, message bodies, provider credentials, tokens, or raw payload content."
+msgstr ""
+
+#: src/Admin/LogAdmin.php:88
+msgid "Review delivery lineage without exposing message bodies, raw headers, secrets, or full recipient addresses."
+msgstr ""
+
+#: src/Admin/AdminPage.php:139
+msgid "Review scheduler availability, queue status, overdue retries, and recovery actions."
+msgstr ""
+
+#: src/Admin/QueueDiagnosticsAdmin.php:42
+msgid "Running retries"
+msgstr ""
+
+#: src/Providers/ProviderTypes.php:35
+#: src/Providers/ProviderTypes.php:133
+msgid "SMTP"
+msgstr ""
+
+#: src/Admin/SetupWizard.php:116
+#: src/Admin/ProviderAdmin.php:189
+msgid "SMTP host"
+msgstr ""
+
+#: src/Admin/SetupWizard.php:117
+#: src/Admin/ProviderAdmin.php:190
+msgid "SMTP port"
+msgstr ""
+
+#: src/Admin/ProviderAdmin.php:99
+msgid "Safe config"
+msgstr ""
+
+#: src/Admin/LogAdmin.php:185
+msgid "Safe error context"
+msgstr ""
+
+#: src/Admin/SetupWizard.php:123
+msgid "Save another provider"
+msgstr ""
+
+#: src/Admin/SettingsAdmin.php:112
+msgid "Save delivery rate limits"
+msgstr ""
+
+#: src/Admin/SetupWizard.php:123
+msgid "Save first provider"
+msgstr ""
+
+#: src/Admin/ProviderAdmin.php:158
+msgid "Save provider"
+msgstr ""
+
+#: src/Admin/SettingsAdmin.php:98
+msgid "Save sender identity"
+msgstr ""
+
+#: src/Admin/QueueDiagnosticsAdmin.php:40
+msgid "Scheduled retries"
+msgstr ""
+
+#: src/Admin/QueueDiagnosticsAdmin.php:37
+msgid "Scheduler availability"
+msgstr ""
+
+#: src/Admin/SetupWizard.php:122
+msgid "Secrets are stored through the provider repository and are not printed back in the wizard."
+msgstr ""
+
+#: src/Admin/LogAdmin.php:162
+msgid "Selected provider"
+msgstr ""
+
+#: src/Admin/SetupWizard.php:148
+msgid "Send test email"
+msgstr ""
+
+#: src/Providers/ProviderTypes.php:66
+msgid "Send through Gmail API credentials for Google-hosted mailboxes."
+msgstr ""
+
+#: src/Providers/ProviderTypes.php:111
+msgid "Send through the Brevo API with an API key."
+msgstr ""
+
+#: src/Providers/ProviderTypes.php:96
+msgid "Send through the Postmark API with a server token."
+msgstr ""
+
+#: src/Providers/ProviderTypes.php:81
+msgid "Send through the SendGrid API with an API key."
+msgstr ""
+
+#: src/Providers/ProviderTypes.php:80
+msgid "SendGrid"
+msgstr ""
+
+#: src/Admin/SetupWizard.php:112
+msgid "Sender email"
+msgstr ""
+
+#: src/Admin/SetupWizard.php:90
+msgid "Sender identity and first provider"
+msgstr ""
+
+#: src/Admin/SettingsAdmin.php:76
+msgid "Sender identity settings could not be saved."
+msgstr ""
+
+#: src/Admin/SettingsAdmin.php:72
+msgid "Sender identity settings saved."
+msgstr ""
+
+#: src/Admin/SetupWizard.php:113
+msgid "Sender name"
+msgstr ""
+
+#: src/Admin/SettingsAdmin.php:103
+msgid "Set optional site-wide delivery caps. When a cap is exhausted, OneSMTP defers queued mail until capacity is available. Use 0 to disable a limit."
+msgstr ""
+
+#: src/Admin/AdminPage.php:54
+#: src/Admin/AdminPage.php:55
+#: src/Admin/AdminPage.php:144
+msgid "Settings"
+msgstr ""
+
+#: src/Admin/AdminPage.php:120
+msgid "Setup"
+msgstr ""
+
+#: src/Admin/SetupWizard.php:307
+msgid "Setup action failed."
+msgstr ""
+
+#: src/Admin/SetupWizard.php:169
+msgid "Setup actions are written to the OneSMTP event log so administrators can confirm the setup path is being recorded."
+msgstr ""
+
+#: src/Admin/SetupWizard.php:160
+msgid "Setup is incomplete. Add an active provider, then send a test email to finish the guided setup."
+msgstr ""
+
+#: src/Admin/SetupWizard.php:93
+msgid "Setup log confirmation"
+msgstr ""
+
+#: src/Admin/LogAdmin.php:115
+#: src/Admin/LogAdmin.php:161
+#: src/Admin/ProviderAdmin.php:98
+msgid "Status"
+msgstr ""
+
+#: src/Admin/SetupWizard.php:132
+msgid "Test email"
+msgstr ""
+
+#: src/Admin/SetupWizard.php:305
+msgid "Test email failed. Review provider credentials and try again."
+msgstr ""
+
+#: src/Admin/SetupWizard.php:304
+msgid "Test email sent. Setup actions are being recorded in the event log."
+msgstr ""
+
+#: src/Admin/SetupWizard.php:92
+msgid "Test email verification"
+msgstr ""
+
+#: src/Providers/ProviderTypes.php:135
+msgid "Test send"
+msgstr ""
+
+#: src/Admin/LogAdmin.php:148
+msgid "The requested log entry was not found."
+msgstr ""
+
+#: src/Admin/LogAdmin.php:409
+msgid "The requested message could not be found for resend."
+msgstr ""
+
+#: src/Admin/LogAdmin.php:410
+msgid "The selected provider is not eligible for manual resend."
+msgstr ""
+
+#: src/Admin/MailConflictNotice.php:40
+msgid "This can cause duplicate sends, unexpected transport changes, or confusing delivery results. OneSMTP will not disable or reorder third-party code automatically."
+msgstr ""
+
+#: src/Admin/LogAdmin.php:222
+msgid "This message cannot be resent because the stored safe payload is unavailable."
+msgstr ""
+
+#: src/Admin/LogAdmin.php:183
+msgid "Trigger"
+msgstr ""
+
+#: src/Admin/ProviderAdmin.php:95
+msgid "Type"
+msgstr ""
+
+#: src/Admin/ProviderCapabilityMatrix.php:43
+#: src/Admin/LogAdmin.php:465
+#: src/Admin/QueueDiagnosticsAdmin.php:37
+msgid "Unavailable"
+msgstr ""
+
+#: src/Admin/LogAdmin.php:441
+msgid "Unknown"
+msgstr ""
+
+#: src/Admin/LogAdmin.php:120
+#: src/Admin/LogAdmin.php:167
+msgid "Updated"
+msgstr ""
+
+#: src/Providers/ProviderTypes.php:36
+msgid "Use any standard SMTP server with username and password credentials."
+msgstr ""
+
+#: src/Admin/LogAdmin.php:239
+msgid "Use normal provider selection"
+msgstr ""
+
+#: src/Providers/ProviderTypes.php:51
+msgid "Use the site server mail function without external provider credentials."
+msgstr ""
+
+#: src/Admin/SetupWizard.php:74
+msgid "Use this guided setup to configure a sender identity, add the first delivery provider, verify delivery, and confirm logging is recording setup activity."
+msgstr ""
+
+#: src/Admin/ProviderAdmin.php:148
+msgid "Use this provider for delivery."
+msgstr ""
+
+#: src/Admin/SetupWizard.php:118
+#: src/Admin/ProviderAdmin.php:191
+msgid "Username"
+msgstr ""
+
+#: src/Admin/ProviderAdmin.php:97
+#: src/Admin/ProviderAdmin.php:145
+msgid "Weight"
+msgstr ""
+
+#: src/Admin/AdminPage.php:66
+msgid "You do not have permission to access OneSMTP settings."
+msgstr ""
+
+#: src/Admin/MailConflictNotice.php:69
+msgid "You do not have permission to dismiss OneSMTP notices."
+msgstr ""
+
+#: src/Admin/ProviderAdmin.php:36
+msgid "You do not have permission to manage OneSMTP providers."
+msgstr ""
+
+#: src/Admin/LogAdmin.php:54
+msgid "You do not have permission to resend OneSMTP emails."
+msgstr ""
+
+#: src/Admin/LogAdmin.php:216
+msgid "You do not have permission to resend this message."
+msgstr ""
+
+#: src/Admin/SetupWizard.php:45
+msgid "You do not have permission to run the OneSMTP setup wizard."
+msgstr ""
+
+#: src/Admin/LogAdmin.php:82
+msgid "You do not have permission to view OneSMTP logs."
+msgstr ""
+
+#: src/Admin/LogAdmin.php:291
+msgid "unknown domains"
 msgstr ""

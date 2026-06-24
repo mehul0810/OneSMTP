@@ -19,6 +19,7 @@ use OneSMTP\Providers\ProviderStateCache;
 use OneSMTP\Queue\ActionSchedulerHealth;
 use OneSMTP\Queue\QueueDiagnostics;
 use OneSMTP\Queue\RetryScheduler;
+use OneSMTP\RateLimit\RateLimiter;
 use OneSMTP\Repository\AttemptRepository;
 use OneSMTP\Repository\EventRepository;
 use OneSMTP\Repository\MessageRepository;
@@ -50,10 +51,11 @@ final class Plugin
         $retryScheduler->registerHooks();
 
         $deliveryEngine = new DeliveryEngine($providers, $attempts, $dispatchPolicy);
+        $rateLimiter = new RateLimiter($attempts);
         $senderIdentity = new SenderIdentityApplier();
         $senderIdentity->registerHooks();
 
-        $sendPipeline = new SendPipeline($messages, $attempts, $providers, $events, $retryScheduler, $deliveryEngine);
+        $sendPipeline = new SendPipeline($messages, $attempts, $providers, $events, $retryScheduler, $deliveryEngine, $rateLimiter);
         $sendPipeline->registerHooks();
 
         $adminPage = new AdminPage(

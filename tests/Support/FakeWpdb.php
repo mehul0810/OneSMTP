@@ -27,6 +27,9 @@ final class FakeWpdb
     /** @var array<int,array<int,array<string,mixed>>> */
     public array $attemptHistoryByMessage = [];
 
+    /** @var array<string,array{sent_count:int,oldest_created_at:?string}> */
+    public array $successfulSendWindowStatsBySince = [];
+
     /** @var array<string,mixed>|null */
     public ?array $queueDiagnosticRow = null;
 
@@ -114,6 +117,19 @@ final class FakeWpdb
             $history   = $this->attemptHistoryByMessage[$messageId] ?? [];
 
             return $history[0] ?? null;
+        }
+
+        if (
+            str_contains($query, $this->prefix . 'onesmtp_attempts')
+            && str_contains($query, 'COUNT(*) AS sent_count')
+            && str_contains($query, 'MIN(created_at) AS oldest_created_at')
+        ) {
+            $since = isset($args[1]) ? (string) $args[1] : '';
+
+            return $this->successfulSendWindowStatsBySince[$since] ?? [
+                'sent_count' => 0,
+                'oldest_created_at' => null,
+            ];
         }
 
         if (str_contains($query, $this->prefix . 'onesmtp_providers') && str_contains($query, 'WHERE id = %d')) {

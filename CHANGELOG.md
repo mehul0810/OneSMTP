@@ -27,12 +27,14 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Provider capability matrix for comparing MVP provider delivery, testing, OAuth, attachment, and message identifier support before credential entry.
 - Safe failure categories for delivery attempts, covering retryable, terminal, authentication, quota, timeout, and policy outcomes.
 - Privacy-safe queue diagnostics in admin with scheduler availability, queue status, overdue retry counts, and recovery actions.
+- Optional site-wide per-minute, hourly, and daily delivery limits with Action Scheduler-backed deferral when capacity is exhausted.
 
 ### Changed
 
 - Documented the `main`, `develop`, and `release/*` branch workflow and extended CI push coverage to the integration and stabilization branches.
 - Retry scheduling now fails closed and records a scheduling failure event when Action Scheduler is unavailable instead of reporting a queued retry.
 - Terminal, authentication, and policy failures now stop retry scheduling early while preserving redacted log context.
+- Queue backpressure now defers rate-limited mail instead of over-sending when configured delivery limits are exhausted.
 
 ## [0.1.0] - 2026-04-14
 

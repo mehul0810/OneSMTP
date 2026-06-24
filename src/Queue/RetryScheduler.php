@@ -47,7 +47,7 @@ final class RetryScheduler
         return min(3600, (int) pow(2, max(0, $attempt - 1)) * 60);
     }
 
-    public function scheduleRetry(int $messageId, int $attempt, ?string $messageUuid = null): ?int
+    public function scheduleRetry(int $messageId, int $attempt, ?string $messageUuid = null, ?int $delayOverride = null): ?int
     {
         $message     = $this->messages->find($messageId);
         $maxAttempts = $this->getMaxAttempts($message);
@@ -66,7 +66,7 @@ final class RetryScheduler
             return null;
         }
 
-        $delay    = $this->getDelayForAttempt($attempt);
+        $delay    = $delayOverride !== null ? max(1, $delayOverride) : $this->getDelayForAttempt($attempt);
         $runAt    = time() + $delay;
         $args     = [$messageId, $attempt, (string) $messageUuid];
         $scheduleKey = $this->scheduleKey($messageId, $attempt);
@@ -115,6 +115,7 @@ final class RetryScheduler
         }
 
         try {
+            $this->releaseScheduleLock($messageId, $attempt);
             $this->processRetryInternal($messageId, $attempt, $messageUuid);
         } finally {
             $this->releaseLock($messageId, $attempt);
@@ -221,5 +222,10 @@ final class RetryScheduler
     private function scheduleKey(int $messageId, int $attempt): string
     {
         return sprintf('retry_scheduled_%d_%d', $messageId, $attempt);
+    }
+
+    private function releaseScheduleLock(int $messageId, int $attempt): void
+    {
+        delete_transient($this->scheduleKey($messageId, $attempt));
     }
 }
