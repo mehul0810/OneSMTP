@@ -32,6 +32,8 @@ final class SendPipelineIntegrationTest extends TestCase
         $GLOBALS['onesmtp_test_actions'] = [];
         $GLOBALS['onesmtp_test_filters'] = [];
         $GLOBALS['onesmtp_test_fired_actions'] = [];
+        $GLOBALS['onesmtp_test_mail'] = [];
+        $GLOBALS['onesmtp_test_remote_posts'] = [];
         $GLOBALS['onesmtp_test_scheduled_actions'] = [];
         $GLOBALS['onesmtp_test_transients'] = [];
         $GLOBALS['onesmtp_test_options'] = [];
@@ -189,6 +191,54 @@ final class SendPipelineIntegrationTest extends TestCase
         $context = json_decode((string) $terminalEvent['data']['context_json'], true);
         self::assertSame('missing_api_key', $context['reason'] ?? null);
         self::assertSame(FailureCategory::AUTHENTICATION, $context['failure_category'] ?? null);
+    }
+
+    public function test_terminal_failure_triggers_privacy_safe_alerts(): void
+    {
+        $this->seedProvider(26, 'test_alert_terminal');
+        update_option('onesmtp_settings', [
+            'failure_alerts' => [
+                'email_enabled' => true,
+                'email_recipients' => ['ops@example.test'],
+                'webhook_enabled' => true,
+                'webhook_url' => 'https://hooks.example.test/onesmtp',
+                'throttle_seconds' => 900,
+            ],
+        ], false);
+
+        $pipeline = $this->buildPipeline(
+            new StaticAdapter(
+                'test_alert_terminal',
+                new SendResult(false, 'missing_api_key', 'Provider API key is not configured. token=secret-token')
+            )
+        );
+
+        $result = $pipeline->handlePreWpMail(null, [
+            'to' => ['private@example.test', 'second@example.test'],
+            'subject' => 'Sensitive reset subject',
+            'message' => 'Raw private message body',
+            'headers' => ['Authorization: Bearer raw-header-token'],
+        ]);
+
+        self::assertFalse($result);
+        self::assertCount(1, $GLOBALS['onesmtp_test_mail']);
+        self::assertCount(1, $GLOBALS['onesmtp_test_remote_posts']);
+
+        $mailBody = (string) $GLOBALS['onesmtp_test_mail'][0]['message'];
+        $webhookBody = (string) ($GLOBALS['onesmtp_test_remote_posts'][0]['args']['body'] ?? '');
+        self::assertStringContainsString('"event": "terminal_failure"', $mailBody);
+        self::assertStringContainsString('"event":"terminal_failure"', $webhookBody);
+        self::assertStringContainsString('missing_api_key', $mailBody);
+
+        foreach ([$mailBody, $webhookBody] as $body) {
+            self::assertStringNotContainsString('private@example.test', $body);
+            self::assertStringNotContainsString('second@example.test', $body);
+            self::assertStringNotContainsString('Sensitive reset subject', $body);
+            self::assertStringNotContainsString('Raw private message body', $body);
+            self::assertStringNotContainsString('raw-header-token', $body);
+            self::assertStringNotContainsString('secret-token', $body);
+            self::assertStringNotContainsString('payload_json', $body);
+        }
     }
 
     public function test_manual_resend_uses_forced_provider_and_records_lineage_attempt(): void

@@ -29,6 +29,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Safe failure categories for delivery attempts, covering retryable, terminal, authentication, quota, timeout, and policy outcomes.
 - Privacy-safe queue diagnostics in admin with scheduler availability, queue status, overdue retry counts, and recovery actions.
 - Optional site-wide per-minute, hourly, and daily delivery limits with Action Scheduler-backed deferral when capacity is exhausted.
+- Configurable terminal failure alerts for admin email and HTTPS webhook destinations with privacy-safe payloads and throttling.
 
 ### Changed
 

@@ -37,6 +37,13 @@ final class SettingsAdminTest extends TestCase
                 'per_hour' => 100,
                 'per_day' => 500,
             ],
+            'failure_alerts' => [
+                'email_enabled' => true,
+                'email_recipients' => ['ops@example.test'],
+                'webhook_enabled' => true,
+                'webhook_url' => 'https://hooks.example.test/' . str_repeat('long-path-', 20),
+                'throttle_seconds' => 1200,
+            ],
         ], false);
 
         $admin = new SettingsAdmin();
@@ -55,6 +62,12 @@ final class SettingsAdminTest extends TestCase
         self::assertStringContainsString('value="10"', $output);
         self::assertStringContainsString('value="100"', $output);
         self::assertStringContainsString('value="500"', $output);
+        self::assertStringContainsString('Failure alerts', $output);
+        self::assertStringContainsString('ops@example.test', $output);
+        self::assertStringContainsString('https://hooks.example.test/long-path-', $output);
+        self::assertStringContainsString('maxlength="2048"', $output);
+        self::assertStringContainsString('value="1200"', $output);
+        self::assertStringNotContainsString('Failure alerts are disabled', $output);
     }
 
     public function test_handle_request_saves_valid_sender_identity(): void
@@ -111,6 +124,73 @@ final class SettingsAdminTest extends TestCase
         self::assertSame(60, $settings['rate_limits']['per_hour']);
         self::assertSame(700, $settings['rate_limits']['per_day']);
         self::assertStringContainsString('onesmtp_settings_status=rate_limits_saved', (string) $GLOBALS['onesmtp_test_redirect']['location']);
+    }
+
+    public function test_render_shows_disabled_failure_alert_state_for_empty_configuration(): void
+    {
+        $admin = new SettingsAdmin();
+
+        ob_start();
+        $admin->render();
+        $output = (string) ob_get_clean();
+
+        self::assertStringContainsString('Failure alerts are disabled', $output);
+        self::assertStringContainsString('name="failure_alert_email_enabled"', $output);
+        self::assertStringContainsString('name="failure_alert_webhook_enabled"', $output);
+        self::assertStringContainsString('Save failure alerts', $output);
+    }
+
+    public function test_handle_request_saves_failure_alert_settings(): void
+    {
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = [
+            'onesmtp_settings_action' => 'save_failure_alerts',
+            'onesmtp_settings_nonce' => 'test-nonce',
+            'failure_alert_email_enabled' => '1',
+            'failure_alert_email_recipients' => "ops@example.test\nops2@example.test",
+            'failure_alert_webhook_enabled' => '1',
+            'failure_alert_webhook_url' => 'https://hooks.example.test/onesmtp',
+            'failure_alert_throttle_seconds' => '1800',
+        ];
+
+        $admin = new SettingsAdmin();
+
+        try {
+            $admin->handleRequest();
+        } catch (RuntimeException $e) {
+            self::assertSame('OneSMTP settings admin redirected.', $e->getMessage());
+        }
+
+        $settings = get_option('onesmtp_settings', []);
+        self::assertTrue($settings['failure_alerts']['email_enabled']);
+        self::assertSame(['ops@example.test', 'ops2@example.test'], $settings['failure_alerts']['email_recipients']);
+        self::assertTrue($settings['failure_alerts']['webhook_enabled']);
+        self::assertSame('https://hooks.example.test/onesmtp', $settings['failure_alerts']['webhook_url']);
+        self::assertSame(1800, $settings['failure_alerts']['throttle_seconds']);
+        self::assertStringContainsString('onesmtp_settings_status=failure_alerts_saved', (string) $GLOBALS['onesmtp_test_redirect']['location']);
+    }
+
+    public function test_invalid_failure_alert_webhook_is_rejected_without_saving(): void
+    {
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = [
+            'onesmtp_settings_action' => 'save_failure_alerts',
+            'onesmtp_settings_nonce' => 'test-nonce',
+            'failure_alert_webhook_enabled' => '1',
+            'failure_alert_webhook_url' => 'http://hooks.example.test/plain',
+        ];
+
+        $admin = new SettingsAdmin();
+
+        try {
+            $admin->handleRequest();
+        } catch (RuntimeException $e) {
+            self::assertSame('OneSMTP settings admin redirected.', $e->getMessage());
+        }
+
+        self::assertSame([], get_option('onesmtp_settings', []));
+        self::assertStringContainsString('onesmtp_settings_status=invalid', (string) $GLOBALS['onesmtp_test_redirect']['location']);
+        self::assertStringContainsString('webhook+URL+must+be+a+valid+HTTPS+URL', (string) $GLOBALS['onesmtp_test_redirect']['location']);
     }
 
     public function test_negative_rate_limits_are_saved_as_disabled(): void

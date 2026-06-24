@@ -27,3 +27,11 @@ When a configured limit is exhausted, OneSMTP defers the message through Action 
 OneSMTP treats Action Scheduler as the MVP retry backend. If Action Scheduler is not loaded, OneSMTP fails closed instead of pretending a retry was queued.
 
 Admins who can manage OneSMTP see a dashboard notice when the scheduler backend is unavailable. Before packaging or approving a release build, confirm the notice is absent on a normal WordPress admin request and that retry scheduling tests pass.
+
+## Failure Alerts
+
+Failure alerts can be enabled from the OneSMTP settings screen for terminal delivery failures. Admin email alerts require at least one recipient, and webhook alerts require an HTTPS URL.
+
+Alert payloads are limited to operational metadata: event ID, timestamp, message ID/UUID, safe hashes, provider summary, failure reason, and failure category. OneSMTP does not send raw recipients, message bodies, raw headers, stored payload JSON, provider credentials, tokens, or provider configuration in alert payloads.
+
+Repeated matching terminal failures are throttled for the configured alert window to prevent notification floods.

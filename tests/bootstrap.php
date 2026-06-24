@@ -684,6 +684,21 @@ if (! function_exists('wp_remote_post')) {
     }
 }
 
+if (! function_exists('wp_mail')) {
+    function wp_mail($to, string $subject, string $message, string|array $headers = '', array $attachments = []): bool
+    {
+        $GLOBALS['onesmtp_test_mail'][] = [
+            'to' => $to,
+            'subject' => $subject,
+            'message' => $message,
+            'headers' => $headers,
+            'attachments' => $attachments,
+        ];
+
+        return (bool) ($GLOBALS['onesmtp_test_mail_result'] ?? true);
+    }
+}
+
 if (! function_exists('is_wp_error')) {
     function is_wp_error(mixed $thing): bool
     {
