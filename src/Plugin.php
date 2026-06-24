@@ -22,6 +22,7 @@ use OneSMTP\Queue\RetryScheduler;
 use OneSMTP\RateLimit\RateLimiter;
 use OneSMTP\Repository\AttemptRepository;
 use OneSMTP\Repository\EventRepository;
+use OneSMTP\Repository\MetricsRepository;
 use OneSMTP\Repository\MessageRepository;
 use OneSMTP\Repository\ProviderRepository;
 
@@ -69,7 +70,8 @@ final class Plugin
                 static fn (int $messageId, ?int $providerId): bool => $sendPipeline->resendMessage($messageId, $providerId)
             ),
             null,
-            new Admin\QueueDiagnosticsAdmin(new QueueDiagnostics($schedulerHealth, $messages))
+            new Admin\QueueDiagnosticsAdmin(new QueueDiagnostics($schedulerHealth, $messages)),
+            new Admin\DashboardAdmin(new MetricsRepository())
         );
         $adminPage->registerHooks();
 
