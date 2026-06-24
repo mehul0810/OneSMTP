@@ -17,6 +17,7 @@ use OneSMTP\Pipeline\SenderIdentityApplier;
 use OneSMTP\Pipeline\SendPipeline;
 use OneSMTP\Providers\ProviderStateCache;
 use OneSMTP\Queue\ActionSchedulerHealth;
+use OneSMTP\Queue\QueueDiagnostics;
 use OneSMTP\Queue\RetryScheduler;
 use OneSMTP\Repository\AttemptRepository;
 use OneSMTP\Repository\EventRepository;
@@ -64,7 +65,9 @@ final class Plugin
                 $providers,
                 null,
                 static fn (int $messageId, ?int $providerId): bool => $sendPipeline->resendMessage($messageId, $providerId)
-            )
+            ),
+            null,
+            new Admin\QueueDiagnosticsAdmin(new QueueDiagnostics($schedulerHealth, $messages))
         );
         $adminPage->registerHooks();
 
