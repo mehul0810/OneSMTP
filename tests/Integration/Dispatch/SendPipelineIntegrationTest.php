@@ -14,10 +14,12 @@ use OneSMTP\Providers\ProviderConfig;
 use OneSMTP\Providers\ProviderDeliveryManager;
 use OneSMTP\Providers\SendResult;
 use OneSMTP\Queue\RetryScheduler;
+use OneSMTP\RateLimit\RateLimiter;
 use OneSMTP\Repository\AttemptRepository;
 use OneSMTP\Repository\EventRepository;
 use OneSMTP\Repository\MessageRepository;
 use OneSMTP\Repository\ProviderRepository;
+use OneSMTP\Settings\RateLimitSettingsRepository;
 use OneSMTP\Tests\Support\FakeWpdb;
 use PHPUnit\Framework\TestCase;
 
@@ -32,6 +34,7 @@ final class SendPipelineIntegrationTest extends TestCase
         $GLOBALS['onesmtp_test_fired_actions'] = [];
         $GLOBALS['onesmtp_test_scheduled_actions'] = [];
         $GLOBALS['onesmtp_test_transients'] = [];
+        $GLOBALS['onesmtp_test_options'] = [];
         $GLOBALS['onesmtp_test_object_cache'] = [];
         $GLOBALS['onesmtp_test_action_scheduler_available'] = true;
         $GLOBALS['wpdb'] = new FakeWpdb();
@@ -100,6 +103,53 @@ final class SendPipelineIntegrationTest extends TestCase
         self::assertCount(1, $GLOBALS['onesmtp_test_scheduled_actions']);
         $retryEvent = $this->findEventInsert('retry_scheduled');
         self::assertNotNull($retryEvent);
+    }
+
+    public function test_rate_limit_exhaustion_defers_without_sending_provider_request(): void
+    {
+        $this->seedProvider(22, 'test_rate_limited');
+        update_option('onesmtp_settings', [
+            'rate_limits' => [
+                'per_minute' => 1,
+            ],
+        ], false);
+        $since = gmdate('Y-m-d H:i:s', 1782302400 - 60);
+        $GLOBALS['wpdb']->successfulSendWindowStatsBySince[$since] = [
+            'sent_count' => 1,
+            'oldest_created_at' => gmdate('Y-m-d H:i:s', 1782302400 - 50),
+        ];
+
+        $adapter = new CountingAdapter('test_rate_limited', new SendResult(true, 'sent', 'sent'));
+        $pipeline = $this->buildPipeline($adapter, static fn (): int => 1782302400);
+
+        $before = time();
+        $result = $pipeline->handlePreWpMail(null, [
+            'to' => ['qa@example.com'],
+            'subject' => 'Rate limited',
+            'message' => 'Hello',
+            'headers' => [],
+        ]);
+        $after = time();
+
+        self::assertTrue($result);
+        self::assertSame(0, $adapter->sendCount);
+        self::assertNull($this->findInsert('onesmtp_attempts'));
+
+        $retryUpdate = $this->findUpdate('onesmtp_messages', 'retry_scheduled');
+        self::assertNotNull($retryUpdate);
+        self::assertSame(1, $retryUpdate['data']['current_attempt']);
+
+        self::assertCount(1, $GLOBALS['onesmtp_test_scheduled_actions']);
+        $scheduled = array_values($GLOBALS['onesmtp_test_scheduled_actions'])[0];
+        self::assertGreaterThanOrEqual($before + 10, $scheduled['timestamp']);
+        self::assertLessThanOrEqual($after + 10, $scheduled['timestamp']);
+        self::assertSame([1, 1, $this->messageUuidFromInsert()], $scheduled['args']);
+
+        $deferredEvent = $this->findEventInsert('rate_limit_deferred');
+        self::assertNotNull($deferredEvent);
+        $context = json_decode((string) $deferredEvent['data']['context_json'], true);
+        self::assertSame('minute', $context['window'] ?? null);
+        self::assertSame(10, $context['retry_after'] ?? null);
     }
 
     public function test_terminal_failure_category_marks_failed_without_scheduling_retry(): void
@@ -180,7 +230,7 @@ final class SendPipelineIntegrationTest extends TestCase
         self::assertSame(30, $sentUpdate['data']['selected_provider_id']);
     }
 
-    private function buildPipeline(StaticAdapter $adapter): SendPipeline
+    private function buildPipeline(StaticAdapter $adapter, ?callable $clock = null): SendPipeline
     {
         $dispatch = new DefaultDispatchPolicy();
         $messages = new MessageRepository();
@@ -190,8 +240,9 @@ final class SendPipelineIntegrationTest extends TestCase
         $retryScheduler = new RetryScheduler($dispatch, $messages, $attempts, $providers, $events);
         $deliveryManager = new ProviderDeliveryManager(new ProviderAdapterRegistry([$adapter->getSlug() => $adapter]));
         $deliveryEngine = new DeliveryEngine($providers, $attempts, $dispatch, $deliveryManager, $events);
+        $rateLimiter = new RateLimiter($attempts, new RateLimitSettingsRepository(), $clock);
 
-        return new SendPipeline($messages, $attempts, $providers, $events, $retryScheduler, $deliveryEngine);
+        return new SendPipeline($messages, $attempts, $providers, $events, $retryScheduler, $deliveryEngine, $rateLimiter);
     }
 
     private function seedProvider(int $id, string $adapterType): void
@@ -247,9 +298,16 @@ final class SendPipelineIntegrationTest extends TestCase
 
         return null;
     }
+
+    private function messageUuidFromInsert(): string
+    {
+        $insert = $this->findInsert('onesmtp_messages');
+
+        return is_array($insert) ? (string) ($insert['data']['message_uuid'] ?? '') : '';
+    }
 }
 
-final class StaticAdapter implements ProviderAdapterInterface
+class StaticAdapter implements ProviderAdapterInterface
 {
     public function __construct(private string $slug, private SendResult $result)
     {
@@ -268,5 +326,17 @@ final class StaticAdapter implements ProviderAdapterInterface
     public function testConnection(ProviderConfig $config): SendResult
     {
         return $this->result;
+    }
+}
+
+final class CountingAdapter extends StaticAdapter
+{
+    public int $sendCount = 0;
+
+    public function send(array $message, ProviderConfig $config): SendResult
+    {
+        $this->sendCount++;
+
+        return parent::send($message, $config);
     }
 }

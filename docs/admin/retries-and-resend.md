@@ -9,6 +9,18 @@
 - Failures are classified into safe retryable, terminal, authentication, quota, timeout, or policy categories where provider responses allow it.
 - Terminal, authentication, and policy failures stop automatic retry scheduling because another attempt is not expected to succeed without operator action.
 
+## Delivery Rate Limits
+
+OneSMTP can apply optional site-wide delivery caps from the Settings section:
+
+- Per-minute limit
+- Hourly limit
+- Daily limit
+
+Set a value to `0` to disable that limit. When a configured limit is exhausted, OneSMTP keeps the message queued and schedules the next eligible attempt through Action Scheduler. No provider request is made while the budget is exhausted.
+
+The deferral event records only operational metadata such as the exhausted window, configured limit, current usage count, retry delay, and run time. It does not include message bodies, recipient lists, provider secrets, credentials, tokens, or raw provider payloads.
+
 ## Manual Resend
 
 Admins can manually resend failed emails and optionally choose a provider override.
@@ -17,3 +29,4 @@ Admins can manually resend failed emails and optionally choose a provider overri
 
 Use logs to confirm whether failures are credential, policy, timeout, quota, terminal, or provider-availability related.
 If a retry is expected but never appears in Action Scheduler, inspect the latest event/log entry for a scheduler-unavailable failure before retrying manually.
+If a message is delayed by configured delivery limits, confirm Action Scheduler is available and wait for the deferred attempt time shown in the queue or event context.

@@ -32,6 +32,11 @@ final class SettingsAdminTest extends TestCase
                 'reply_to' => ['reply@example.test'],
                 'bcc' => ['audit@example.test'],
             ],
+            'rate_limits' => [
+                'per_minute' => 10,
+                'per_hour' => 100,
+                'per_day' => 500,
+            ],
         ], false);
 
         $admin = new SettingsAdmin();
@@ -46,6 +51,10 @@ final class SettingsAdminTest extends TestCase
         self::assertStringContainsString('reply@example.test', $output);
         self::assertStringContainsString('audit@example.test', $output);
         self::assertStringContainsString('Save sender identity', $output);
+        self::assertStringContainsString('Delivery rate limits', $output);
+        self::assertStringContainsString('value="10"', $output);
+        self::assertStringContainsString('value="100"', $output);
+        self::assertStringContainsString('value="500"', $output);
     }
 
     public function test_handle_request_saves_valid_sender_identity(): void
@@ -76,6 +85,57 @@ final class SettingsAdminTest extends TestCase
         self::assertTrue($settings['sender_identity']['force_from_email']);
         self::assertTrue($settings['sender_identity']['force_reply_to']);
         self::assertStringContainsString('onesmtp_settings_status=saved', (string) $GLOBALS['onesmtp_test_redirect']['location']);
+    }
+
+    public function test_handle_request_saves_rate_limits(): void
+    {
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = [
+            'onesmtp_settings_action' => 'save_rate_limits',
+            'onesmtp_settings_nonce' => 'test-nonce',
+            'rate_limit_per_minute' => '5',
+            'rate_limit_per_hour' => '60',
+            'rate_limit_per_day' => '700',
+        ];
+
+        $admin = new SettingsAdmin();
+
+        try {
+            $admin->handleRequest();
+        } catch (RuntimeException $e) {
+            self::assertSame('OneSMTP settings admin redirected.', $e->getMessage());
+        }
+
+        $settings = get_option('onesmtp_settings', []);
+        self::assertSame(5, $settings['rate_limits']['per_minute']);
+        self::assertSame(60, $settings['rate_limits']['per_hour']);
+        self::assertSame(700, $settings['rate_limits']['per_day']);
+        self::assertStringContainsString('onesmtp_settings_status=rate_limits_saved', (string) $GLOBALS['onesmtp_test_redirect']['location']);
+    }
+
+    public function test_negative_rate_limits_are_saved_as_disabled(): void
+    {
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = [
+            'onesmtp_settings_action' => 'save_rate_limits',
+            'onesmtp_settings_nonce' => 'test-nonce',
+            'rate_limit_per_minute' => '-5',
+            'rate_limit_per_hour' => '0',
+            'rate_limit_per_day' => '-1',
+        ];
+
+        $admin = new SettingsAdmin();
+
+        try {
+            $admin->handleRequest();
+        } catch (RuntimeException $e) {
+            self::assertSame('OneSMTP settings admin redirected.', $e->getMessage());
+        }
+
+        $settings = get_option('onesmtp_settings', []);
+        self::assertSame(0, $settings['rate_limits']['per_minute']);
+        self::assertSame(0, $settings['rate_limits']['per_hour']);
+        self::assertSame(0, $settings['rate_limits']['per_day']);
     }
 
     public function test_invalid_email_is_rejected_without_saving(): void

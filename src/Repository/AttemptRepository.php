@@ -106,4 +106,28 @@ final class AttemptRepository
 
         return is_array($rows) ? $rows : [];
     }
+
+    /**
+     * @return array{sent_count:int,oldest_created_at:?string}
+     */
+    public function getSuccessfulSendWindowStats(string $since): array
+    {
+        global $wpdb;
+
+        $sql = $wpdb->prepare(
+            'SELECT COUNT(*) AS sent_count, MIN(created_at) AS oldest_created_at FROM ' . TableNames::attempts() . ' WHERE result = %s AND created_at >= %s',
+            'sent',
+            $since
+        );
+        $row = $wpdb->get_row($sql, ARRAY_A);
+
+        if (! is_array($row)) {
+            $row = [];
+        }
+
+        return [
+            'sent_count'        => (int) ($row['sent_count'] ?? 0),
+            'oldest_created_at' => isset($row['oldest_created_at']) && (string) $row['oldest_created_at'] !== '' ? (string) $row['oldest_created_at'] : null,
+        ];
+    }
 }
