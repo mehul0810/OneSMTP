@@ -15,6 +15,11 @@ final class LogAdmin
     private const DETAIL_PARAM = 'onesmtp_message_id';
     private const ACTION_NAME  = 'onesmtp_log_action';
     private const NONCE_NAME   = 'onesmtp_log_nonce';
+    private const EXPORT_ACTION = 'export_csv';
+    private const EXPORT_NONCE_NAME = 'onesmtp_log_export_nonce';
+    private const DEFAULT_PER_PAGE = 25;
+    private const MAX_PER_PAGE = 100;
+    private const EXPORT_LIMIT = 1000;
     private const ERROR_LIMIT = 220;
 
     private MessageRepository $messages;
@@ -40,6 +45,17 @@ final class LogAdmin
 
     public function handleRequest(): void
     {
+        $requestMethod = (string) ($_SERVER['REQUEST_METHOD'] ?? '');
+
+        if ($requestMethod === 'GET') {
+            $action = isset($_GET[self::ACTION_NAME]) ? sanitize_key(wp_unslash((string) $_GET[self::ACTION_NAME])) : '';
+            if ($action === self::EXPORT_ACTION) {
+                $this->handleCsvExport();
+            }
+
+            return;
+        }
+
         if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
             return;
         }
@@ -99,15 +115,37 @@ final class LogAdmin
 
     private function renderList(): void
     {
-        $messages = $this->messages->listRecentWithAttemptCounts(50);
+        $filters = $this->filtersFromRequest();
+        $page = isset($_GET['onesmtp_log_page']) ? max(1, absint(wp_unslash((string) $_GET['onesmtp_log_page']))) : 1;
+        $perPage = isset($_GET['onesmtp_logs_per_page']) ? absint(wp_unslash((string) $_GET['onesmtp_logs_per_page'])) : self::DEFAULT_PER_PAGE;
+        $perPage = max(1, min(self::MAX_PER_PAGE, $perPage));
+        $total = $this->messages->countFiltered($filters);
+        $maxPage = max(1, (int) ceil($total / $perPage));
+        $page = min($page, $maxPage);
+        $messages = $this->messages->listFilteredWithAttemptCounts($filters, $page, $perPage);
 
         echo '<h3>' . esc_html__('Recent messages', 'onesmtp') . '</h3>';
+        $this->renderFilters($filters, $perPage);
 
         if ($messages === []) {
-            echo '<p>' . esc_html__('No email log entries have been recorded yet.', 'onesmtp') . '</p>';
+            echo '<p>' . esc_html(
+                $this->hasActiveFilters($filters)
+                    ? __('No email log entries matched the current filters.', 'onesmtp')
+                    : __('No email log entries have been recorded yet.', 'onesmtp')
+            ) . '</p>';
 
             return;
         }
+
+        echo '<p>' . esc_html(
+            sprintf(
+                /* translators: 1: current page, 2: total pages, 3: total log count. */
+                __('Page %1$d of %2$d (%3$d log entries)', 'onesmtp'),
+                $page,
+                $maxPage,
+                $total
+            )
+        ) . '</p>';
 
         echo '<table class="widefat striped">';
         echo '<thead><tr>';
@@ -139,6 +177,296 @@ final class LogAdmin
         }
 
         echo '</tbody></table>';
+        $this->renderPagination($filters, $page, $perPage, $total);
+    }
+
+    /**
+     * @param array{status:string,provider_id:int,date_from:string,date_to:string,recipient_hash:string,search:string} $filters
+     */
+    private function renderFilters(array $filters, int $perPage): void
+    {
+        $providers = $this->providers->getAllSafe();
+
+        echo '<form method="get" action="' . esc_url(admin_url('admin.php')) . '" class="onesmtp-log-filters">';
+        echo '<input type="hidden" name="page" value="onesmtp">';
+        echo '<input type="hidden" name="onesmtp_log_page" value="1">';
+
+        echo '<p>';
+        echo '<label for="onesmtp-log-status">' . esc_html__('Status', 'onesmtp') . '</label> ';
+        echo '<select id="onesmtp-log-status" name="status">';
+        $this->renderOption('', __('Any status', 'onesmtp'), $filters['status']);
+        foreach (['queued', 'retrying', 'retry_scheduled', 'sent', 'failed'] as $status) {
+            $this->renderOption($status, $this->formatStatus($status), $filters['status']);
+        }
+        echo '</select> ';
+
+        echo '<label for="onesmtp-log-provider">' . esc_html__('Provider', 'onesmtp') . '</label> ';
+        echo '<select id="onesmtp-log-provider" name="provider_id">';
+        $this->renderOption('0', __('Any provider', 'onesmtp'), (string) $filters['provider_id']);
+        foreach ($providers as $provider) {
+            $providerId = (int) ($provider['id'] ?? 0);
+            if ($providerId <= 0) {
+                continue;
+            }
+
+            $this->renderOption((string) $providerId, $this->providerLabel($provider), (string) $filters['provider_id']);
+        }
+        echo '</select> ';
+
+        echo '<label for="onesmtp-log-date-from">' . esc_html__('From', 'onesmtp') . '</label> ';
+        echo '<input id="onesmtp-log-date-from" type="date" name="date_from" value="' . esc_attr($filters['date_from']) . '"> ';
+
+        echo '<label for="onesmtp-log-date-to">' . esc_html__('To', 'onesmtp') . '</label> ';
+        echo '<input id="onesmtp-log-date-to" type="date" name="date_to" value="' . esc_attr($filters['date_to']) . '"> ';
+        echo '</p>';
+
+        echo '<p>';
+        echo '<label for="onesmtp-log-search">' . esc_html__('Search', 'onesmtp') . '</label> ';
+        echo '<input id="onesmtp-log-search" type="search" name="s" value="' . esc_attr($filters['search']) . '" placeholder="' . esc_attr__('Lineage UUID, log ID, or recipient hash', 'onesmtp') . '" size="36"> ';
+
+        echo '<label for="onesmtp-log-recipient-hash">' . esc_html__('Recipient hash', 'onesmtp') . '</label> ';
+        echo '<input id="onesmtp-log-recipient-hash" type="search" name="recipient_hash" value="' . esc_attr($filters['recipient_hash']) . '" pattern="[a-fA-F0-9]{64}" size="36"> ';
+
+        echo '<label for="onesmtp-logs-per-page">' . esc_html__('Per page', 'onesmtp') . '</label> ';
+        echo '<select id="onesmtp-logs-per-page" name="onesmtp_logs_per_page">';
+        foreach ([10, 25, 50, 100] as $option) {
+            $this->renderOption((string) $option, (string) $option, (string) $perPage);
+        }
+        echo '</select> ';
+
+        submit_button(__('Filter logs', 'onesmtp'), 'secondary', 'submit', false);
+
+        $exportUrl = add_query_arg(
+            $this->urlArgsForFilters($filters, 1, $perPage) + [
+                self::ACTION_NAME => self::EXPORT_ACTION,
+                self::EXPORT_NONCE_NAME => wp_create_nonce(self::EXPORT_ACTION),
+            ],
+            admin_url('admin.php')
+        );
+        echo ' <a class="button" href="' . esc_url($exportUrl) . '">' . esc_html__('Export CSV', 'onesmtp') . '</a>';
+        echo '</p>';
+        echo '</form>';
+    }
+
+    private function renderOption(string $value, string $label, string $selected): void
+    {
+        echo '<option value="' . esc_attr($value) . '"' . ($value === $selected ? ' selected="selected"' : '') . '>' . esc_html($label) . '</option>';
+    }
+
+    /**
+     * @param array{status:string,provider_id:int,date_from:string,date_to:string,recipient_hash:string,search:string} $filters
+     */
+    private function renderPagination(array $filters, int $page, int $perPage, int $total): void
+    {
+        $maxPage = max(1, (int) ceil($total / $perPage));
+        if ($maxPage <= 1) {
+            return;
+        }
+
+        echo '<p class="tablenav-pages">';
+        if ($page > 1) {
+            echo '<a class="button" href="' . esc_url(add_query_arg($this->urlArgsForFilters($filters, $page - 1, $perPage), admin_url('admin.php'))) . '">' . esc_html__('Previous', 'onesmtp') . '</a> ';
+        }
+
+        echo '<span>' . esc_html(
+            sprintf(
+                /* translators: 1: current page, 2: total pages. */
+                __('Page %1$d of %2$d', 'onesmtp'),
+                $page,
+                $maxPage
+            )
+        ) . '</span>';
+
+        if ($page < $maxPage) {
+            echo ' <a class="button" href="' . esc_url(add_query_arg($this->urlArgsForFilters($filters, $page + 1, $perPage), admin_url('admin.php'))) . '">' . esc_html__('Next', 'onesmtp') . '</a>';
+        }
+        echo '</p>';
+    }
+
+    /**
+     * @return array{status:string,provider_id:int,date_from:string,date_to:string,recipient_hash:string,search:string}
+     */
+    private function filtersFromRequest(): array
+    {
+        $status = isset($_GET['status']) ? sanitize_key(wp_unslash((string) $_GET['status'])) : '';
+        $providerId = isset($_GET['provider_id']) ? absint(wp_unslash((string) $_GET['provider_id'])) : 0;
+        $dateFrom = isset($_GET['date_from']) ? $this->sanitizeDate(wp_unslash((string) $_GET['date_from'])) : '';
+        $dateTo = isset($_GET['date_to']) ? $this->sanitizeDate(wp_unslash((string) $_GET['date_to'])) : '';
+        $recipientHash = isset($_GET['recipient_hash']) ? strtolower(sanitize_text_field(wp_unslash((string) $_GET['recipient_hash']))) : '';
+        $search = isset($_GET['s']) ? sanitize_text_field(wp_unslash((string) $_GET['s'])) : '';
+
+        if (! $this->isSha256Hash($recipientHash)) {
+            $recipientHash = '';
+        }
+
+        return [
+            'status' => $status,
+            'provider_id' => $providerId,
+            'date_from' => $dateFrom,
+            'date_to' => $dateTo,
+            'recipient_hash' => $recipientHash,
+            'search' => $search,
+        ];
+    }
+
+    private function sanitizeDate(string $value): string
+    {
+        $value = trim($value);
+
+        return preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) === 1 ? $value : '';
+    }
+
+    private function isSha256Hash(string $value): bool
+    {
+        return preg_match('/^[a-f0-9]{64}$/', $value) === 1;
+    }
+
+    /**
+     * @param array{status:string,provider_id:int,date_from:string,date_to:string,recipient_hash:string,search:string} $filters
+     * @return array<string,string|int>
+     */
+    private function urlArgsForFilters(array $filters, int $page, int $perPage): array
+    {
+        $args = [
+            'page' => 'onesmtp',
+            'onesmtp_log_page' => max(1, $page),
+            'onesmtp_logs_per_page' => max(1, min(self::MAX_PER_PAGE, $perPage)),
+        ];
+
+        if ($filters['status'] !== '') {
+            $args['status'] = $filters['status'];
+        }
+        if ($filters['provider_id'] > 0) {
+            $args['provider_id'] = $filters['provider_id'];
+        }
+        if ($filters['date_from'] !== '') {
+            $args['date_from'] = $filters['date_from'];
+        }
+        if ($filters['date_to'] !== '') {
+            $args['date_to'] = $filters['date_to'];
+        }
+        if ($filters['recipient_hash'] !== '') {
+            $args['recipient_hash'] = $filters['recipient_hash'];
+        }
+        if ($filters['search'] !== '') {
+            $args['s'] = $filters['search'];
+        }
+
+        return $args;
+    }
+
+    private function handleCsvExport(): void
+    {
+        if (! Capabilities::canViewLogs()) {
+            wp_die(
+                esc_html__('You do not have permission to export OneSMTP logs.', 'onesmtp'),
+                esc_html__('OneSMTP access denied', 'onesmtp'),
+                ['response' => 403]
+            );
+        }
+
+        $nonce = isset($_GET[self::EXPORT_NONCE_NAME]) ? sanitize_text_field(wp_unslash((string) $_GET[self::EXPORT_NONCE_NAME])) : '';
+        if ($nonce === '' || ! wp_verify_nonce($nonce, self::EXPORT_ACTION)) {
+            wp_die(
+                esc_html__('The OneSMTP log export link has expired. Refresh the page and try again.', 'onesmtp'),
+                esc_html__('OneSMTP export denied', 'onesmtp'),
+                ['response' => 403]
+            );
+        }
+
+        $filters = $this->filtersFromRequest();
+        $messages = $this->messages->listFilteredWithAttemptCounts($filters, 1, min(self::MAX_PER_PAGE, self::EXPORT_LIMIT));
+        $remaining = self::EXPORT_LIMIT - count($messages);
+        $page = 2;
+        while ($remaining > 0) {
+            $next = $this->messages->listFilteredWithAttemptCounts($filters, $page, min(self::MAX_PER_PAGE, $remaining));
+            if ($next === []) {
+                break;
+            }
+
+            array_push($messages, ...$next);
+            $remaining = self::EXPORT_LIMIT - count($messages);
+            $page++;
+        }
+
+        if (! headers_sent()) {
+            header('Content-Type: text/csv; charset=utf-8');
+            header('Content-Disposition: attachment; filename=onesmtp-email-logs.csv');
+            header('X-Content-Type-Options: nosniff');
+        }
+
+        $this->outputCsv($messages);
+
+        if ($this->isTestingRuntime()) {
+            throw new \RuntimeException('OneSMTP log CSV exported.');
+        }
+
+        exit;
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $messages
+     */
+    private function outputCsv(array $messages): void
+    {
+        $handle = fopen('php://output', 'w');
+        if (! is_resource($handle)) {
+            return;
+        }
+
+        fputcsv(
+            $handle,
+            [
+                'message_id',
+                'lineage_uuid',
+                'status',
+                'provider',
+                'attempt_count',
+                'max_attempts',
+                'recipient_summary',
+                'next_retry_at',
+                'created_at',
+                'updated_at',
+            ]
+        );
+
+        foreach ($messages as $message) {
+            fputcsv(
+                $handle,
+                [
+                    (string) ((int) ($message['id'] ?? 0)),
+                    $this->csvCell((string) ($message['message_uuid'] ?? '')),
+                    $this->csvCell($this->formatStatus((string) ($message['status'] ?? ''))),
+                    $this->csvCell($this->formatProvider((int) ($message['selected_provider_id'] ?? 0))),
+                    (string) ((int) ($message['attempt_count'] ?? $message['current_attempt'] ?? 0)),
+                    (string) ((int) ($message['max_attempts'] ?? 0)),
+                    $this->csvCell($this->formatRecipientSummary($this->payloadFor($message))),
+                    $this->csvCell((string) ($message['next_retry_at'] ?? '')),
+                    $this->csvCell((string) ($message['created_at'] ?? '')),
+                    $this->csvCell((string) ($message['updated_at'] ?? '')),
+                ]
+            );
+        }
+
+        fclose($handle);
+    }
+
+    private function csvCell(string $value): string
+    {
+        return $this->redactor->redactText($value, 300);
+    }
+
+    /**
+     * @param array{status:string,provider_id:int,date_from:string,date_to:string,recipient_hash:string,search:string} $filters
+     */
+    private function hasActiveFilters(array $filters): bool
+    {
+        return $filters['status'] !== ''
+            || $filters['provider_id'] > 0
+            || $filters['date_from'] !== ''
+            || $filters['date_to'] !== ''
+            || $filters['recipient_hash'] !== ''
+            || $filters['search'] !== '';
     }
 
     private function renderDetail(int $messageId): void
@@ -427,7 +755,7 @@ final class LogAdmin
         );
 
         wp_safe_redirect($url);
-        if (defined('ONESMTP_TESTING') && ONESMTP_TESTING) {
+        if ($this->isTestingRuntime()) {
             throw new \RuntimeException('OneSMTP log admin redirected.');
         }
 
@@ -463,5 +791,10 @@ final class LogAdmin
         $value = trim($this->redactor->redactText($value, 80));
 
         return $value !== '' ? $value : __('Unavailable', 'onesmtp');
+    }
+
+    private function isTestingRuntime(): bool
+    {
+        return defined('ONESMTP_TESTING') && (bool) constant('ONESMTP_TESTING');
     }
 }

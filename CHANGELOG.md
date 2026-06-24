@@ -22,6 +22,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - WordPress.org-ready readme metadata, 0.1.0 release notes draft, and screenshot checklist.
 - First-run setup wizard for sender identity, first provider configuration, backup provider prompt, test email verification, and setup log confirmation.
 - Privacy-safe admin email log list and detail views with delivery lineage, safe recipient metadata, attempt status, provider, retry, and redacted error context.
+- Admin email log filtering by status, provider, date range, lineage/search-safe metadata, pagination, and nonce-protected CSV export with safe summary fields only.
 - Manual resend controls on log details with optional eligible-provider override and lineage-linked delivery attempts.
 - Conservative conflict detection notice for active mail delivery plugins and mail-related hooks.
 - Provider capability matrix for comparing MVP provider delivery, testing, OAuth, attachment, and message identifier support before credential entry.

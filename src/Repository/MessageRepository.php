@@ -217,6 +217,125 @@ final class MessageRepository
         return is_array($rows) ? $rows : [];
     }
 
+    public function listFilteredWithAttemptCounts(array $filters = [], int $page = 1, int $perPage = 25): array
+    {
+        global $wpdb;
+
+        $page = max(1, $page);
+        $perPage = max(1, min(100, $perPage));
+        $offset = ($page - 1) * $perPage;
+        $messagesTable = TableNames::messages();
+        $attemptsTable = TableNames::attempts();
+        [$whereSql, $args] = $this->buildLogFilterWhere($filters, 'm');
+
+        $sql = "SELECT m.id, m.message_uuid, m.recipients_hash, m.payload_json, m.status, m.selected_provider_id, m.current_attempt, m.max_attempts, m.next_retry_at, m.created_at, m.updated_at, COALESCE(a.attempt_count, 0) AS attempt_count
+            FROM {$messagesTable} m
+            LEFT JOIN (
+                SELECT message_id, COUNT(id) AS attempt_count
+                FROM {$attemptsTable}
+                GROUP BY message_id
+            ) a ON a.message_id = m.id
+            {$whereSql}
+            ORDER BY m.id DESC
+            LIMIT %d OFFSET %d";
+        $args[] = $perPage;
+        $args[] = $offset;
+
+        $rows = $wpdb->get_results($wpdb->prepare($sql, ...$args), ARRAY_A);
+
+        return is_array($rows) ? $rows : [];
+    }
+
+    public function countFiltered(array $filters = []): int
+    {
+        global $wpdb;
+
+        $messagesTable = TableNames::messages();
+        [$whereSql, $args] = $this->buildLogFilterWhere($filters, 'm');
+
+        $sql = "SELECT COUNT(*) FROM {$messagesTable} m {$whereSql}";
+        $prepared = $args === [] ? $sql : $wpdb->prepare($sql, ...$args);
+
+        return max(0, (int) $wpdb->get_var($prepared));
+    }
+
+    /**
+     * @return array{0:string,1:array<int,mixed>}
+     */
+    private function buildLogFilterWhere(array $filters, string $alias): array
+    {
+        $clauses = [];
+        $args = [];
+        $prefix = $alias !== '' ? $alias . '.' : '';
+
+        $status = isset($filters['status']) ? sanitize_key((string) $filters['status']) : '';
+        if ($status !== '') {
+            $clauses[] = "{$prefix}status = %s";
+            $args[] = $status;
+        }
+
+        $providerId = isset($filters['provider_id']) ? (int) $filters['provider_id'] : 0;
+        if ($providerId > 0) {
+            $clauses[] = "{$prefix}selected_provider_id = %d";
+            $args[] = $providerId;
+        }
+
+        $dateFrom = isset($filters['date_from']) ? (string) $filters['date_from'] : '';
+        if ($this->isDateString($dateFrom)) {
+            $clauses[] = "{$prefix}created_at >= %s";
+            $args[] = $dateFrom . ' 00:00:00';
+        }
+
+        $dateTo = isset($filters['date_to']) ? (string) $filters['date_to'] : '';
+        if ($this->isDateString($dateTo)) {
+            $clauses[] = "{$prefix}created_at <= %s";
+            $args[] = $dateTo . ' 23:59:59';
+        }
+
+        $recipientHash = isset($filters['recipient_hash']) ? strtolower(trim((string) $filters['recipient_hash'])) : '';
+        if ($this->isSha256Hash($recipientHash)) {
+            $clauses[] = "{$prefix}recipients_hash = %s";
+            $args[] = $recipientHash;
+        }
+
+        $search = isset($filters['search']) ? trim((string) $filters['search']) : '';
+        if ($search !== '') {
+            $searchClauses = ["{$prefix}message_uuid LIKE %s"];
+            $searchArgs = ['%' . $this->escapeLike($search) . '%'];
+
+            $normalizedSearch = strtolower($search);
+            if ($this->isSha256Hash($normalizedSearch)) {
+                $searchClauses[] = "{$prefix}recipients_hash = %s";
+                $searchArgs[] = $normalizedSearch;
+            }
+
+            if (ctype_digit($search)) {
+                $searchClauses[] = "{$prefix}id = %d";
+                $searchArgs[] = (int) $search;
+            }
+
+            $clauses[] = '(' . implode(' OR ', $searchClauses) . ')';
+            array_push($args, ...$searchArgs);
+        }
+
+        return [$clauses !== [] ? 'WHERE ' . implode(' AND ', $clauses) : '', $args];
+    }
+
+    private function isDateString(string $value): bool
+    {
+        return preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) === 1;
+    }
+
+    private function isSha256Hash(string $value): bool
+    {
+        return preg_match('/^[a-f0-9]{64}$/', $value) === 1;
+    }
+
+    private function escapeLike(string $value): string
+    {
+        return addcslashes($value, '_%\\');
+    }
+
     /**
      * @return array{queued_count:int,retry_scheduled_count:int,retrying_count:int,failed_count:int,overdue_retry_count:int,next_retry_at:?string}
      */

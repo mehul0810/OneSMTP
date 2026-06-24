@@ -522,6 +522,13 @@ if (! function_exists('wp_verify_nonce')) {
     }
 }
 
+if (! function_exists('wp_create_nonce')) {
+    function wp_create_nonce(string $action = '-1'): string
+    {
+        return 'test-nonce';
+    }
+}
+
 if (! function_exists('current_time')) {
     function current_time(string $type, bool $gmt = false): string
     {
