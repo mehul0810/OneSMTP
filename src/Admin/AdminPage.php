@@ -17,13 +17,15 @@ final class AdminPage
     private SetupWizard $setupWizard;
     private LogAdmin $logs;
     private SettingsAdmin $settings;
+    private QueueDiagnosticsAdmin $diagnostics;
 
-    public function __construct(?ProviderAdmin $providers = null, ?SetupWizard $setupWizard = null, ?LogAdmin $logs = null, ?SettingsAdmin $settings = null)
+    public function __construct(?ProviderAdmin $providers = null, ?SetupWizard $setupWizard = null, ?LogAdmin $logs = null, ?SettingsAdmin $settings = null, ?QueueDiagnosticsAdmin $diagnostics = null)
     {
         $this->providers = $providers ?? new ProviderAdmin(new ProviderRepository());
         $this->setupWizard = $setupWizard ?? new SetupWizard(new ProviderRepository());
         $this->logs = $logs ?? new LogAdmin(new MessageRepository(), new AttemptRepository(), new ProviderRepository());
         $this->settings = $settings ?? new SettingsAdmin();
+        $this->diagnostics = $diagnostics ?? new QueueDiagnosticsAdmin();
     }
 
     public function registerHooks(): void
@@ -92,6 +94,8 @@ final class AdminPage
                 $this->logs->render();
             } elseif ($section['id'] === 'onesmtp-settings') {
                 $this->settings->render();
+            } elseif ($section['id'] === 'onesmtp-diagnostics') {
+                $this->diagnostics->render();
             } else {
                 echo '<p>' . esc_html($section['description']) . '</p>';
             }
@@ -132,7 +136,7 @@ final class AdminPage
             [
                 'id' => 'onesmtp-diagnostics',
                 'title' => esc_html__('Diagnostics', 'onesmtp'),
-                'description' => esc_html__('Operational notices and delivery diagnostics will appear here as diagnostics are wired into the admin UI.', 'onesmtp'),
+                'description' => esc_html__('Review scheduler availability, queue status, overdue retries, and recovery actions.', 'onesmtp'),
                 'href' => $baseUrl . '#onesmtp-diagnostics',
             ],
             [

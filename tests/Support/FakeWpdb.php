@@ -27,6 +27,9 @@ final class FakeWpdb
     /** @var array<int,array<int,array<string,mixed>>> */
     public array $attemptHistoryByMessage = [];
 
+    /** @var array<string,mixed>|null */
+    public ?array $queueDiagnosticRow = null;
+
     /** @var array<int,array<string,mixed>> */
     public array $activeProviders = [];
 
@@ -96,6 +99,14 @@ final class FakeWpdb
             $messageId = isset($args[0]) ? (int) $args[0] : 0;
 
             return $this->messageRowsById[$messageId] ?? null;
+        }
+
+        if (
+            str_contains($query, $this->prefix . 'onesmtp_messages')
+            && str_contains($query, 'queued_count')
+            && str_contains($query, 'overdue_retry_count')
+        ) {
+            return $this->queueDiagnosticRow;
         }
 
         if (str_contains($query, $this->prefix . 'onesmtp_attempts') && str_contains($query, 'ORDER BY id DESC LIMIT 1')) {

@@ -75,6 +75,7 @@ final class AdminPageTest extends TestCase
         self::assertStringContainsString('Use this guided setup', $output);
         self::assertStringContainsString('Create and manage the delivery providers', $output);
         self::assertStringContainsString('Add or update provider', $output);
+        self::assertStringContainsString('Scheduler availability', $output);
     }
 
     public function test_render_blocks_users_without_manage_capability(): void

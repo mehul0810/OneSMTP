@@ -216,4 +216,39 @@ final class MessageRepository
 
         return is_array($rows) ? $rows : [];
     }
+
+    /**
+     * @return array{queued_count:int,retry_scheduled_count:int,retrying_count:int,failed_count:int,overdue_retry_count:int,next_retry_at:?string}
+     */
+    public function getQueueStatusSummary(string $overdueBefore): array
+    {
+        global $wpdb;
+
+        $messagesTable = TableNames::messages();
+        $sql = $wpdb->prepare(
+            "SELECT
+                COALESCE(SUM(CASE WHEN status = 'queued' THEN 1 ELSE 0 END), 0) AS queued_count,
+                COALESCE(SUM(CASE WHEN status = 'retry_scheduled' THEN 1 ELSE 0 END), 0) AS retry_scheduled_count,
+                COALESCE(SUM(CASE WHEN status = 'retrying' THEN 1 ELSE 0 END), 0) AS retrying_count,
+                COALESCE(SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END), 0) AS failed_count,
+                COALESCE(SUM(CASE WHEN status = 'retry_scheduled' AND next_retry_at IS NOT NULL AND next_retry_at < %s THEN 1 ELSE 0 END), 0) AS overdue_retry_count,
+                MIN(CASE WHEN status = 'retry_scheduled' THEN next_retry_at ELSE NULL END) AS next_retry_at
+            FROM {$messagesTable}",
+            $overdueBefore
+        );
+        $row = $wpdb->get_row($sql, ARRAY_A);
+
+        if (! is_array($row)) {
+            $row = [];
+        }
+
+        return [
+            'queued_count'          => (int) ($row['queued_count'] ?? 0),
+            'retry_scheduled_count' => (int) ($row['retry_scheduled_count'] ?? 0),
+            'retrying_count'        => (int) ($row['retrying_count'] ?? 0),
+            'failed_count'          => (int) ($row['failed_count'] ?? 0),
+            'overdue_retry_count'   => (int) ($row['overdue_retry_count'] ?? 0),
+            'next_retry_at'         => isset($row['next_retry_at']) && (string) $row['next_retry_at'] !== '' ? (string) $row['next_retry_at'] : null,
+        ];
+    }
 }

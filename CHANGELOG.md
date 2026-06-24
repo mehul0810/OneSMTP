@@ -26,6 +26,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Conservative conflict detection notice for active mail delivery plugins and mail-related hooks.
 - Provider capability matrix for comparing MVP provider delivery, testing, OAuth, attachment, and message identifier support before credential entry.
 - Safe failure categories for delivery attempts, covering retryable, terminal, authentication, quota, timeout, and policy outcomes.
+- Privacy-safe queue diagnostics in admin with scheduler availability, queue status, overdue retry counts, and recovery actions.
 
 ### Changed
 
