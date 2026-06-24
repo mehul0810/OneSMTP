@@ -72,7 +72,8 @@ final class DeliveryEngine
             $providerId,
             $result->getCode(),
             $result->getMessage(),
-            $result->getProviderMessageId()
+            $result->getProviderMessageId(),
+            $result->getFailureCategory()
         );
     }
 

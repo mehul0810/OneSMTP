@@ -16,6 +16,23 @@ final class Installer
         self::storeDefaults();
     }
 
+    public static function maybeUpgrade(): void
+    {
+        if (! defined('ABSPATH')) {
+            return;
+        }
+
+        $version = defined('ONESMTP_VERSION') ? (string) constant('ONESMTP_VERSION') : '0.1.0';
+        $stored  = (string) get_option(self::VERSION_OPTION, '');
+
+        if ($stored === $version) {
+            return;
+        }
+
+        DatabaseSchema::createTables();
+        update_option(self::VERSION_OPTION, $version, false);
+    }
+
     public static function deactivate(): void
     {
         Capabilities::revokeDefaults();

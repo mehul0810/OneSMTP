@@ -25,11 +25,13 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Manual resend controls on log details with optional eligible-provider override and lineage-linked delivery attempts.
 - Conservative conflict detection notice for active mail delivery plugins and mail-related hooks.
 - Provider capability matrix for comparing MVP provider delivery, testing, OAuth, attachment, and message identifier support before credential entry.
+- Safe failure categories for delivery attempts, covering retryable, terminal, authentication, quota, timeout, and policy outcomes.
 
 ### Changed
 
 - Documented the `main`, `develop`, and `release/*` branch workflow and extended CI push coverage to the integration and stabilization branches.
 - Retry scheduling now fails closed and records a scheduling failure event when Action Scheduler is unavailable instead of reporting a queued retry.
+- Terminal, authentication, and policy failures now stop retry scheduling early while preserving redacted log context.
 
 ## [0.1.0] - 2026-04-14
 

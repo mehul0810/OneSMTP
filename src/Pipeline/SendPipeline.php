@@ -159,6 +159,7 @@ final class SendPipeline
             'result' => $outcome->isSuccess() ? 'sent' : 'fail',
             'error_code' => $outcome->isSuccess() ? null : $outcome->getCode(),
             'error_message' => $outcome->isSuccess() ? null : $outcome->getMessage(),
+            'failure_category' => $outcome->isSuccess() ? null : $outcome->getFailureCategory(),
             'provider_message_id' => $outcome->getProviderMessageId(),
         ]);
 
@@ -170,7 +171,23 @@ final class SendPipeline
 
         if ($attemptNo >= self::MAX_RETRIES) {
             $this->messages->markFailedTerminal($messageId, $attemptNo);
-            $this->events->add('terminal_failure', ['attempt' => $attemptNo, 'reason' => $outcome->getCode()], $messageId, $outcome->getProviderId());
+            $this->events->add(
+                'terminal_failure',
+                ['attempt' => $attemptNo, 'reason' => $outcome->getCode(), 'failure_category' => $outcome->getFailureCategory()],
+                $messageId,
+                $outcome->getProviderId()
+            );
+            return;
+        }
+
+        if (! $outcome->shouldRetry()) {
+            $this->messages->markFailedTerminal($messageId, $attemptNo);
+            $this->events->add(
+                'terminal_failure',
+                ['attempt' => $attemptNo, 'reason' => $outcome->getCode(), 'failure_category' => $outcome->getFailureCategory()],
+                $messageId,
+                $outcome->getProviderId()
+            );
             return;
         }
 

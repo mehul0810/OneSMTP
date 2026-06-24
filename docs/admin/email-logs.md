@@ -25,6 +25,7 @@ The message detail view shows:
 - Message status, selected provider, retry timestamp, and lineage UUID
 - Attempt-level provider, trigger type, result, latency, provider message identifier, and timestamp
 - Redacted and length-limited error context for failed attempts
+- Safe failure category when a provider error can be classified without exposing provider internals or secrets
 
 ## Privacy Boundary
 

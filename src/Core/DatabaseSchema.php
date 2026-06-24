@@ -70,6 +70,7 @@ final class DatabaseSchema
             result VARCHAR(10) NOT NULL DEFAULT 'fail',
             error_code VARCHAR(64) NULL,
             error_message TEXT NULL,
+            failure_category VARCHAR(32) NULL,
             latency_ms INT UNSIGNED NULL,
             provider_message_id VARCHAR(190) NULL,
             created_at DATETIME NOT NULL,
@@ -77,6 +78,7 @@ final class DatabaseSchema
             KEY message_id (message_id),
             KEY provider_id (provider_id),
             KEY result (result),
+            KEY failure_category (failure_category),
             UNIQUE KEY message_attempt (message_id, attempt_no),
             KEY provider_result_time (provider_id, result, created_at)
         ) {$charsetCollate};";

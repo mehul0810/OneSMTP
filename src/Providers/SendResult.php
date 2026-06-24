@@ -10,13 +10,15 @@ final class SendResult
     private string $code;
     private string $message;
     private ?string $providerMessageId;
+    private string $failureCategory;
 
-    public function __construct(bool $success, string $code = '', string $message = '', ?string $providerMessageId = null)
+    public function __construct(bool $success, string $code = '', string $message = '', ?string $providerMessageId = null, ?string $failureCategory = null)
     {
         $this->success           = $success;
         $this->code              = $code;
         $this->message           = $message;
         $this->providerMessageId = $providerMessageId;
+        $this->failureCategory   = $success ? '' : FailureCategory::normalize($failureCategory ?? FailureClassifier::classify($code, $message));
     }
 
     public function isSuccess(): bool
@@ -37,5 +39,15 @@ final class SendResult
     public function getProviderMessageId(): ?string
     {
         return $this->providerMessageId;
+    }
+
+    public function getFailureCategory(): string
+    {
+        return $this->failureCategory;
+    }
+
+    public function shouldRetry(): bool
+    {
+        return $this->success || FailureCategory::shouldRetry($this->failureCategory);
     }
 }
