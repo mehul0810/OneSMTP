@@ -21,6 +21,8 @@ final class FakeWpdb
     /** @var array<int,array<string,mixed>> */
     public array $recentMessageRows = [];
 
+    public int $filteredMessageCount = 0;
+
     /** @var array<string,array<string,mixed>> */
     public array $messageRowsByUuid = [];
 
@@ -40,7 +42,7 @@ final class FakeWpdb
     public array $providerRowsById = [];
 
     /** @var array{query:string,args:array<int,mixed>}|null */
-    private ?array $lastPrepared = null;
+    public ?array $lastPrepared = null;
 
     public function get_charset_collate(): string
     {
@@ -183,9 +185,23 @@ final class FakeWpdb
 
     public function get_var(string $sql): int
     {
+        if (
+            str_contains($sql, $this->prefix . 'onesmtp_messages')
+            && str_contains($sql, 'SELECT COUNT(*)')
+        ) {
+            return $this->filteredMessageCount > 0 ? $this->filteredMessageCount : count($this->recentMessageRows);
+        }
+
         $prepared = $this->lastPrepared;
         if (! is_array($prepared)) {
             return 0;
+        }
+
+        if (
+            str_contains($prepared['query'], $this->prefix . 'onesmtp_messages')
+            && str_contains($prepared['query'], 'SELECT COUNT(*)')
+        ) {
+            return $this->filteredMessageCount > 0 ? $this->filteredMessageCount : count($this->recentMessageRows);
         }
 
         if (

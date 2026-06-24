@@ -29,11 +29,12 @@ final class LogAdminTest extends TestCase
         ];
         unset($GLOBALS['onesmtp_test_wp_die']);
         unset($GLOBALS['onesmtp_test_redirect']);
+        unset($GLOBALS['onesmtp_test_nonce_valid']);
     }
 
     protected function tearDown(): void
     {
-        unset($GLOBALS['onesmtp_test_current_user_caps'], $GLOBALS['onesmtp_test_wp_die'], $GLOBALS['onesmtp_test_redirect'], $GLOBALS['onesmtp_test_object_cache']);
+        unset($GLOBALS['onesmtp_test_current_user_caps'], $GLOBALS['onesmtp_test_wp_die'], $GLOBALS['onesmtp_test_redirect'], $GLOBALS['onesmtp_test_object_cache'], $GLOBALS['onesmtp_test_nonce_valid']);
         $_SERVER['REQUEST_METHOD'] = 'GET';
         $_POST = [];
     }
@@ -106,6 +107,91 @@ final class LogAdminTest extends TestCase
         self::assertStringNotContainsString('Secret body payload', $html);
         self::assertStringNotContainsString('raw-token', $html);
         self::assertStringNotContainsString('raw-secret', $html);
+    }
+
+    public function test_render_list_applies_status_provider_date_and_safe_search_filters(): void
+    {
+        $recipientHash = str_repeat('a', 64);
+        $_GET = [
+            'status' => 'failed',
+            'provider_id' => '7',
+            'date_from' => '2026-06-01',
+            'date_to' => '2026-06-30',
+            'recipient_hash' => $recipientHash,
+            's' => 'lineage-42',
+        ];
+        $GLOBALS['wpdb']->recentMessageRows = [
+            [
+                'id' => 42,
+                'message_uuid' => 'lineage-42',
+                'payload_json' => wp_json_encode(['to' => ['person@example.test']]),
+                'status' => 'failed',
+                'selected_provider_id' => 7,
+                'current_attempt' => 2,
+                'max_attempts' => 6,
+                'attempt_count' => 2,
+                'created_at' => '2026-06-12 10:00:00',
+                'updated_at' => '2026-06-12 10:03:00',
+            ],
+        ];
+        $GLOBALS['wpdb']->providerRowsById[7] = [
+            'id' => 7,
+            'name' => 'Primary SMTP',
+            'adapter_type' => 'smtp',
+            'priority' => 1,
+            'weight' => 1,
+            'is_active' => 1,
+        ];
+
+        $html = $this->renderLogs();
+
+        self::assertStringContainsString('lineage-42', $html);
+        self::assertStringContainsString('No email log entries matched the current filters.', $this->renderFilteredEmptyLogs());
+        self::assertIsArray($GLOBALS['wpdb']->lastPrepared);
+        self::assertStringContainsString('m.status = %s', $GLOBALS['wpdb']->lastPrepared['query']);
+        self::assertStringContainsString('m.selected_provider_id = %d', $GLOBALS['wpdb']->lastPrepared['query']);
+        self::assertStringContainsString('m.created_at &gt;= %s', esc_html($GLOBALS['wpdb']->lastPrepared['query']));
+        self::assertStringContainsString('m.created_at &lt;= %s', esc_html($GLOBALS['wpdb']->lastPrepared['query']));
+        self::assertStringContainsString('m.recipients_hash = %s', $GLOBALS['wpdb']->lastPrepared['query']);
+        self::assertStringContainsString('m.message_uuid LIKE %s', $GLOBALS['wpdb']->lastPrepared['query']);
+        self::assertSame(
+            ['failed', 7, '2026-06-01 00:00:00', '2026-06-30 23:59:59', $recipientHash, '%lineage-42%', 25, 0],
+            $GLOBALS['wpdb']->lastPrepared['args']
+        );
+    }
+
+    public function test_render_list_search_supports_recipient_hash_and_pagination_offsets(): void
+    {
+        $hash = str_repeat('b', 64);
+        $_GET = [
+            's' => $hash,
+            'onesmtp_log_page' => '2',
+            'onesmtp_logs_per_page' => '25',
+        ];
+        $GLOBALS['wpdb']->filteredMessageCount = 60;
+        $GLOBALS['wpdb']->recentMessageRows = [
+            [
+                'id' => 35,
+                'message_uuid' => 'lineage-35',
+                'payload_json' => wp_json_encode(['to' => ['person@example.test']]),
+                'status' => 'sent',
+                'selected_provider_id' => 0,
+                'current_attempt' => 1,
+                'max_attempts' => 6,
+                'attempt_count' => 1,
+                'created_at' => '2026-06-12 10:00:00',
+                'updated_at' => '2026-06-12 10:01:00',
+            ],
+        ];
+
+        $html = $this->renderLogs();
+
+        self::assertStringContainsString('Page 2 of 3 (60 log entries)', $html);
+        self::assertStringContainsString('Previous', $html);
+        self::assertStringContainsString('Next', $html);
+        self::assertIsArray($GLOBALS['wpdb']->lastPrepared);
+        self::assertStringContainsString('m.recipients_hash = %s', $GLOBALS['wpdb']->lastPrepared['query']);
+        self::assertSame(['%' . $hash . '%', $hash, 25, 25], $GLOBALS['wpdb']->lastPrepared['args']);
     }
 
     public function test_render_detail_redacts_errors_and_shows_retry_lineage(): void
@@ -200,13 +286,14 @@ final class LogAdminTest extends TestCase
         ];
 
         $html = $this->renderLogs();
+        $resendFormHtml = $this->htmlBetween($html, '<h4>Manual resend</h4>', '<h4>Attempt lineage</h4>');
 
         self::assertStringContainsString('Manual resend', $html);
-        self::assertStringContainsString('name="onesmtp_log_action" value="resend"', $html);
-        self::assertStringContainsString('Use normal provider selection', $html);
-        self::assertStringContainsString('Primary SMTP (smtp)', $html);
-        self::assertStringNotContainsString('Inactive SMTP', $html);
-        self::assertStringNotContainsString('Open Circuit', $html);
+        self::assertStringContainsString('name="onesmtp_log_action" value="resend"', $resendFormHtml);
+        self::assertStringContainsString('Use normal provider selection', $resendFormHtml);
+        self::assertStringContainsString('Primary SMTP (smtp)', $resendFormHtml);
+        self::assertStringNotContainsString('Inactive SMTP', $resendFormHtml);
+        self::assertStringNotContainsString('Open Circuit', $resendFormHtml);
         self::assertStringNotContainsString('Private body', $html);
         self::assertStringNotContainsString('person@example.net', $html);
     }
@@ -224,6 +311,95 @@ final class LogAdminTest extends TestCase
         $this->expectExceptionMessage('You do not have permission to resend OneSMTP emails.');
 
         (new LogAdmin(new MessageRepository(), new AttemptRepository(), new ProviderRepository()))->handleRequest();
+    }
+
+    public function test_csv_export_requires_view_capability_and_valid_nonce(): void
+    {
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+        $_GET = [
+            'onesmtp_log_action' => 'export_csv',
+            'onesmtp_log_export_nonce' => 'test-nonce',
+        ];
+        $GLOBALS['onesmtp_test_current_user_caps'][Capabilities::VIEW_LOGS] = false;
+
+        try {
+            (new LogAdmin(new MessageRepository(), new AttemptRepository(), new ProviderRepository()))->handleRequest();
+            self::fail('Expected capability denial.');
+        } catch (RuntimeException $exception) {
+            self::assertStringContainsString('You do not have permission to export OneSMTP logs.', $exception->getMessage());
+        }
+
+        $GLOBALS['onesmtp_test_current_user_caps'][Capabilities::VIEW_LOGS] = true;
+        $GLOBALS['onesmtp_test_nonce_valid'] = false;
+
+        try {
+            (new LogAdmin(new MessageRepository(), new AttemptRepository(), new ProviderRepository()))->handleRequest();
+            self::fail('Expected nonce denial.');
+        } catch (RuntimeException $exception) {
+            self::assertStringContainsString('The OneSMTP log export link has expired.', $exception->getMessage());
+        }
+    }
+
+    public function test_csv_export_includes_only_safe_log_fields(): void
+    {
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+        $_GET = [
+            'onesmtp_log_action' => 'export_csv',
+            'onesmtp_log_export_nonce' => 'test-nonce',
+            'status' => 'sent',
+        ];
+        $GLOBALS['wpdb']->recentMessageRows = [
+            [
+                'id' => 10,
+                'message_uuid' => 'lineage-10',
+                'payload_json' => wp_json_encode(
+                    [
+                        'to' => ['first@example.com', 'second@example.org'],
+                        'subject' => 'Sensitive subject',
+                        'message' => 'Secret body payload',
+                        'headers' => ['Authorization: Bearer raw-token'],
+                    ]
+                ),
+                'status' => 'sent',
+                'selected_provider_id' => 5,
+                'current_attempt' => 1,
+                'max_attempts' => 6,
+                'attempt_count' => 1,
+                'next_retry_at' => null,
+                'created_at' => '2026-06-23 10:00:00',
+                'updated_at' => '2026-06-23 10:01:00',
+            ],
+        ];
+        $GLOBALS['wpdb']->providerRowsById[5] = [
+            'id' => 5,
+            'name' => 'Primary SMTP',
+            'adapter_type' => 'smtp',
+            'priority' => 1,
+            'weight' => 1,
+            'is_active' => 1,
+            'config_json' => wp_json_encode(['password' => 'raw-secret']),
+        ];
+
+        ob_start();
+        try {
+            (new LogAdmin(new MessageRepository(), new AttemptRepository(), new ProviderRepository()))->handleRequest();
+            self::fail('Expected CSV export exception.');
+        } catch (RuntimeException $exception) {
+            self::assertSame('OneSMTP log CSV exported.', $exception->getMessage());
+        }
+        $csv = (string) ob_get_clean();
+
+        self::assertStringContainsString('message_id,lineage_uuid,status,provider,attempt_count,max_attempts,recipient_summary,next_retry_at,created_at,updated_at', $csv);
+        self::assertStringContainsString('lineage-10', $csv);
+        self::assertStringContainsString('Primary SMTP (smtp)', $csv);
+        self::assertStringContainsString('2 recipients across example.com, example.org', $csv);
+        self::assertStringNotContainsString('first@example.com', $csv);
+        self::assertStringNotContainsString('second@example.org', $csv);
+        self::assertStringNotContainsString('Sensitive subject', $csv);
+        self::assertStringNotContainsString('Secret body payload', $csv);
+        self::assertStringNotContainsString('raw-token', $csv);
+        self::assertStringNotContainsString('raw-secret', $csv);
+        self::assertStringNotContainsString('payload_json', $csv);
     }
 
     public function test_resend_action_invokes_pipeline_with_eligible_provider_override(): void
@@ -336,5 +512,29 @@ final class LogAdminTest extends TestCase
             ob_end_clean();
             throw $throwable;
         }
+    }
+
+    private function renderFilteredEmptyLogs(): string
+    {
+        $originalRows = $GLOBALS['wpdb']->recentMessageRows;
+        $GLOBALS['wpdb']->recentMessageRows = [];
+
+        try {
+            return $this->renderLogs();
+        } finally {
+            $GLOBALS['wpdb']->recentMessageRows = $originalRows;
+        }
+    }
+
+    private function htmlBetween(string $html, string $start, string $end): string
+    {
+        $startPosition = strpos($html, $start);
+        $endPosition = strpos($html, $end);
+
+        if ($startPosition === false || $endPosition === false || $endPosition <= $startPosition) {
+            return $html;
+        }
+
+        return substr($html, $startPosition, $endPosition - $startPosition);
     }
 }
