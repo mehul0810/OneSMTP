@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace OneSMTP\Admin;
 
 use InvalidArgumentException;
+use OneSMTP\Alerts\FailureAlertSettings;
+use OneSMTP\Alerts\FailureAlertSettingsRepository;
 use OneSMTP\Settings\RateLimitSettings;
 use OneSMTP\Settings\RateLimitSettingsRepository;
 use OneSMTP\Settings\SenderIdentity;
@@ -16,10 +18,14 @@ final class SettingsAdmin
     private const ACTION_NAME = 'onesmtp_save_settings';
     private const NONCE_NAME = 'onesmtp_settings_nonce';
 
-    public function __construct(private ?SenderIdentityRepository $senderIdentity = null, private ?RateLimitSettingsRepository $rateLimits = null)
-    {
+    public function __construct(
+        private ?SenderIdentityRepository $senderIdentity = null,
+        private ?RateLimitSettingsRepository $rateLimits = null,
+        private ?FailureAlertSettingsRepository $failureAlerts = null
+    ) {
         $this->senderIdentity = $senderIdentity ?? new SenderIdentityRepository();
         $this->rateLimits = $rateLimits ?? new RateLimitSettingsRepository();
+        $this->failureAlerts = $failureAlerts ?? new FailureAlertSettingsRepository();
     }
 
     public function handleRequest(): void
@@ -38,6 +44,18 @@ final class SettingsAdmin
                     'per_day' => isset($_POST['rate_limit_per_day']) ? wp_unslash((string) $_POST['rate_limit_per_day']) : 0,
                 ]));
                 $this->redirect('rate_limits_saved');
+                return;
+            }
+
+            if ($action === 'save_failure_alerts') {
+                $this->failureAlerts->save(FailureAlertSettings::fromArray([
+                    'email_enabled' => isset($_POST['failure_alert_email_enabled']),
+                    'email_recipients' => isset($_POST['failure_alert_email_recipients']) ? wp_unslash((string) $_POST['failure_alert_email_recipients']) : '',
+                    'webhook_enabled' => isset($_POST['failure_alert_webhook_enabled']),
+                    'webhook_url' => isset($_POST['failure_alert_webhook_url']) ? wp_unslash((string) $_POST['failure_alert_webhook_url']) : '',
+                    'throttle_seconds' => isset($_POST['failure_alert_throttle_seconds']) ? wp_unslash((string) $_POST['failure_alert_throttle_seconds']) : 900,
+                ]));
+                $this->redirect('failure_alerts_saved');
                 return;
             }
 
@@ -72,8 +90,10 @@ final class SettingsAdmin
             echo '<div class="notice notice-success inline"><p>' . esc_html__('Sender identity settings saved.', 'onesmtp') . '</p></div>';
         } elseif ($status === 'rate_limits_saved') {
             echo '<div class="notice notice-success inline"><p>' . esc_html__('Delivery rate limit settings saved.', 'onesmtp') . '</p></div>';
+        } elseif ($status === 'failure_alerts_saved') {
+            echo '<div class="notice notice-success inline"><p>' . esc_html__('Failure alert settings saved.', 'onesmtp') . '</p></div>';
         } elseif ($status === 'invalid') {
-            echo '<div class="notice notice-error inline"><p>' . esc_html($message !== '' ? $message : __('Sender identity settings could not be saved.', 'onesmtp')) . '</p></div>';
+            echo '<div class="notice notice-error inline"><p>' . esc_html($message !== '' ? $message : __('OneSMTP settings could not be saved.', 'onesmtp')) . '</p></div>';
         }
 
         $identity = $this->senderIdentity->get();
@@ -111,12 +131,39 @@ final class SettingsAdmin
         echo '</tbody></table>';
         submit_button(__('Save delivery rate limits', 'onesmtp'));
         echo '</form>';
+
+        $alerts = $this->failureAlerts->get();
+        $alertValues = $alerts->toArray();
+        echo '<h3>' . esc_html__('Failure alerts', 'onesmtp') . '</h3>';
+        if (! $alerts->hasEnabledChannel()) {
+            echo '<div class="notice notice-info inline"><p>' . esc_html__('Failure alerts are disabled until an email recipient or HTTPS webhook is enabled.', 'onesmtp') . '</p></div>';
+        }
+        echo '<p>' . esc_html__('Send privacy-safe alerts for terminal delivery failures. Alert payloads include IDs, hashes, status, provider summary, reason, and category only.', 'onesmtp') . '</p>';
+        echo '<form method="post" action="' . esc_url(admin_url('admin.php?page=onesmtp#onesmtp-settings')) . '">';
+        echo '<input type="hidden" name="onesmtp_settings_action" value="save_failure_alerts">';
+        wp_nonce_field(self::ACTION_NAME, self::NONCE_NAME);
+        echo '<table class="form-table" role="presentation"><tbody>';
+        echo '<tr><th scope="row">' . esc_html__('Admin email alerts', 'onesmtp') . '</th><td>';
+        $this->renderCheckbox('failure_alert_email_enabled', __('Enable admin email alerts.', 'onesmtp'), ! empty($alertValues['email_enabled']));
+        echo '</td></tr>';
+        $this->renderTextarea('failure_alert_email_recipients', __('Alert recipients', 'onesmtp'), implode("\n", (array) ($alertValues['email_recipients'] ?? [])));
+        echo '<tr><th scope="row">' . esc_html__('Webhook alerts', 'onesmtp') . '</th><td>';
+        $this->renderCheckbox('failure_alert_webhook_enabled', __('Enable HTTPS webhook alerts.', 'onesmtp'), ! empty($alertValues['webhook_enabled']));
+        echo '</td></tr>';
+        $this->renderInput('failure_alert_webhook_url', __('Webhook URL', 'onesmtp'), (string) ($alertValues['webhook_url'] ?? ''), 'url', 'large-text code', 2048);
+        echo '<tr><th scope="row"></th><td>';
+        echo '<p class="description">' . esc_html__('Use an HTTPS endpoint. Raw recipients, headers, message bodies, provider credentials, and stored payload JSON are never sent.', 'onesmtp') . '</p>';
+        echo '</td></tr>';
+        $this->renderNumberInput('failure_alert_throttle_seconds', __('Throttle window in seconds', 'onesmtp'), (int) ($alertValues['throttle_seconds'] ?? 900));
+        echo '</tbody></table>';
+        submit_button(__('Save failure alerts', 'onesmtp'));
+        echo '</form>';
     }
 
-    private function renderInput(string $name, string $label, mixed $value, string $type = 'text'): void
+    private function renderInput(string $name, string $label, mixed $value, string $type = 'text', string $class = 'regular-text', int $maxlength = 0): void
     {
         echo '<tr><th scope="row"><label for="' . esc_attr($name) . '">' . esc_html($label) . '</label></th><td>';
-        echo '<input type="' . esc_attr($type) . '" class="regular-text" id="' . esc_attr($name) . '" name="' . esc_attr($name) . '" value="' . esc_attr((string) $value) . '">';
+        echo '<input type="' . esc_attr($type) . '" class="' . esc_attr($class) . '" id="' . esc_attr($name) . '" name="' . esc_attr($name) . '" value="' . esc_attr((string) $value) . '"' . ($maxlength > 0 ? ' maxlength="' . esc_attr((string) $maxlength) . '"' : '') . '>';
         echo '</td></tr>';
     }
 

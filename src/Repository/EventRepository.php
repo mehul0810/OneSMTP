@@ -4,10 +4,16 @@ declare(strict_types=1);
 
 namespace OneSMTP\Repository;
 
+use OneSMTP\Alerts\FailureAlertDispatcher;
 use OneSMTP\Core\TableNames;
 
 final class EventRepository
 {
+    public function __construct(private ?FailureAlertDispatcher $failureAlerts = null)
+    {
+        $this->failureAlerts = $failureAlerts ?? new FailureAlertDispatcher();
+    }
+
     public function add(string $eventType, array $context = [], ?int $messageId = null, ?int $providerId = null): int
     {
         global $wpdb;
@@ -29,6 +35,12 @@ final class EventRepository
             return 0;
         }
 
-        return (int) $wpdb->insert_id;
+        $eventId = (int) $wpdb->insert_id;
+
+        if ($eventType === 'terminal_failure') {
+            $this->failureAlerts->handleTerminalFailure($context, $messageId, $providerId, $eventId);
+        }
+
+        return $eventId;
     }
 }
