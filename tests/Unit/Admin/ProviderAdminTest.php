@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace OneSMTP\Tests\Unit\Admin;
 
 use OneSMTP\Admin\ProviderAdmin;
+use OneSMTP\Dns\DnsResolverInterface;
+use OneSMTP\Dns\DomainAuthenticationChecker;
 use OneSMTP\Repository\ProviderRepository;
 use OneSMTP\Security\SecretVault;
 use OneSMTP\Tests\Support\FakeWpdb;
@@ -42,12 +44,26 @@ final class ProviderAdminTest extends TestCase
                         'host' => 'smtp.example.test',
                         'password' => 'plain-password',
                         'api_key' => 'plain-api-key',
+                        'from_email' => 'sender@example.test',
+                        'dkim_selector' => 'mail',
                     ]
                 ),
             ],
         ];
 
-        $admin = new ProviderAdmin(new ProviderRepository());
+        $admin = new ProviderAdmin(
+            new ProviderRepository(),
+            new DomainAuthenticationChecker(
+                new ProviderAdminDnsResolver(
+                    true,
+                    [
+                        'example.test' => ['v=spf1 include:_spf.example.test -all'],
+                        'mail._domainkey.example.test' => ['v=DKIM1; k=rsa; p=synthetic'],
+                        '_dmarc.example.test' => ['v=DMARC1; p=none'],
+                    ]
+                )
+            )
+        );
 
         ob_start();
         $admin->render();
@@ -58,6 +74,9 @@ final class ProviderAdminTest extends TestCase
         self::assertStringContainsString('API delivery', $output);
         self::assertStringContainsString('Unavailable', $output);
         self::assertStringContainsString('smtp.example.test', $output);
+        self::assertStringContainsString('DNS authentication readiness', $output);
+        self::assertStringContainsString('example.test', $output);
+        self::assertStringContainsString('TXT evidence found', $output);
         self::assertStringContainsString('[REDACTED]', $output);
         self::assertStringNotContainsString('plain-password', $output);
         self::assertStringNotContainsString('plain-api-key', $output);
@@ -66,6 +85,40 @@ final class ProviderAdminTest extends TestCase
         self::assertStringContainsString('postmark', $output);
         self::assertStringContainsString('brevo', $output);
         self::assertStringContainsString('smtp', $output);
+    }
+
+    public function test_render_dns_authentication_handles_missing_lookup_without_claiming_validity(): void
+    {
+        $GLOBALS['wpdb']->activeProviders = [
+            [
+                'id' => 8,
+                'slug' => 'fallback',
+                'name' => 'Fallback SMTP',
+                'adapter_type' => 'smtp',
+                'priority' => 20,
+                'weight' => 1,
+                'is_active' => 1,
+                'config_json' => wp_json_encode(
+                    [
+                        'from_email' => 'sender@example.test',
+                    ]
+                ),
+            ],
+        ];
+
+        $admin = new ProviderAdmin(
+            new ProviderRepository(),
+            new DomainAuthenticationChecker(new ProviderAdminDnsResolver(false, []))
+        );
+
+        ob_start();
+        $admin->render();
+        $output = (string) ob_get_clean();
+
+        self::assertStringContainsString('DNS TXT lookup is not available in this PHP environment.', $output);
+        self::assertStringContainsString('Inconclusive', $output);
+        self::assertStringContainsString('Add a DKIM selector to enable selector-specific checks.', $output);
+        self::assertStringNotContainsString('TXT evidence found', $output);
     }
 
     public function test_render_shows_generic_recovery_required_message_without_secret_details(): void
@@ -299,5 +352,25 @@ final class ProviderAdminTest extends TestCase
         $parts[5][0] = $parts[5][0] === 'A' ? 'B' : 'A';
 
         return implode(':', $parts);
+    }
+}
+
+final class ProviderAdminDnsResolver implements DnsResolverInterface
+{
+    /**
+     * @param array<string,array<int,string>> $records
+     */
+    public function __construct(private bool $available, private array $records)
+    {
+    }
+
+    public function isAvailable(): bool
+    {
+        return $this->available;
+    }
+
+    public function txt(string $domain): array
+    {
+        return $this->records[$domain] ?? [];
     }
 }
