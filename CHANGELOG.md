@@ -28,6 +28,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Provider capability matrix for comparing MVP provider delivery, testing, OAuth, attachment, and message identifier support before credential entry.
 - Safe failure categories for delivery attempts, covering retryable, terminal, authentication, quota, timeout, and policy outcomes.
 - Privacy-safe queue diagnostics in admin with scheduler availability, queue status, overdue retry counts, and recovery actions.
+- Privacy-safe diagnostic report download with environment/plugin metadata, provider summaries, queue state, recent failure categories, and redaction metadata.
 - Optional site-wide per-minute, hourly, and daily delivery limits with Action Scheduler-backed deferral when capacity is exhausted.
 - Configurable terminal failure alerts for admin email and HTTPS webhook destinations with privacy-safe payloads and throttling.
 - Privacy-safe dashboard metrics for sent, failed, retried, pending, and failover activity with provider breakdowns.

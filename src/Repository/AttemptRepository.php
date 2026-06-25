@@ -130,4 +130,42 @@ final class AttemptRepository
             'oldest_created_at' => isset($row['oldest_created_at']) && (string) $row['oldest_created_at'] !== '' ? (string) $row['oldest_created_at'] : null,
         ];
     }
+
+    /**
+     * @return array<int,array{category:string,count:int,last_seen_at:?string}>
+     */
+    public function getRecentFailureCategoryCounts(string $since, int $limit = 10): array
+    {
+        global $wpdb;
+
+        $limit = max(1, min(20, $limit));
+        $sql = $wpdb->prepare(
+            "SELECT
+                COALESCE(NULLIF(failure_category, ''), 'uncategorized') AS failure_category,
+                COUNT(*) AS failure_count,
+                MAX(created_at) AS last_seen_at
+            FROM " . TableNames::attempts() . '
+            WHERE result = %s AND created_at >= %s
+            GROUP BY COALESCE(NULLIF(failure_category, \'\'), \'uncategorized\')
+            ORDER BY failure_count DESC, failure_category ASC
+            LIMIT %d',
+            'fail',
+            $since,
+            $limit
+        );
+        $rows = $wpdb->get_results($sql, ARRAY_A);
+
+        if (! is_array($rows)) {
+            return [];
+        }
+
+        return array_map(
+            static fn (array $row): array => [
+                'category' => sanitize_key((string) ($row['failure_category'] ?? 'uncategorized')),
+                'count' => (int) ($row['failure_count'] ?? 0),
+                'last_seen_at' => isset($row['last_seen_at']) && (string) $row['last_seen_at'] !== '' ? (string) $row['last_seen_at'] : null,
+            ],
+            $rows
+        );
+    }
 }

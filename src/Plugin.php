@@ -10,6 +10,7 @@ use OneSMTP\Admin\SchedulerNotice;
 use OneSMTP\Conflict\MailConflictDetector;
 use OneSMTP\Api\RestController;
 use OneSMTP\Core\Installer;
+use OneSMTP\Diagnostics\DiagnosticReportGenerator;
 use OneSMTP\Delivery\DeliveryEngine;
 use OneSMTP\Dispatch\DefaultDispatchPolicy;
 use OneSMTP\Logging\RetentionPruner;
@@ -71,7 +72,7 @@ final class Plugin
                 static fn (int $messageId, ?int $providerId): bool => $sendPipeline->resendMessage($messageId, $providerId)
             ),
             null,
-            new Admin\QueueDiagnosticsAdmin($queueDiagnostics),
+            new Admin\QueueDiagnosticsAdmin($queueDiagnostics, new DiagnosticReportGenerator($providers, $queueDiagnostics, $attempts)),
             new Admin\DashboardAdmin(new MetricsRepository())
         );
         $adminPage->registerHooks();
