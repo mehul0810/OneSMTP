@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace OneSMTP\Admin;
 
 use OneSMTP\Core\Capabilities;
+use OneSMTP\Dns\DomainAuthenticationChecker;
 use OneSMTP\Providers\ProviderTypes;
 use OneSMTP\Repository\ProviderRepository;
+use OneSMTP\Settings\SenderIdentityRepository;
 
 final class ProviderAdmin
 {
@@ -14,10 +16,14 @@ final class ProviderAdmin
     private const NONCE_NAME  = 'onesmtp_provider_nonce';
 
     private ProviderRepository $repository;
+    private DomainAuthenticationChecker $dnsAuthentication;
+    private SenderIdentityRepository $senderIdentity;
 
-    public function __construct(ProviderRepository $repository)
+    public function __construct(ProviderRepository $repository, ?DomainAuthenticationChecker $dnsAuthentication = null, ?SenderIdentityRepository $senderIdentity = null)
     {
         $this->repository = $repository;
+        $this->dnsAuthentication = $dnsAuthentication ?? new DomainAuthenticationChecker();
+        $this->senderIdentity = $senderIdentity ?? new SenderIdentityRepository();
     }
 
     public function handleRequest(): void
@@ -73,6 +79,7 @@ final class ProviderAdmin
         echo '<p>' . esc_html__('Create and manage the delivery providers OneSMTP can use for failover and rotation.', 'onesmtp') . '</p>';
         (new ProviderCapabilityMatrix())->render();
         $this->renderProviderTable($providers);
+        $this->renderDnsAuthentication($providers);
         $this->renderForm();
     }
 
@@ -222,7 +229,158 @@ final class ProviderAdmin
             'refresh_token' => __('OAuth refresh token', 'onesmtp'),
             'from_email' => __('From email', 'onesmtp'),
             'from_name' => __('From name', 'onesmtp'),
+            'dkim_selector' => __('DKIM selector', 'onesmtp'),
         ];
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $providers Providers.
+     */
+    private function renderDnsAuthentication(array $providers): void
+    {
+        echo '<h3>' . esc_html__('DNS authentication readiness', 'onesmtp') . '</h3>';
+
+        $domains = $this->configuredSenderDomains($providers);
+        if ($domains === []) {
+            echo '<p>' . esc_html__('Configure a provider From email or sender identity From Email to see SPF, DKIM, and DMARC guidance for sender domains.', 'onesmtp') . '</p>';
+
+            return;
+        }
+
+        if (! $this->dnsAuthentication->lookupAvailable()) {
+            echo '<div class="notice notice-warning inline"><p>' . esc_html__('DNS TXT lookup is not available in this PHP environment. OneSMTP can show expected records, but it cannot verify SPF, DKIM, or DMARC readiness here.', 'onesmtp') . '</p></div>';
+        }
+
+        echo '<p>' . esc_html__('Review sender-domain authentication before relying on a provider for production delivery. Results are based only on TXT evidence visible to this WordPress server.', 'onesmtp') . '</p>';
+        echo '<table class="widefat striped">';
+        echo '<thead><tr>';
+        echo '<th scope="col">' . esc_html__('Domain', 'onesmtp') . '</th>';
+        echo '<th scope="col">' . esc_html__('Source', 'onesmtp') . '</th>';
+        echo '<th scope="col">' . esc_html__('SPF', 'onesmtp') . '</th>';
+        echo '<th scope="col">' . esc_html__('DKIM', 'onesmtp') . '</th>';
+        echo '<th scope="col">' . esc_html__('DMARC', 'onesmtp') . '</th>';
+        echo '<th scope="col">' . esc_html__('Guidance', 'onesmtp') . '</th>';
+        echo '</tr></thead><tbody>';
+
+        foreach ($domains as $domain => $context) {
+            $check = $this->dnsAuthentication->check($domain, (string) ($context['selector'] ?? ''));
+            echo '<tr>';
+            echo '<th scope="row"><code>' . esc_html((string) $check['domain']) . '</code></th>';
+            echo '<td>' . esc_html(implode(', ', $context['sources'])) . '</td>';
+            echo '<td>' . esc_html($this->dnsStatusLabel($check['spf']['status'])) . '<br><code>' . esc_html($check['spf']['query']) . '</code></td>';
+            echo '<td>' . esc_html($this->dnsStatusLabel($check['dkim']['status'])) . '<br>' . ($check['dkim']['query'] !== '' ? '<code>' . esc_html($check['dkim']['query']) . '</code>' : '<span class="description">' . esc_html__('Add a DKIM selector to enable selector-specific checks.', 'onesmtp') . '</span>') . '</td>';
+            echo '<td>' . esc_html($this->dnsStatusLabel($check['dmarc']['status'])) . '<br><code>' . esc_html($check['dmarc']['query']) . '</code></td>';
+            echo '<td>' . esc_html($this->dnsGuidance((string) ($context['provider_type'] ?? ''), (string) ($context['selector'] ?? ''))) . '</td>';
+            echo '</tr>';
+        }
+
+        echo '</tbody></table>';
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $providers Providers.
+     * @return array<string,array{sources:array<int,string>,selector:string,provider_type:string}>
+     */
+    private function configuredSenderDomains(array $providers): array
+    {
+        $domains = [];
+
+        foreach ($providers as $provider) {
+            $config = isset($provider['config']) && is_array($provider['config']) ? $provider['config'] : [];
+            $fromEmail = isset($config['from_email']) ? (string) $config['from_email'] : '';
+            $domain = $this->domainFromEmail($fromEmail);
+            if ($domain === '') {
+                continue;
+            }
+
+            if (! isset($domains[$domain])) {
+                $domains[$domain] = [
+                    'sources' => [],
+                    'selector' => '',
+                    'provider_type' => '',
+                ];
+            }
+
+            $providerName = trim((string) ($provider['name'] ?? ''));
+            $source = $providerName !== '' ? $providerName : __('Provider sender', 'onesmtp');
+            $domains[$domain]['sources'][] = $source;
+            $domains[$domain]['selector'] = isset($config['dkim_selector']) ? (string) $config['dkim_selector'] : '';
+            $domains[$domain]['provider_type'] = (string) ($provider['adapter_type'] ?? '');
+        }
+
+        $identityDomain = $this->domainFromEmail($this->senderIdentity->get()->getFromEmail());
+        if ($identityDomain !== '') {
+            if (! isset($domains[$identityDomain])) {
+                $domains[$identityDomain] = [
+                    'sources' => [],
+                    'selector' => '',
+                    'provider_type' => '',
+                ];
+            }
+
+            $domains[$identityDomain]['sources'][] = __('Sender identity', 'onesmtp');
+        }
+
+        foreach ($domains as $domain => $context) {
+            $sources = array_values(array_unique(array_map('strval', $context['sources'])));
+            sort($sources);
+            $domains[$domain] = [
+                'sources' => $sources,
+                'selector' => (string) $context['selector'],
+                'provider_type' => (string) $context['provider_type'],
+            ];
+        }
+
+        ksort($domains);
+
+        return $domains;
+    }
+
+    private function domainFromEmail(string $email): string
+    {
+        $email = sanitize_email($email);
+        if ($email === '' || ! str_contains($email, '@')) {
+            return '';
+        }
+
+        $domain = strtolower((string) substr(strrchr($email, '@') ?: '', 1));
+        $domain = preg_replace('/[^a-z0-9.-]/', '', $domain) ?? '';
+
+        return trim($domain, '.');
+    }
+
+    private function dnsStatusLabel(string $status): string
+    {
+        return match ($status) {
+            DomainAuthenticationChecker::STATUS_PRESENT => __('TXT evidence found', 'onesmtp'),
+            DomainAuthenticationChecker::STATUS_MISSING => __('No matching TXT evidence found', 'onesmtp'),
+            default => __('Inconclusive', 'onesmtp'),
+        };
+    }
+
+    private function dnsGuidance(string $providerType, string $selector): string
+    {
+        $provider = match ($providerType) {
+            'sendgrid' => __('SendGrid', 'onesmtp'),
+            'postmark' => __('Postmark', 'onesmtp'),
+            'brevo' => __('Brevo', 'onesmtp'),
+            'gmail' => __('Gmail or Google Workspace', 'onesmtp'),
+            'smtp' => __('your SMTP provider', 'onesmtp'),
+            'php_mail' => __('your hosting DNS provider', 'onesmtp'),
+            default => __('your mail provider', 'onesmtp'),
+        };
+
+        $message = sprintf(
+            /* translators: %s: provider name. */
+            __('Publish the SPF, DKIM, and DMARC TXT records supplied by %s for this sender domain.', 'onesmtp'),
+            $provider
+        );
+
+        if ($selector === '') {
+            $message .= ' ' . __('Add the provider DKIM selector when available so OneSMTP can check the selector-specific TXT name.', 'onesmtp');
+        }
+
+        return $message;
     }
 
     /**
