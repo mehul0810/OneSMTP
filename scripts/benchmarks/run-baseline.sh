@@ -18,6 +18,11 @@ php scripts/benchmarks/simulate-queue.php \
   --profile="$PROFILE" \
   --out="$RUN_DIR/metrics.json"
 
+php scripts/benchmarks/simulate-log-tables.php \
+  --profile="$PROFILE" \
+  --in="$RUN_DIR/metrics.json" \
+  --out="$RUN_DIR/metrics.json"
+
 php scripts/benchmarks/report-summary.php \
   --in="$RUN_DIR/metrics.json" \
   --out="$RUN_DIR/summary.md"
