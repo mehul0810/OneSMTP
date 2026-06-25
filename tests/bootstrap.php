@@ -593,6 +593,13 @@ if (! function_exists('esc_attr')) {
     }
 }
 
+if (! function_exists('esc_textarea')) {
+    function esc_textarea(string $text): string
+    {
+        return htmlspecialchars($text, ENT_NOQUOTES, 'UTF-8');
+    }
+}
+
 if (! function_exists('esc_url')) {
     function esc_url(string $url): string
     {

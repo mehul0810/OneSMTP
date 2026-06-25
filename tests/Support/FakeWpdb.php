@@ -32,6 +32,9 @@ final class FakeWpdb
     /** @var array<string,array{sent_count:int,oldest_created_at:?string}> */
     public array $successfulSendWindowStatsBySince = [];
 
+    /** @var array<string,array<int,array<string,mixed>>> */
+    public array $failureCategoryRowsBySince = [];
+
     /** @var array<string,array<string,mixed>> */
     public array $dashboardActivityRowsBySince = [];
 
@@ -239,6 +242,17 @@ final class FakeWpdb
             $messageId = isset($args[0]) ? (int) $args[0] : 0;
 
             return $this->attemptHistoryByMessage[$messageId] ?? [];
+        }
+
+        if (
+            str_contains($query, $this->prefix . 'onesmtp_attempts')
+            && str_contains($query, 'failure_category')
+            && str_contains($query, 'failure_count')
+            && str_contains($query, 'GROUP BY')
+        ) {
+            $since = isset($args[1]) ? (string) $args[1] : '';
+
+            return $this->failureCategoryRowsBySince[$since] ?? [];
         }
 
         return [];

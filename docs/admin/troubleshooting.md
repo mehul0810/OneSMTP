@@ -34,4 +34,10 @@ Failure alerts can be enabled from the OneSMTP settings screen for terminal deli
 
 Alert payloads are limited to operational metadata: event ID, timestamp, message ID/UUID, safe hashes, provider summary, failure reason, and failure category. OneSMTP does not send raw recipients, message bodies, raw headers, stored payload JSON, provider credentials, tokens, or provider configuration in alert payloads.
 
+## Diagnostic Report
+
+Administrators with OneSMTP management access can download a privacy-safe diagnostic report from the Diagnostics section. The report includes environment and plugin metadata, provider summaries, queue and scheduler state, recent failure category counts, and redaction metadata.
+
+The diagnostic report excludes raw recipients, message subjects, message bodies, raw headers, stored payload JSON, webhook URLs, provider error messages, provider message IDs, tokens, credentials, secrets, and provider configuration values.
+
 Repeated matching terminal failures are throttled for the configured alert window to prevent notification floods.
