@@ -18,6 +18,9 @@ if (!is_array($data)) {
 }
 
 $lat = $data['metrics']['latency_ms'] ?? [];
+$logTables = $data['metrics']['log_tables'] ?? [];
+$logLat = is_array($logTables) ? ($logTables['latency_ms'] ?? []) : [];
+$schemaChecks = is_array($logTables) ? ($logTables['schema_index_checks'] ?? []) : [];
 $lines = [
     '# OneSMTP Performance Summary',
     '',
@@ -37,6 +40,20 @@ $lines = [
     '- Attempt insert: ' . ($lat['attempt_insert_p95_ms'] ?? 'n/a') . 'ms',
     '- Admin log query: ' . ($lat['admin_log_query_p95_ms'] ?? 'n/a') . 'ms',
 ];
+
+if (is_array($logTables) && $logTables !== []) {
+    $lines[] = '';
+    $lines[] = '## Large Log Tables';
+    $lines[] = '';
+    $lines[] = '- Synthetic messages: ' . ($logTables['synthetic_messages'] ?? 0);
+    $lines[] = '- Synthetic attempts: ' . ($logTables['synthetic_attempts'] ?? 0);
+    $lines[] = '- Fixture seed: ' . ($logTables['fixture_seed_ms'] ?? 'n/a') . 'ms';
+    $lines[] = '- List path p95: ' . (is_array($logLat) ? ($logLat['admin_log_list_p95_ms'] ?? 'n/a') : 'n/a') . 'ms';
+    $lines[] = '- Filter path p95: ' . (is_array($logLat) ? ($logLat['admin_log_filter_p95_ms'] ?? 'n/a') : 'n/a') . 'ms';
+    $lines[] = '- Export path p95: ' . (is_array($logLat) ? ($logLat['admin_log_export_p95_ms'] ?? 'n/a') : 'n/a') . 'ms';
+    $lines[] = '- Detail path p95: ' . (is_array($logLat) ? ($logLat['admin_log_detail_p95_ms'] ?? 'n/a') : 'n/a') . 'ms';
+    $lines[] = '- Schema index checks: ' . (empty($schemaChecks['missing']) ? 'pass' : 'fail');
+}
 
 if (!empty($data['violations'])) {
     $lines[] = '';

@@ -33,6 +33,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Privacy-safe dashboard metrics for sent, failed, retried, pending, and failover activity with provider breakdowns.
 - Admin accessibility QA coverage and a 0.2.0 keyboard review checklist for OneSMTP admin screens, tables, forms, notices, and long-content states.
 - Compatibility test matrix covering synthetic core notification, form-like, commerce-like, membership-like, and background job email sources.
+- Large synthetic log-table benchmark coverage for admin log list, filter, export, detail, and schema index regression signals.
 
 ### Changed
 
