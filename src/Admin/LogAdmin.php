@@ -149,13 +149,13 @@ final class LogAdmin
 
         echo '<table class="widefat striped">';
         echo '<thead><tr>';
-        echo '<th>' . esc_html__('Message', 'onesmtp') . '</th>';
-        echo '<th>' . esc_html__('Status', 'onesmtp') . '</th>';
-        echo '<th>' . esc_html__('Provider', 'onesmtp') . '</th>';
-        echo '<th>' . esc_html__('Attempts', 'onesmtp') . '</th>';
-        echo '<th>' . esc_html__('Recipients', 'onesmtp') . '</th>';
-        echo '<th>' . esc_html__('Created', 'onesmtp') . '</th>';
-        echo '<th>' . esc_html__('Updated', 'onesmtp') . '</th>';
+        echo '<th scope="col">' . esc_html__('Message', 'onesmtp') . '</th>';
+        echo '<th scope="col">' . esc_html__('Status', 'onesmtp') . '</th>';
+        echo '<th scope="col">' . esc_html__('Provider', 'onesmtp') . '</th>';
+        echo '<th scope="col">' . esc_html__('Attempts', 'onesmtp') . '</th>';
+        echo '<th scope="col">' . esc_html__('Recipients', 'onesmtp') . '</th>';
+        echo '<th scope="col">' . esc_html__('Created', 'onesmtp') . '</th>';
+        echo '<th scope="col">' . esc_html__('Updated', 'onesmtp') . '</th>';
         echo '</tr></thead><tbody>';
 
         foreach ($messages as $message) {
@@ -166,7 +166,11 @@ final class LogAdmin
             );
 
             echo '<tr>';
-            echo '<td><a href="' . esc_url($detailUrl) . '">#' . esc_html((string) $messageId) . '</a><br><code>' . esc_html((string) ($message['message_uuid'] ?? '')) . '</code></td>';
+            echo '<th scope="row"><a href="' . esc_url($detailUrl) . '" aria-label="' . esc_attr(sprintf(
+                /* translators: %d: message log id. */
+                __('View log entry #%d details', 'onesmtp'),
+                $messageId
+            )) . '">#' . esc_html((string) $messageId) . '</a><br><code>' . esc_html((string) ($message['message_uuid'] ?? '')) . '</code></th>';
             echo '<td>' . esc_html($this->formatStatus((string) ($message['status'] ?? ''))) . '</td>';
             echo '<td>' . esc_html($this->formatProvider((int) ($message['selected_provider_id'] ?? 0))) . '</td>';
             echo '<td>' . esc_html((string) ((int) ($message['attempt_count'] ?? $message['current_attempt'] ?? 0))) . ' / ' . esc_html((string) ((int) ($message['max_attempts'] ?? 0))) . '</td>';
@@ -243,7 +247,7 @@ final class LogAdmin
             ],
             admin_url('admin.php')
         );
-        echo ' <a class="button" href="' . esc_url($exportUrl) . '">' . esc_html__('Export CSV', 'onesmtp') . '</a>';
+        echo ' <a class="button" href="' . esc_url($exportUrl) . '" aria-label="' . esc_attr__('Export filtered log CSV', 'onesmtp') . '">' . esc_html__('Export CSV', 'onesmtp') . '</a>';
         echo '</p>';
         echo '</form>';
     }
@@ -265,7 +269,7 @@ final class LogAdmin
 
         echo '<p class="tablenav-pages">';
         if ($page > 1) {
-            echo '<a class="button" href="' . esc_url(add_query_arg($this->urlArgsForFilters($filters, $page - 1, $perPage), admin_url('admin.php'))) . '">' . esc_html__('Previous', 'onesmtp') . '</a> ';
+            echo '<a class="button" href="' . esc_url(add_query_arg($this->urlArgsForFilters($filters, $page - 1, $perPage), admin_url('admin.php'))) . '" aria-label="' . esc_attr__('Previous log page', 'onesmtp') . '">' . esc_html__('Previous', 'onesmtp') . '</a> ';
         }
 
         echo '<span>' . esc_html(
@@ -278,7 +282,7 @@ final class LogAdmin
         ) . '</span>';
 
         if ($page < $maxPage) {
-            echo ' <a class="button" href="' . esc_url(add_query_arg($this->urlArgsForFilters($filters, $page + 1, $perPage), admin_url('admin.php'))) . '">' . esc_html__('Next', 'onesmtp') . '</a>';
+            echo ' <a class="button" href="' . esc_url(add_query_arg($this->urlArgsForFilters($filters, $page + 1, $perPage), admin_url('admin.php'))) . '" aria-label="' . esc_attr__('Next log page', 'onesmtp') . '">' . esc_html__('Next', 'onesmtp') . '</a>';
         }
         echo '</p>';
     }
@@ -506,19 +510,19 @@ final class LogAdmin
 
         echo '<table class="widefat striped">';
         echo '<thead><tr>';
-        echo '<th>' . esc_html__('Attempt', 'onesmtp') . '</th>';
-        echo '<th>' . esc_html__('Provider', 'onesmtp') . '</th>';
-        echo '<th>' . esc_html__('Trigger', 'onesmtp') . '</th>';
-        echo '<th>' . esc_html__('Result', 'onesmtp') . '</th>';
-        echo '<th>' . esc_html__('Safe error context', 'onesmtp') . '</th>';
-        echo '<th>' . esc_html__('Provider message', 'onesmtp') . '</th>';
-        echo '<th>' . esc_html__('Latency', 'onesmtp') . '</th>';
-        echo '<th>' . esc_html__('Created', 'onesmtp') . '</th>';
+        echo '<th scope="col">' . esc_html__('Attempt', 'onesmtp') . '</th>';
+        echo '<th scope="col">' . esc_html__('Provider', 'onesmtp') . '</th>';
+        echo '<th scope="col">' . esc_html__('Trigger', 'onesmtp') . '</th>';
+        echo '<th scope="col">' . esc_html__('Result', 'onesmtp') . '</th>';
+        echo '<th scope="col">' . esc_html__('Safe error context', 'onesmtp') . '</th>';
+        echo '<th scope="col">' . esc_html__('Provider message', 'onesmtp') . '</th>';
+        echo '<th scope="col">' . esc_html__('Latency', 'onesmtp') . '</th>';
+        echo '<th scope="col">' . esc_html__('Created', 'onesmtp') . '</th>';
         echo '</tr></thead><tbody>';
 
         foreach ($attempts as $attempt) {
             echo '<tr>';
-            echo '<td>' . esc_html((string) ((int) ($attempt['attempt_no'] ?? 0))) . '</td>';
+            echo '<th scope="row">' . esc_html((string) ((int) ($attempt['attempt_no'] ?? 0))) . '</th>';
             echo '<td>' . esc_html($this->formatProvider((int) ($attempt['provider_id'] ?? 0))) . '</td>';
             echo '<td>' . esc_html((string) ($attempt['trigger_type'] ?? '')) . '</td>';
             echo '<td>' . esc_html($this->formatStatus((string) ($attempt['result'] ?? ''))) . '</td>';

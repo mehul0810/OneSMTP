@@ -91,20 +91,28 @@ final class ProviderAdmin
 
         echo '<table class="widefat striped">';
         echo '<thead><tr>';
-        echo '<th>' . esc_html__('Name', 'onesmtp') . '</th>';
-        echo '<th>' . esc_html__('Type', 'onesmtp') . '</th>';
-        echo '<th>' . esc_html__('Priority', 'onesmtp') . '</th>';
-        echo '<th>' . esc_html__('Weight', 'onesmtp') . '</th>';
-        echo '<th>' . esc_html__('Status', 'onesmtp') . '</th>';
-        echo '<th>' . esc_html__('Safe config', 'onesmtp') . '</th>';
-        echo '<th>' . esc_html__('Actions', 'onesmtp') . '</th>';
+        echo '<th scope="col">' . esc_html__('Name', 'onesmtp') . '</th>';
+        echo '<th scope="col">' . esc_html__('Type', 'onesmtp') . '</th>';
+        echo '<th scope="col">' . esc_html__('Priority', 'onesmtp') . '</th>';
+        echo '<th scope="col">' . esc_html__('Weight', 'onesmtp') . '</th>';
+        echo '<th scope="col">' . esc_html__('Status', 'onesmtp') . '</th>';
+        echo '<th scope="col">' . esc_html__('Safe config', 'onesmtp') . '</th>';
+        echo '<th scope="col">' . esc_html__('Actions', 'onesmtp') . '</th>';
         echo '</tr></thead><tbody>';
 
         foreach ($providers as $provider) {
             $providerId = (int) ($provider['id'] ?? 0);
+            $providerName = trim((string) ($provider['name'] ?? ''));
+            if ($providerName === '') {
+                $providerName = sprintf(
+                    /* translators: %d: provider id. */
+                    __('Provider #%d', 'onesmtp'),
+                    $providerId
+                );
+            }
 
             echo '<tr>';
-            echo '<td>' . esc_html((string) ($provider['name'] ?? '')) . '<br><code>' . esc_html((string) ($provider['slug'] ?? '')) . '</code></td>';
+            echo '<th scope="row">' . esc_html((string) ($provider['name'] ?? '')) . '<br><code>' . esc_html((string) ($provider['slug'] ?? '')) . '</code></th>';
             echo '<td><code>' . esc_html((string) ($provider['adapter_type'] ?? '')) . '</code></td>';
             echo '<td>' . esc_html((string) ((int) ($provider['priority'] ?? 100))) . '</td>';
             echo '<td>' . esc_html((string) ((int) ($provider['weight'] ?? 1))) . '</td>';
@@ -114,10 +122,10 @@ final class ProviderAdmin
                 echo '<br><span class="description">' . esc_html__('Credential recovery required. Re-enter affected credentials to restore delivery.', 'onesmtp') . '</span>';
             }
             echo '</td>';
-            echo '<td>' . esc_html($this->formatSafeConfig(isset($provider['config']) && is_array($provider['config']) ? $provider['config'] : [])) . '</td>';
+            echo '<td style="max-width:32em;white-space:normal;word-break:break-word;">' . esc_html($this->formatSafeConfig(isset($provider['config']) && is_array($provider['config']) ? $provider['config'] : [])) . '</td>';
             echo '<td>';
-            $this->renderRowActionForm($providerId, 'toggle', empty($provider['is_active']) ? __('Activate', 'onesmtp') : __('Deactivate', 'onesmtp'));
-            $this->renderRowActionForm($providerId, 'delete', __('Delete', 'onesmtp'));
+            $this->renderRowActionForm($providerId, 'toggle', empty($provider['is_active']) ? __('Activate', 'onesmtp') : __('Deactivate', 'onesmtp'), $providerName);
+            $this->renderRowActionForm($providerId, 'delete', __('Delete', 'onesmtp'), $providerName);
             echo '</td>';
             echo '</tr>';
         }
@@ -125,13 +133,26 @@ final class ProviderAdmin
         echo '</tbody></table>';
     }
 
-    private function renderRowActionForm(int $providerId, string $action, string $label): void
+    private function renderRowActionForm(int $providerId, string $action, string $label, string $providerName): void
     {
         echo '<form method="post" style="display:inline-block;margin-right:6px">';
         wp_nonce_field(self::ACTION_NAME, self::NONCE_NAME);
         echo '<input type="hidden" name="' . esc_attr(self::ACTION_NAME) . '" value="' . esc_attr($action) . '">';
         echo '<input type="hidden" name="provider_id" value="' . esc_attr((string) $providerId) . '">';
-        submit_button($label, 'secondary small', 'submit', false);
+        submit_button(
+            $label,
+            'secondary small',
+            'submit',
+            false,
+            [
+                'aria-label' => sprintf(
+                    /* translators: 1: provider action, 2: provider name. */
+                    __('%1$s provider %2$s', 'onesmtp'),
+                    $label,
+                    $providerName
+                ),
+            ]
+        );
         echo '</form>';
     }
 

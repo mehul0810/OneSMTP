@@ -58,7 +58,13 @@ final class MailConflictNotice
         echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
         echo '<input type="hidden" name="action" value="onesmtp_dismiss_mail_conflict_notice">';
         wp_nonce_field('onesmtp_dismiss_mail_conflict_notice');
-        submit_button(__('Remind me later', 'onesmtp'), 'secondary', 'submit', false);
+        submit_button(
+            __('Remind me later', 'onesmtp'),
+            'secondary',
+            'submit',
+            false,
+            ['aria-label' => __('Remind me later about the OneSMTP mail conflict notice', 'onesmtp')]
+        );
         echo '</form>';
         echo '</div>';
     }

@@ -31,6 +31,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Optional site-wide per-minute, hourly, and daily delivery limits with Action Scheduler-backed deferral when capacity is exhausted.
 - Configurable terminal failure alerts for admin email and HTTPS webhook destinations with privacy-safe payloads and throttling.
 - Privacy-safe dashboard metrics for sent, failed, retried, pending, and failover activity with provider breakdowns.
+- Admin accessibility QA coverage and a 0.2.0 keyboard review checklist for OneSMTP admin screens, tables, forms, notices, and long-content states.
 
 ### Changed
 
