@@ -51,6 +51,7 @@ final class SettingsTransferService
             'settings' => [
                 'sender_identity' => $this->exportSenderIdentity($settings['sender_identity'] ?? []),
                 'rate_limits' => $this->exportRateLimits($settings['rate_limits'] ?? []),
+                'background_sending' => $this->exportBackgroundSending($settings['background_sending'] ?? []),
                 'failure_alerts' => $this->exportFailureAlerts($settings['failure_alerts'] ?? []),
             ],
             'providers' => $this->exportProviders(),
@@ -135,6 +136,15 @@ final class SettingsTransferService
             $summary['settings_groups'][] = 'failure_alerts';
         }
 
+        if (is_array($settings) && array_key_exists('background_sending', $settings)) {
+            if (! is_array($settings['background_sending'])) {
+                throw new InvalidArgumentException('Background sending settings must be a JSON object.');
+            }
+
+            $nextSettings['background_sending'] = BackgroundSendingSettings::fromArray($settings['background_sending'])->toArray();
+            $summary['settings_groups'][] = 'background_sending';
+        }
+
         $providers = $payload['providers'] ?? [];
         if (isset($payload['providers']) && ! is_array($providers)) {
             throw new InvalidArgumentException('Providers must be a JSON array.');
@@ -191,6 +201,15 @@ final class SettingsTransferService
     private function exportRateLimits(mixed $settings): array
     {
         return RateLimitSettings::fromArray(is_array($settings) ? $settings : [])->toArray();
+    }
+
+    /**
+     * @param mixed $settings Background sending settings.
+     * @return array<string,bool>
+     */
+    private function exportBackgroundSending(mixed $settings): array
+    {
+        return BackgroundSendingSettings::fromArray(is_array($settings) ? $settings : [])->toArray();
     }
 
     /**

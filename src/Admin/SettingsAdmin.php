@@ -8,6 +8,8 @@ use InvalidArgumentException;
 use OneSMTP\Alerts\FailureAlertSettings;
 use OneSMTP\Alerts\FailureAlertSettingsRepository;
 use OneSMTP\Core\Capabilities;
+use OneSMTP\Settings\BackgroundSendingSettings;
+use OneSMTP\Settings\BackgroundSendingSettingsRepository;
 use OneSMTP\Settings\RateLimitSettings;
 use OneSMTP\Settings\RateLimitSettingsRepository;
 use OneSMTP\Settings\SenderIdentity;
@@ -28,11 +30,13 @@ final class SettingsAdmin
         private ?SenderIdentityRepository $senderIdentity = null,
         private ?RateLimitSettingsRepository $rateLimits = null,
         private ?FailureAlertSettingsRepository $failureAlerts = null,
+        private ?BackgroundSendingSettingsRepository $backgroundSending = null,
         private ?SettingsTransferService $transfers = null
     ) {
         $this->senderIdentity = $senderIdentity ?? new SenderIdentityRepository();
         $this->rateLimits = $rateLimits ?? new RateLimitSettingsRepository();
         $this->failureAlerts = $failureAlerts ?? new FailureAlertSettingsRepository();
+        $this->backgroundSending = $backgroundSending ?? new BackgroundSendingSettingsRepository();
         $this->transfers = $transfers ?? new SettingsTransferService();
     }
 
@@ -82,6 +86,14 @@ final class SettingsAdmin
                 return;
             }
 
+            if ($action === 'save_background_sending') {
+                $this->backgroundSending->save(BackgroundSendingSettings::fromArray([
+                    'enabled' => isset($_POST['background_sending_enabled']),
+                ]));
+                $this->redirect('background_sending_saved');
+                return;
+            }
+
             if ($action !== 'save_sender_identity') {
                 return;
             }
@@ -115,6 +127,8 @@ final class SettingsAdmin
             echo '<div class="notice notice-success inline"><p>' . esc_html__('Delivery rate limit settings saved.', 'onesmtp') . '</p></div>';
         } elseif ($status === 'failure_alerts_saved') {
             echo '<div class="notice notice-success inline"><p>' . esc_html__('Failure alert settings saved.', 'onesmtp') . '</p></div>';
+        } elseif ($status === 'background_sending_saved') {
+            echo '<div class="notice notice-success inline"><p>' . esc_html__('Background sending settings saved.', 'onesmtp') . '</p></div>';
         } elseif ($status === 'imported') {
             echo '<div class="notice notice-success inline"><p>' . esc_html($message !== '' ? $message : __('OneSMTP settings imported. Secrets and recipient fields were excluded.', 'onesmtp')) . '</p></div>';
         } elseif ($status === 'invalid') {
@@ -155,6 +169,18 @@ final class SettingsAdmin
         $this->renderNumberInput('rate_limit_per_day', __('Daily limit', 'onesmtp'), (int) ($limits['per_day'] ?? 0));
         echo '</tbody></table>';
         submit_button(__('Save delivery rate limits', 'onesmtp'));
+        echo '</form>';
+
+        $backgroundSending = $this->backgroundSending->get();
+        echo '<h3>' . esc_html__('Background sending', 'onesmtp') . '</h3>';
+        echo '<p>' . esc_html__('Queue normal WordPress mail for asynchronous delivery so user-facing requests are not held by provider latency. Provider test emails and manual resends continue to run synchronously.', 'onesmtp') . '</p>';
+        echo '<form method="post" action="' . esc_url(admin_url('admin.php?page=onesmtp#onesmtp-settings')) . '">';
+        echo '<input type="hidden" name="onesmtp_settings_action" value="save_background_sending">';
+        wp_nonce_field(self::ACTION_NAME, self::NONCE_NAME);
+        echo '<fieldset>';
+        $this->renderCheckbox('background_sending_enabled', __('Enable background sending for normal mail.', 'onesmtp'), $backgroundSending->isEnabled());
+        echo '</fieldset>';
+        submit_button(__('Save background sending', 'onesmtp'));
         echo '</form>';
 
         $alerts = $this->failureAlerts->get();

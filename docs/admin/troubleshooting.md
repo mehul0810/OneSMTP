@@ -16,6 +16,12 @@
 4. Confirm retries are scheduled in Action Scheduler.
 5. If no retry job exists, check for a retry scheduling failure event before assuming the message will retry automatically.
 
+## Background Sending
+
+If background sending is enabled, normal mail returns after the message is queued and provider delivery happens in Action Scheduler. Provider test emails and manual resends still run synchronously so administrators can see immediate success or failure details.
+
+If a normal message stays queued, confirm Action Scheduler is loaded, WP-Cron or the Action Scheduler runner is processing jobs, and the `onesmtp_process_background_send` action is not overdue.
+
 ## Configured Delivery Limits
 
 If mail is accepted by OneSMTP but does not immediately leave the queue, check whether per-minute, hourly, or daily delivery limits are configured in Settings.

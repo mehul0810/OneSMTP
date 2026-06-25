@@ -13,6 +13,7 @@ use OneSMTP\Repository\AttemptRepository;
 use OneSMTP\Repository\EventRepository;
 use OneSMTP\Repository\MessageRepository;
 use OneSMTP\Repository\ProviderRepository;
+use OneSMTP\Settings\BackgroundSendingSettingsRepository;
 
 final class SendPipeline
 {
@@ -26,6 +27,7 @@ final class SendPipeline
     private RetryScheduler $retryScheduler;
     private DeliveryEngine $deliveryEngine;
     private RateLimiter $rateLimiter;
+    private BackgroundSendingSettingsRepository $backgroundSending;
 
     /**
      * @var array<string,int>
@@ -39,7 +41,8 @@ final class SendPipeline
         EventRepository $events,
         RetryScheduler $retryScheduler,
         DeliveryEngine $deliveryEngine,
-        ?RateLimiter $rateLimiter = null
+        ?RateLimiter $rateLimiter = null,
+        ?BackgroundSendingSettingsRepository $backgroundSending = null
     ) {
         $this->messages = $messages;
         $this->attempts = $attempts;
@@ -48,6 +51,7 @@ final class SendPipeline
         $this->retryScheduler = $retryScheduler;
         $this->deliveryEngine = $deliveryEngine;
         $this->rateLimiter = $rateLimiter ?? new RateLimiter($attempts);
+        $this->backgroundSending = $backgroundSending ?? new BackgroundSendingSettingsRepository();
     }
 
     public function registerHooks(): void
@@ -55,6 +59,7 @@ final class SendPipeline
         add_filter('pre_wp_mail', [$this, 'handlePreWpMail'], 10, 2);
         add_filter('wp_mail', [$this, 'captureMessage'], 1, 1);
         add_action('onesmtp_retry_attempt', [$this, 'handleRetryAttempt'], 10, 5);
+        add_action('onesmtp_background_send_attempt', [$this, 'handleBackgroundSendAttempt'], 10, 5);
         add_action('onesmtp_manual_resend', [$this, 'handleManualResend'], 10, 2);
     }
 
@@ -75,12 +80,44 @@ final class SendPipeline
         }
 
         $attemptNo = max(1, $this->attempts->getAttemptCountForMessage($messageId) + 1);
+        $messageUuid = $this->extractMessageUuidFromHeaders($captured['headers'] ?? []);
+
+        if ($this->shouldQueueInitialSend($captured)) {
+            $runAt = $this->retryScheduler->scheduleBackgroundSend($messageId, $attemptNo, $messageUuid);
+
+            return is_int($runAt) && $runAt > 0;
+        }
+
         return $this->sendWithRateLimit(
             $messageId,
             $attemptNo,
             'initial',
             $captured,
             fn () => $this->deliveryEngine->deliver($messageId, $attemptNo, $captured, null)
+        );
+    }
+
+    public function handleBackgroundSendAttempt($messageId, int $attemptNo = 1, array $payload = [], ?string $messageUuid = null, ?int $providerId = null): void
+    {
+        $messageId = (int) $messageId;
+        if ($messageId <= 0 || $attemptNo <= 0) {
+            return;
+        }
+
+        $payload = $payload !== [] ? $payload : $this->messages->getPayloadForMessage($messageId);
+        if ($payload === []) {
+            $this->messages->markFailedTerminal($messageId, max(1, $attemptNo - 1));
+            $this->events->add('terminal_failure', ['reason' => 'background_payload_missing'], $messageId);
+            return;
+        }
+
+        $this->sendWithRateLimit(
+            $messageId,
+            $attemptNo,
+            'background',
+            $payload,
+            fn () => $this->deliveryEngine->deliver($messageId, $attemptNo, $payload, $providerId !== null ? (int) $providerId : null),
+            $messageUuid
         );
     }
 
@@ -320,6 +357,29 @@ final class SendPipeline
         $fingerprint = $this->buildFingerprint($mailData);
 
         return isset($this->inflight[$fingerprint]) ? (int) $this->inflight[$fingerprint] : 0;
+    }
+
+    private function shouldQueueInitialSend(array $payload): bool
+    {
+        if (! $this->backgroundSending->get()->isEnabled()) {
+            return false;
+        }
+
+        $meta = isset($payload['meta']) && is_array($payload['meta']) ? $payload['meta'] : [];
+        $source = isset($meta['source']) ? sanitize_key((string) $meta['source']) : '';
+
+        if ($source === 'rest_test_email') {
+            return false;
+        }
+
+        $mode = '';
+        if (isset($payload['onesmtp_send_mode'])) {
+            $mode = sanitize_key((string) $payload['onesmtp_send_mode']);
+        } elseif (isset($meta['onesmtp_send_mode'])) {
+            $mode = sanitize_key((string) $meta['onesmtp_send_mode']);
+        }
+
+        return $mode !== 'sync' && $mode !== 'synchronous';
     }
 
     private function buildFingerprint(array $mailData): string

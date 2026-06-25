@@ -154,6 +154,68 @@ final class SendPipelineIntegrationTest extends TestCase
         self::assertSame(10, $context['retry_after'] ?? null);
     }
 
+    public function test_background_mode_queues_initial_send_without_provider_latency(): void
+    {
+        $this->seedProvider(23, 'test_background');
+        update_option('onesmtp_settings', [
+            'background_sending' => [
+                'enabled' => true,
+            ],
+        ], false);
+
+        $adapter = new CountingAdapter('test_background', new SendResult(true, 'sent', 'sent'));
+        $pipeline = $this->buildPipeline($adapter);
+
+        $result = $pipeline->handlePreWpMail(null, [
+            'to' => ['qa@example.com'],
+            'subject' => 'Background queued',
+            'message' => 'Hello',
+            'headers' => [],
+        ]);
+
+        self::assertTrue($result);
+        self::assertSame(0, $adapter->sendCount);
+        self::assertNull($this->findInsert('onesmtp_attempts'));
+        self::assertCount(1, $GLOBALS['onesmtp_test_scheduled_actions']);
+
+        $scheduled = array_values($GLOBALS['onesmtp_test_scheduled_actions'])[0];
+        self::assertSame(RetryScheduler::BACKGROUND_ACTION_HOOK, $scheduled['hook']);
+        self::assertSame([1, 1, $this->messageUuidFromInsert()], $scheduled['args']);
+
+        $event = $this->findEventInsert('background_send_queued');
+        self::assertNotNull($event);
+        $context = json_decode((string) $event['data']['context_json'], true);
+        self::assertSame(1, $context['attempt'] ?? null);
+        self::assertStringNotContainsString('qa@example.com', (string) $event['data']['context_json']);
+        self::assertStringNotContainsString('Hello', (string) $event['data']['context_json']);
+    }
+
+    public function test_background_mode_sync_override_sends_immediately(): void
+    {
+        $this->seedProvider(24, 'test_background_sync');
+        update_option('onesmtp_settings', [
+            'background_sending' => [
+                'enabled' => true,
+            ],
+        ], false);
+
+        $adapter = new CountingAdapter('test_background_sync', new SendResult(true, 'sent', 'sent'));
+        $pipeline = $this->buildPipeline($adapter);
+
+        $result = $pipeline->handlePreWpMail(null, [
+            'to' => ['qa@example.com'],
+            'subject' => 'Urgent sync',
+            'message' => 'Hello',
+            'headers' => [],
+            'onesmtp_send_mode' => 'sync',
+        ]);
+
+        self::assertTrue($result);
+        self::assertSame(1, $adapter->sendCount);
+        self::assertSame([], $GLOBALS['onesmtp_test_scheduled_actions']);
+        self::assertSame('initial', $this->findInsert('onesmtp_attempts')['data']['trigger_type'] ?? null);
+    }
+
     public function test_terminal_failure_category_marks_failed_without_scheduling_retry(): void
     {
         $this->seedProvider(25, 'test_terminal');
@@ -278,6 +340,73 @@ final class SendPipelineIntegrationTest extends TestCase
         $sentUpdate = $this->findUpdate('onesmtp_messages', 'sent');
         self::assertNotNull($sentUpdate);
         self::assertSame(30, $sentUpdate['data']['selected_provider_id']);
+    }
+
+    public function test_background_worker_records_success_path(): void
+    {
+        $this->seedProvider(31, 'test_background_worker_success');
+        $GLOBALS['wpdb']->messageRowsById[601] = [
+            'id' => 601,
+            'message_uuid' => 'background-601',
+            'payload_json' => wp_json_encode([
+                'to' => ['qa@example.com'],
+                'subject' => 'Queued success',
+                'message' => 'Hello',
+                'headers' => ['X-OneSMTP-Message-ID: background-601'],
+            ]),
+            'status' => 'queued',
+            'max_attempts' => 6,
+        ];
+
+        $pipeline = $this->buildPipeline(new StaticAdapter('test_background_worker_success', new SendResult(true, 'sent', 'sent', 'provider-background-601')));
+
+        $pipeline->handleBackgroundSendAttempt(601, 1, [], 'background-601');
+
+        $attemptInsert = $this->findInsert('onesmtp_attempts');
+        self::assertNotNull($attemptInsert);
+        self::assertSame(601, $attemptInsert['data']['message_id']);
+        self::assertSame('background', $attemptInsert['data']['trigger_type']);
+        self::assertSame('sent', $attemptInsert['data']['result']);
+
+        $sentUpdate = $this->findUpdate('onesmtp_messages', 'sent');
+        self::assertNotNull($sentUpdate);
+        self::assertSame(31, $sentUpdate['data']['selected_provider_id']);
+    }
+
+    public function test_background_worker_records_failure_and_schedules_retry(): void
+    {
+        $this->seedProvider(32, 'test_background_worker_failure');
+        $GLOBALS['wpdb']->messageRowsById[602] = [
+            'id' => 602,
+            'message_uuid' => 'background-602',
+            'payload_json' => wp_json_encode([
+                'to' => ['qa@example.com'],
+                'subject' => 'Queued failure',
+                'message' => 'Hello',
+                'headers' => ['X-OneSMTP-Message-ID: background-602'],
+            ]),
+            'status' => 'queued',
+            'max_attempts' => 6,
+        ];
+
+        $pipeline = $this->buildPipeline(new StaticAdapter('test_background_worker_failure', new SendResult(false, 'provider_failed', 'failed')));
+
+        $pipeline->handleBackgroundSendAttempt(602, 1, [], 'background-602');
+
+        $attemptInsert = $this->findInsert('onesmtp_attempts');
+        self::assertNotNull($attemptInsert);
+        self::assertSame(602, $attemptInsert['data']['message_id']);
+        self::assertSame('background', $attemptInsert['data']['trigger_type']);
+        self::assertSame('fail', $attemptInsert['data']['result']);
+
+        $retryUpdate = $this->findUpdate('onesmtp_messages', 'retry_scheduled');
+        self::assertNotNull($retryUpdate);
+        self::assertSame(2, $retryUpdate['data']['current_attempt']);
+
+        $scheduled = array_values($GLOBALS['onesmtp_test_scheduled_actions'])[0] ?? null;
+        self::assertIsArray($scheduled);
+        self::assertSame(RetryScheduler::ACTION_HOOK, $scheduled['hook']);
+        self::assertSame([602, 2, 'background-602'], $scheduled['args']);
     }
 
     private function buildPipeline(StaticAdapter $adapter, ?callable $clock = null): SendPipeline

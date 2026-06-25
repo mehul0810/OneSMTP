@@ -41,6 +41,9 @@ final class SettingsTransferServiceTest extends TestCase
                 'per_hour' => 100,
                 'per_day' => 1000,
             ],
+            'background_sending' => [
+                'enabled' => true,
+            ],
             'failure_alerts' => [
                 'email_enabled' => true,
                 'email_recipients' => ['ops@example.test'],
@@ -78,6 +81,7 @@ final class SettingsTransferServiceTest extends TestCase
         self::assertSame(1, $payload['schema_version']);
         self::assertSame('sender@example.test', $payload['settings']['sender_identity']['from_email']);
         self::assertSame(10, $payload['settings']['rate_limits']['per_minute']);
+        self::assertTrue($payload['settings']['background_sending']['enabled']);
         self::assertSame(1800, $payload['settings']['failure_alerts']['throttle_seconds']);
         self::assertSame('smtp.example.test', $payload['providers'][0]['config']['host']);
         self::assertSame('587', $payload['providers'][0]['config']['port']);
@@ -100,6 +104,7 @@ final class SettingsTransferServiceTest extends TestCase
 
         self::assertSame('', $payload['settings']['sender_identity']['from_email']);
         self::assertSame(0, $payload['settings']['rate_limits']['per_minute']);
+        self::assertFalse($payload['settings']['background_sending']['enabled']);
         self::assertSame(900, $payload['settings']['failure_alerts']['throttle_seconds']);
         self::assertSame([], $payload['providers']);
     }
@@ -120,6 +125,9 @@ final class SettingsTransferServiceTest extends TestCase
                     'per_minute' => '-1',
                     'per_hour' => '120',
                     'per_day' => '2000000',
+                ],
+                'background_sending' => [
+                    'enabled' => true,
                 ],
                 'failure_alerts' => [
                     'email_enabled' => true,
@@ -153,7 +161,7 @@ final class SettingsTransferServiceTest extends TestCase
         $settings = get_option('onesmtp_settings', []);
         $storedProviderConfig = json_decode((string) $GLOBALS['wpdb']->inserts[0]['data']['config_json'], true);
 
-        self::assertSame(['sender_identity', 'rate_limits', 'failure_alerts'], $summary['settings_groups']);
+        self::assertSame(['sender_identity', 'rate_limits', 'failure_alerts', 'background_sending'], $summary['settings_groups']);
         self::assertSame(1, $summary['providers_imported']);
         self::assertGreaterThanOrEqual(6, $summary['excluded_fields']);
         self::assertSame('sender@example.test', $settings['sender_identity']['from_email']);
@@ -163,6 +171,7 @@ final class SettingsTransferServiceTest extends TestCase
         self::assertSame(0, $settings['rate_limits']['per_minute']);
         self::assertSame(120, $settings['rate_limits']['per_hour']);
         self::assertSame(1000000, $settings['rate_limits']['per_day']);
+        self::assertTrue($settings['background_sending']['enabled']);
         self::assertFalse($settings['failure_alerts']['email_enabled']);
         self::assertSame([], $settings['failure_alerts']['email_recipients']);
         self::assertFalse($settings['failure_alerts']['webhook_enabled']);
