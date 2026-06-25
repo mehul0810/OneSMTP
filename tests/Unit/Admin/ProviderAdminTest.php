@@ -68,6 +68,38 @@ final class ProviderAdminTest extends TestCase
         self::assertStringContainsString('smtp', $output);
     }
 
+    public function test_render_shows_generic_recovery_required_message_without_secret_details(): void
+    {
+        $providerRow = [
+            'id' => 7,
+            'slug' => 'primary',
+            'name' => 'Primary SMTP',
+            'adapter_type' => 'smtp',
+            'priority' => 10,
+            'weight' => 2,
+            'is_active' => 1,
+            'circuit_state' => 'closed',
+            'config_json' => wp_json_encode(
+                [
+                    'host' => 'smtp.example.test',
+                    'password' => $this->undecryptableSecretValue(),
+                ]
+            ),
+        ];
+
+        $GLOBALS['wpdb']->activeProviders = [$providerRow];
+        $GLOBALS['wpdb']->providerRowsById[7] = $providerRow;
+
+        $admin = new ProviderAdmin(new ProviderRepository());
+
+        ob_start();
+        $admin->render();
+        $output = (string) ob_get_clean();
+
+        self::assertStringContainsString('Credential recovery required. Re-enter affected credentials to restore delivery.', $output);
+        self::assertStringNotContainsString('placeholder-value', $output);
+    }
+
     public function test_non_manager_cannot_mutate_provider_state(): void
     {
         $_SERVER['REQUEST_METHOD'] = 'POST';
@@ -143,5 +175,129 @@ final class ProviderAdminTest extends TestCase
         self::assertSame(3, $GLOBALS['wpdb']->updates[0]['data']['weight']);
         self::assertSame(1, $GLOBALS['wpdb']->updates[0]['data']['is_active']);
         self::assertStringContainsString('onesmtp_provider_status=saved', (string) $GLOBALS['onesmtp_test_redirect']['location']);
+    }
+
+    public function test_update_preserves_unavailable_secret_when_secret_field_is_blank(): void
+    {
+        $storedPassword = $this->undecryptableSecretValue();
+
+        $GLOBALS['wpdb']->providerRowsById[7] = [
+            'id' => 7,
+            'slug' => 'primary',
+            'name' => 'Primary SMTP',
+            'adapter_type' => 'smtp',
+            'priority' => 10,
+            'weight' => 2,
+            'is_active' => 1,
+            'circuit_state' => 'closed',
+            'config_json' => wp_json_encode(
+                [
+                    'host' => 'old.example.test',
+                    'password' => $storedPassword,
+                ]
+            ),
+        ];
+
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = [
+            'onesmtp_provider_action' => 'save',
+            'onesmtp_provider_nonce' => 'test-nonce',
+            'provider_id' => '7',
+            'name' => 'Primary SMTP',
+            'adapter_type' => 'smtp',
+            'priority' => '5',
+            'weight' => '3',
+            'is_active' => '1',
+            'config' => [
+                'host' => 'new.example.test',
+                'password' => '',
+            ],
+        ];
+
+        $repository = new ProviderRepository();
+        $admin = new ProviderAdmin($repository);
+
+        try {
+            $admin->handleRequest();
+        } catch (RuntimeException $e) {
+            self::assertSame('OneSMTP provider admin redirected.', $e->getMessage());
+        }
+
+        $updatedConfig = json_decode((string) $GLOBALS['wpdb']->updates[0]['data']['config_json'], true);
+
+        self::assertIsArray($updatedConfig);
+        self::assertSame('new.example.test', $updatedConfig['host']);
+        self::assertArrayHasKey('password', $updatedConfig);
+        self::assertTrue((new SecretVault())->isEncrypted((string) $updatedConfig['password']));
+
+        $GLOBALS['wpdb']->providerRowsById[7]['config_json'] = (string) $GLOBALS['wpdb']->updates[0]['data']['config_json'];
+
+        self::assertTrue($repository->hasCredentialRecoveryRequired(7));
+        self::assertStringContainsString('onesmtp_provider_status=saved', (string) $GLOBALS['onesmtp_test_redirect']['location']);
+    }
+
+    public function test_update_reentered_secret_recovers_unavailable_secret(): void
+    {
+        $GLOBALS['wpdb']->providerRowsById[7] = [
+            'id' => 7,
+            'slug' => 'primary',
+            'name' => 'Primary SMTP',
+            'adapter_type' => 'smtp',
+            'priority' => 10,
+            'weight' => 2,
+            'is_active' => 1,
+            'circuit_state' => 'closed',
+            'config_json' => wp_json_encode(
+                [
+                    'host' => 'old.example.test',
+                    'password' => $this->undecryptableSecretValue(),
+                ]
+            ),
+        ];
+
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = [
+            'onesmtp_provider_action' => 'save',
+            'onesmtp_provider_nonce' => 'test-nonce',
+            'provider_id' => '7',
+            'name' => 'Primary SMTP',
+            'adapter_type' => 'smtp',
+            'priority' => '5',
+            'weight' => '3',
+            'is_active' => '1',
+            'config' => [
+                'host' => 'new.example.test',
+                'password' => 'replacement-value',
+            ],
+        ];
+
+        $repository = new ProviderRepository();
+        $admin = new ProviderAdmin($repository);
+
+        try {
+            $admin->handleRequest();
+        } catch (RuntimeException $e) {
+            self::assertSame('OneSMTP provider admin redirected.', $e->getMessage());
+        }
+
+        $updatedConfig = json_decode((string) $GLOBALS['wpdb']->updates[0]['data']['config_json'], true);
+        $vault = new SecretVault();
+
+        self::assertIsArray($updatedConfig);
+        self::assertSame('new.example.test', $updatedConfig['host']);
+        self::assertSame('replacement-value', $vault->decrypt((string) $updatedConfig['password']));
+
+        $GLOBALS['wpdb']->providerRowsById[7]['config_json'] = (string) $GLOBALS['wpdb']->updates[0]['data']['config_json'];
+
+        self::assertFalse($repository->hasCredentialRecoveryRequired(7));
+        self::assertStringContainsString('onesmtp_provider_status=saved', (string) $GLOBALS['onesmtp_test_redirect']['location']);
+    }
+
+    private function undecryptableSecretValue(): string
+    {
+        $parts = explode(':', (new SecretVault())->encrypt('placeholder-value'), 6);
+        $parts[5][0] = $parts[5][0] === 'A' ? 'B' : 'A';
+
+        return implode(':', $parts);
     }
 }

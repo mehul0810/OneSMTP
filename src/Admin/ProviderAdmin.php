@@ -108,7 +108,12 @@ final class ProviderAdmin
             echo '<td><code>' . esc_html((string) ($provider['adapter_type'] ?? '')) . '</code></td>';
             echo '<td>' . esc_html((string) ((int) ($provider['priority'] ?? 100))) . '</td>';
             echo '<td>' . esc_html((string) ((int) ($provider['weight'] ?? 1))) . '</td>';
-            echo '<td>' . (empty($provider['is_active']) ? esc_html__('Inactive', 'onesmtp') : esc_html__('Active', 'onesmtp')) . '</td>';
+            echo '<td>';
+            echo empty($provider['is_active']) ? esc_html__('Inactive', 'onesmtp') : esc_html__('Active', 'onesmtp');
+            if ($providerId > 0 && $this->repository->hasCredentialRecoveryRequired($providerId)) {
+                echo '<br><span class="description">' . esc_html__('Credential recovery required. Re-enter affected credentials to restore delivery.', 'onesmtp') . '</span>';
+            }
+            echo '</td>';
             echo '<td>' . esc_html($this->formatSafeConfig(isset($provider['config']) && is_array($provider['config']) ? $provider['config'] : [])) . '</td>';
             echo '<td>';
             $this->renderRowActionForm($providerId, 'toggle', empty($provider['is_active']) ? __('Activate', 'onesmtp') : __('Deactivate', 'onesmtp'));
@@ -299,7 +304,7 @@ final class ProviderAdmin
         );
 
         wp_safe_redirect($url);
-        if (defined('ONESMTP_TESTING') && ONESMTP_TESTING) {
+        if (defined('ONESMTP_TESTING') && (bool) constant('ONESMTP_TESTING')) {
             throw new \RuntimeException('OneSMTP provider admin redirected.');
         }
 

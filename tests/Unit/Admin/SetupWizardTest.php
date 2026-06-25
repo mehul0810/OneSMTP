@@ -197,6 +197,57 @@ final class SetupWizardTest extends TestCase
         self::assertStringNotContainsString('secret-api-key', (string) $GLOBALS['wpdb']->inserts[0]['data']['context_json']);
         self::assertStringContainsString('onesmtp_setup_status=test_sent', (string) $GLOBALS['onesmtp_test_redirect']['location']);
     }
+
+    public function test_send_test_email_treats_unavailable_secret_as_missing(): void
+    {
+        $GLOBALS['wpdb']->providerRowsById[7] = [
+            'id' => 7,
+            'slug' => 'primary',
+            'name' => 'Primary API',
+            'adapter_type' => 'sendgrid',
+            'priority' => 1,
+            'weight' => 1,
+            'is_active' => 1,
+            'circuit_state' => 'closed',
+            'config_json' => wp_json_encode(
+                [
+                    'api_key' => $this->undecryptableSecretValue(),
+                ]
+            ),
+        ];
+
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = [
+            'onesmtp_setup_action' => 'send_test',
+            'onesmtp_setup_nonce' => 'test-nonce',
+            'provider_id' => '7',
+            'test_to' => 'recipient@example.test',
+        ];
+
+        $adapter = new SetupTestAdapter(new SendResult(true, 'accepted', 'Accepted by provider.'));
+        $wizard = new SetupWizard(
+            new ProviderRepository(),
+            new ProviderDeliveryManager(new ProviderAdapterRegistry(['sendgrid' => $adapter])),
+            new EventRepository()
+        );
+
+        try {
+            $wizard->handleRequest();
+        } catch (RuntimeException $e) {
+            self::assertSame('OneSMTP setup wizard redirected.', $e->getMessage());
+        }
+
+        self::assertArrayNotHasKey('api_key', $adapter->lastConfig);
+        self::assertStringContainsString('onesmtp_setup_status=test_sent', (string) $GLOBALS['onesmtp_test_redirect']['location']);
+    }
+
+    private function undecryptableSecretValue(): string
+    {
+        $parts = explode(':', (new SecretVault())->encrypt('placeholder-value'), 6);
+        $parts[5][0] = $parts[5][0] === 'A' ? 'B' : 'A';
+
+        return implode(':', $parts);
+    }
 }
 
 final class SetupTestAdapter implements ProviderAdapterInterface

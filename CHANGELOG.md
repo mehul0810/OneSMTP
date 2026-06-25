@@ -35,6 +35,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 ### Changed
 
 - Documented the `main`, `develop`, and `release/*` branch workflow and extended CI push coverage to the integration and stabilization branches.
+- Provider credential recovery now preserves unavailable stored credentials during blank-field updates and supports safe re-entry from the Providers screen.
 - Retry scheduling now fails closed and records a scheduling failure event when Action Scheduler is unavailable instead of reporting a queued retry.
 - Terminal, authentication, and policy failures now stop retry scheduling early while preserving redacted log context.
 - Queue backpressure now defers rate-limited mail instead of over-sending when configured delivery limits are exhausted.

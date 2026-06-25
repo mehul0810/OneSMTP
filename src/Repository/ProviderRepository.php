@@ -73,6 +73,28 @@ final class ProviderRepository
         return is_array($provider) ? $this->safeProvider($provider) : null;
     }
 
+    public function hasCredentialRecoveryRequired(int $providerId): bool
+    {
+        if ($providerId <= 0) {
+            return false;
+        }
+
+        $config = $this->getRawConfig($providerId);
+        foreach ($config as $key => $value) {
+            if (! is_string($value) || ! $this->isSensitiveKey((string) $key) || ! $this->vault->isEncrypted($value)) {
+                continue;
+            }
+
+            try {
+                $this->vault->decrypt($value);
+            } catch (\RuntimeException $e) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public function save(array $provider): int
     {
         global $wpdb;
@@ -82,7 +104,12 @@ final class ProviderRepository
             return 0;
         }
 
+        $id = isset($provider['id']) ? (int) $provider['id'] : 0;
         $config = isset($provider['config']) && is_array($provider['config']) ? $provider['config'] : [];
+        if ($id > 0) {
+            $config = $this->preserveStoredSensitiveConfig($id, $config);
+        }
+
         $config = $this->encryptSecrets($config);
 
         $payload = [
@@ -98,7 +125,6 @@ final class ProviderRepository
             'updated_at'    => current_time('mysql', true),
         ];
 
-        $id = isset($provider['id']) ? (int) $provider['id'] : 0;
         if ($id > 0) {
             $wpdb->update(
                 TableNames::providers(),
@@ -206,7 +232,7 @@ final class ProviderRepository
                 continue;
             }
 
-            if (! preg_match('/pass|secret|token|api(?:_|-)?key/i', (string) $key)) {
+            if (! $this->isSensitiveKey((string) $key)) {
                 continue;
             }
 
@@ -230,10 +256,47 @@ final class ProviderRepository
             try {
                 $config[$key] = $this->vault->decrypt($value);
             } catch (\RuntimeException $e) {
-                $config[$key] = '';
+                unset($config[$key]);
             }
         }
 
         return $config;
+    }
+
+    private function preserveStoredSensitiveConfig(int $providerId, array $config): array
+    {
+        $storedConfig = $this->getRawConfig($providerId);
+        foreach ($storedConfig as $key => $value) {
+            if (array_key_exists($key, $config) || ! is_string($value) || ! $this->isSensitiveKey((string) $key)) {
+                continue;
+            }
+
+            $config[$key] = $value;
+        }
+
+        return $config;
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function getRawConfig(int $providerId): array
+    {
+        global $wpdb;
+
+        $sql = $wpdb->prepare('SELECT * FROM ' . TableNames::providers() . ' WHERE id = %d', $providerId);
+        $row = $wpdb->get_row($sql, ARRAY_A);
+        if (! is_array($row)) {
+            return [];
+        }
+
+        $decoded = json_decode(isset($row['config_json']) ? (string) $row['config_json'] : '', true);
+
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    private function isSensitiveKey(string $key): bool
+    {
+        return (bool) preg_match('/pass|secret|token|api(?:_|-)?key/i', $key);
     }
 }
