@@ -45,21 +45,16 @@ final class DiagnosticReportGenerator
     public function generate(): array
     {
         $now = (int) ($this->clock)();
-        $providers = $this->providers->getAllSafe();
+        $providers = $this->providers();
 
         return [
             'schema_version' => self::SCHEMA_VERSION,
             'generated_at' => gmdate('Y-m-d\TH:i:s\Z', $now),
             'environment' => $this->environmentSection(),
             'plugin' => $this->pluginSection($providers),
-            'providers' => array_map([$this, 'providerSummary'], $providers),
-            'queue' => $this->queueDiagnostics->snapshot(),
-            'recent_failures' => [
-                'window_hours' => self::FAILURE_WINDOW_HOURS,
-                'categories' => $this->attempts->getRecentFailureCategoryCounts(
-                    gmdate('Y-m-d H:i:s', max(0, $now - (self::FAILURE_WINDOW_HOURS * HOUR_IN_SECONDS)))
-                ),
-            ],
+            'providers' => $providers,
+            'queue' => $this->queue(),
+            'recent_failures' => $this->recentFailures(),
             'redaction' => [
                 'status' => 'applied',
                 'excluded_fields' => [
@@ -82,6 +77,37 @@ final class DiagnosticReportGenerator
                     'authorization_bearer',
                 ],
             ],
+        ];
+    }
+
+    /**
+     * @return array<int,array<string,mixed>>
+     */
+    public function providers(): array
+    {
+        return array_map([$this, 'providerSummary'], $this->providers->getAllSafe());
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    public function queue(): array
+    {
+        return $this->queueDiagnostics->snapshot();
+    }
+
+    /**
+     * @return array{window_hours:int,categories:array<int,array{category:string,count:int,last_seen_at:?string}>}
+     */
+    public function recentFailures(): array
+    {
+        $now = (int) ($this->clock)();
+
+        return [
+            'window_hours' => self::FAILURE_WINDOW_HOURS,
+            'categories' => $this->attempts->getRecentFailureCategoryCounts(
+                gmdate('Y-m-d H:i:s', max(0, $now - (self::FAILURE_WINDOW_HOURS * HOUR_IN_SECONDS)))
+            ),
         ];
     }
 

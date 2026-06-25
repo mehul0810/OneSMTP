@@ -35,6 +35,22 @@ final class FakeWpdb
     /** @var array<string,array<int,array<string,mixed>>> */
     public array $failureCategoryRowsBySince = [];
 
+    /** @var array<int,string> */
+    public array $attemptColumns = [
+        'id',
+        'message_id',
+        'attempt_no',
+        'provider_id',
+        'trigger_type',
+        'result',
+        'error_code',
+        'error_message',
+        'failure_category',
+        'latency_ms',
+        'provider_message_id',
+        'created_at',
+    ];
+
     /** @var array<string,array<string,mixed>> */
     public array $dashboardActivityRowsBySince = [];
 
@@ -61,6 +77,8 @@ final class FakeWpdb
 
     /** @var array{query:string,args:array<int,mixed>}|null */
     public ?array $lastPrepared = null;
+
+    public bool $suppressErrors = false;
 
     public function get_charset_collate(): string
     {
@@ -250,6 +268,10 @@ final class FakeWpdb
             && str_contains($query, 'failure_count')
             && str_contains($query, 'GROUP BY')
         ) {
+            if (! in_array('failure_category', $this->attemptColumns, true)) {
+                return [];
+            }
+
             $since = isset($args[1]) ? (string) $args[1] : '';
 
             return $this->failureCategoryRowsBySince[$since] ?? [];
@@ -298,5 +320,16 @@ final class FakeWpdb
         }
 
         return 0;
+    }
+
+    public function suppress_errors(?bool $suppress = null): bool
+    {
+        $previous = $this->suppressErrors;
+
+        if ($suppress !== null) {
+            $this->suppressErrors = $suppress;
+        }
+
+        return $previous;
     }
 }
