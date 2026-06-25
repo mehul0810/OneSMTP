@@ -39,6 +39,8 @@ final class ProviderAdminTest extends TestCase
                 'priority' => 10,
                 'weight' => 2,
                 'is_active' => 1,
+                'circuit_state' => 'open',
+                'circuit_until' => '2026-07-01 12:30:00',
                 'config_json' => wp_json_encode(
                     [
                         'host' => 'smtp.example.test',
@@ -74,6 +76,8 @@ final class ProviderAdminTest extends TestCase
         self::assertStringContainsString('API delivery', $output);
         self::assertStringContainsString('Unavailable', $output);
         self::assertStringContainsString('smtp.example.test', $output);
+        self::assertStringContainsString('Circuit open', $output);
+        self::assertStringContainsString('Open until 2026-07-01 12:30:00 GMT.', $output);
         self::assertStringContainsString('DNS authentication readiness', $output);
         self::assertStringContainsString('example.test', $output);
         self::assertStringContainsString('TXT evidence found', $output);
@@ -85,6 +89,34 @@ final class ProviderAdminTest extends TestCase
         self::assertStringContainsString('postmark', $output);
         self::assertStringContainsString('brevo', $output);
         self::assertStringContainsString('smtp', $output);
+    }
+
+    public function test_render_normalizes_invalid_provider_health_state(): void
+    {
+        $GLOBALS['wpdb']->activeProviders = [
+            [
+                'id' => 7,
+                'slug' => 'primary',
+                'name' => 'Primary SMTP',
+                'adapter_type' => 'smtp',
+                'priority' => 10,
+                'weight' => 2,
+                'is_active' => 1,
+                'circuit_state' => '<script>alert(1)</script>',
+                'circuit_until' => 'not-a-date',
+                'config_json' => wp_json_encode([]),
+            ],
+        ];
+
+        $admin = new ProviderAdmin(new ProviderRepository());
+
+        ob_start();
+        $admin->render();
+        $output = (string) ob_get_clean();
+
+        self::assertStringContainsString('Circuit closed', $output);
+        self::assertStringNotContainsString('<script>alert(1)</script>', $output);
+        self::assertStringNotContainsString('not-a-date', $output);
     }
 
     public function test_render_dns_authentication_handles_missing_lookup_without_claiming_validity(): void
@@ -228,6 +260,44 @@ final class ProviderAdminTest extends TestCase
         self::assertSame(3, $GLOBALS['wpdb']->updates[0]['data']['weight']);
         self::assertSame(1, $GLOBALS['wpdb']->updates[0]['data']['is_active']);
         self::assertStringContainsString('onesmtp_provider_status=saved', (string) $GLOBALS['onesmtp_test_redirect']['location']);
+    }
+
+    public function test_update_normalizes_invalid_priority_and_weight_to_safe_minimums(): void
+    {
+        $GLOBALS['wpdb']->providerRowsById[7] = [
+            'id' => 7,
+            'slug' => 'primary',
+            'name' => 'Primary SMTP',
+            'adapter_type' => 'smtp',
+            'priority' => 10,
+            'weight' => 2,
+            'is_active' => 1,
+            'circuit_state' => 'closed',
+            'config_json' => wp_json_encode([]),
+        ];
+
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = [
+            'onesmtp_provider_action' => 'save',
+            'onesmtp_provider_nonce' => 'test-nonce',
+            'provider_id' => '7',
+            'name' => 'Primary SMTP',
+            'adapter_type' => 'smtp',
+            'priority' => '-10',
+            'weight' => '0',
+            'is_active' => '1',
+        ];
+
+        $admin = new ProviderAdmin(new ProviderRepository());
+
+        try {
+            $admin->handleRequest();
+        } catch (RuntimeException $e) {
+            self::assertSame('OneSMTP provider admin redirected.', $e->getMessage());
+        }
+
+        self::assertSame(1, $GLOBALS['wpdb']->updates[0]['data']['priority']);
+        self::assertSame(1, $GLOBALS['wpdb']->updates[0]['data']['weight']);
     }
 
     public function test_update_preserves_unavailable_secret_when_secret_field_is_blank(): void

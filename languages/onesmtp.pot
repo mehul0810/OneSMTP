@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: OneSMTP 0.1.0\n"
 "Report-Msgid-Bugs-To: https://github.com/mehul0810/OneSMTP/issues\n"
-"POT-Creation-Date: 2026-06-25 14:18+0000\n"
+"POT-Creation-Date: 2026-06-25 17:58+0000\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -17,7 +17,7 @@ msgstr ""
 msgid "%1$d recipients across %2$s"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:157
+#: src/Admin/ProviderAdmin.php:159
 msgid "%1$s provider %2$s"
 msgstr ""
 
@@ -38,7 +38,7 @@ msgid "API delivery can provide provider-side tracking identifiers."
 msgstr ""
 
 #: src/Admin/SetupWizard.php:120
-#: src/Admin/ProviderAdmin.php:226
+#: src/Admin/ProviderAdmin.php:228
 msgid "API key"
 msgstr ""
 
@@ -50,20 +50,20 @@ msgstr ""
 msgid "API responses can include provider message IDs."
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:107
+#: src/Admin/ProviderAdmin.php:108
 msgid "Actions"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:134
+#: src/Admin/ProviderAdmin.php:136
 msgid "Activate"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:127
-#: src/Admin/ProviderAdmin.php:180
+#: src/Admin/ProviderAdmin.php:128
+#: src/Admin/ProviderAdmin.php:182
 msgid "Active"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:271
+#: src/Admin/ProviderAdmin.php:273
 msgid "Add a DKIM selector to enable selector-specific checks."
 msgstr ""
 
@@ -71,11 +71,11 @@ msgstr ""
 msgid "Add and activate a provider before sending a setup test email."
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:168
+#: src/Admin/ProviderAdmin.php:170
 msgid "Add or update provider"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:380
+#: src/Admin/ProviderAdmin.php:382
 msgid "Add the provider DKIM selector when available so OneSMTP can check the selector-specific TXT name."
 msgstr ""
 
@@ -126,8 +126,17 @@ msgid "Backup provider prompt"
 msgstr ""
 
 #: src/Providers/ProviderTypes.php:110
-#: src/Admin/ProviderAdmin.php:366
+#: src/Admin/ProviderAdmin.php:368
 msgid "Brevo"
+msgstr ""
+
+#: src/Admin/ProviderAdmin.php:470
+msgid "Circuit closed"
+msgstr ""
+
+#: src/Admin/ProviderAdmin.php:475
+#: src/Admin/ProviderAdmin.php:478
+msgid "Circuit open"
 msgstr ""
 
 #: src/Admin/ProviderCapabilityMatrix.php:17
@@ -148,7 +157,7 @@ msgstr ""
 msgid "Complete the first provider form to enable delivery testing."
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:245
+#: src/Admin/ProviderAdmin.php:247
 msgid "Configure a provider From email or sender identity From Email to see SPF, DKIM, and DMARC guidance for sender domains."
 msgstr ""
 
@@ -182,27 +191,27 @@ msgstr ""
 msgid "Created"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:129
+#: src/Admin/ProviderAdmin.php:130
 msgid "Credential recovery required. Re-enter affected credentials to restore delivery."
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:260
+#: src/Admin/ProviderAdmin.php:262
 msgid "DKIM"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:232
+#: src/Admin/ProviderAdmin.php:234
 msgid "DKIM selector"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:261
+#: src/Admin/ProviderAdmin.php:263
 msgid "DMARC"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:251
+#: src/Admin/ProviderAdmin.php:253
 msgid "DNS TXT lookup is not available in this PHP environment. OneSMTP can show expected records, but it cannot verify SPF, DKIM, or DMARC readiness here."
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:241
+#: src/Admin/ProviderAdmin.php:243
 msgid "DNS authentication readiness"
 msgstr ""
 
@@ -214,11 +223,11 @@ msgstr ""
 msgid "Dashboard"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:134
+#: src/Admin/ProviderAdmin.php:136
 msgid "Deactivate"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:135
+#: src/Admin/ProviderAdmin.php:137
 msgid "Delete"
 msgstr ""
 
@@ -250,7 +259,7 @@ msgstr ""
 msgid "Diagnostics"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:257
+#: src/Admin/ProviderAdmin.php:259
 msgid "Domain"
 msgstr ""
 
@@ -363,11 +372,11 @@ msgstr ""
 msgid "From Name"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:230
+#: src/Admin/ProviderAdmin.php:232
 msgid "From email"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:231
+#: src/Admin/ProviderAdmin.php:233
 msgid "From name"
 msgstr ""
 
@@ -379,12 +388,16 @@ msgstr ""
 msgid "Gmail"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:367
+#: src/Admin/ProviderAdmin.php:369
 msgid "Gmail or Google Workspace"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:262
+#: src/Admin/ProviderAdmin.php:264
 msgid "Guidance"
+msgstr ""
+
+#: src/Admin/ProviderAdmin.php:106
+msgid "Health"
 msgstr ""
 
 #: src/Admin/SettingsAdmin.php:154
@@ -403,11 +416,11 @@ msgstr ""
 msgid "Imported %1$d settings groups and %2$d providers. Excluded %3$d unsafe fields."
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:127
+#: src/Admin/ProviderAdmin.php:128
 msgid "Inactive"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:357
+#: src/Admin/ProviderAdmin.php:359
 msgid "Inconclusive"
 msgstr ""
 
@@ -423,7 +436,7 @@ msgstr ""
 msgid "Latency"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:190
+#: src/Admin/ProviderAdmin.php:192
 msgid "Leave credential fields blank when updating a provider to keep existing stored secrets."
 msgstr ""
 
@@ -476,7 +489,7 @@ msgid "Message detail"
 msgstr ""
 
 #: src/Admin/ProviderAdmin.php:101
-#: src/Admin/ProviderAdmin.php:175
+#: src/Admin/ProviderAdmin.php:177
 msgid "Name"
 msgstr ""
 
@@ -497,7 +510,7 @@ msgstr ""
 msgid "Next retry"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:453
+#: src/Admin/ProviderAdmin.php:491
 msgid "No config stored"
 msgstr ""
 
@@ -525,7 +538,7 @@ msgstr ""
 msgid "No external provider message ID is available from PHP mail."
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:356
+#: src/Admin/ProviderAdmin.php:358
 msgid "No matching TXT evidence found"
 msgstr ""
 
@@ -566,11 +579,11 @@ msgstr ""
 msgid "OAuth"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:227
+#: src/Admin/ProviderAdmin.php:229
 msgid "OAuth client ID"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:228
+#: src/Admin/ProviderAdmin.php:230
 msgid "OAuth client secret"
 msgstr ""
 
@@ -578,7 +591,7 @@ msgstr ""
 msgid "OAuth credentials are required before delivery."
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:229
+#: src/Admin/ProviderAdmin.php:231
 msgid "OAuth refresh token"
 msgstr ""
 
@@ -666,6 +679,14 @@ msgstr ""
 msgid "Only supported non-secret settings are imported. Secret, credential, webhook URL, raw recipient, message body, raw header, and payload fields are ignored."
 msgstr ""
 
+#: src/Admin/ProviderAdmin.php:480
+msgid "Open until %s GMT."
+msgstr ""
+
+#: src/Admin/ProviderAdmin.php:475
+msgid "Open until manually closed."
+msgstr ""
+
 #: src/Admin/QueueDiagnosticsAdmin.php:96
 msgid "Overdue retries"
 msgstr ""
@@ -683,7 +704,7 @@ msgid "Page %1$d of %2$d (%3$d log entries)"
 msgstr ""
 
 #: src/Admin/SetupWizard.php:119
-#: src/Admin/ProviderAdmin.php:225
+#: src/Admin/ProviderAdmin.php:227
 msgid "Password"
 msgstr ""
 
@@ -712,7 +733,7 @@ msgid "Plugin settings will appear here once the settings form is ready."
 msgstr ""
 
 #: src/Providers/ProviderTypes.php:95
-#: src/Admin/ProviderAdmin.php:365
+#: src/Admin/ProviderAdmin.php:367
 msgid "Postmark"
 msgstr ""
 
@@ -729,7 +750,7 @@ msgid "Primary delivery provider"
 msgstr ""
 
 #: src/Admin/ProviderAdmin.php:103
-#: src/Admin/ProviderAdmin.php:177
+#: src/Admin/ProviderAdmin.php:179
 msgid "Priority"
 msgstr ""
 
@@ -748,19 +769,19 @@ msgstr ""
 
 #: src/Admin/LogAdmin.php:658
 #: src/Admin/LogAdmin.php:723
-#: src/Admin/ProviderAdmin.php:116
+#: src/Admin/ProviderAdmin.php:117
 msgid "Provider #%d"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:174
+#: src/Admin/ProviderAdmin.php:176
 msgid "Provider ID for updates"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:473
+#: src/Admin/ProviderAdmin.php:511
 msgid "Provider action completed."
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:472
+#: src/Admin/ProviderAdmin.php:510
 msgid "Provider action failed."
 msgstr ""
 
@@ -800,12 +821,12 @@ msgstr ""
 msgid "Provider saved. Send a test email to verify setup."
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:305
+#: src/Admin/ProviderAdmin.php:307
 msgid "Provider sender"
 msgstr ""
 
 #: src/Admin/SetupWizard.php:115
-#: src/Admin/ProviderAdmin.php:176
+#: src/Admin/ProviderAdmin.php:178
 msgid "Provider type"
 msgstr ""
 
@@ -813,7 +834,7 @@ msgstr ""
 msgid "Providers"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:375
+#: src/Admin/ProviderAdmin.php:377
 msgid "Publish the SPF, DKIM, and DMARC TXT records supplied by %s for this sender domain."
 msgstr ""
 
@@ -926,7 +947,7 @@ msgstr ""
 msgid "Review scheduler availability, queue status, overdue retries, and recovery actions."
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:254
+#: src/Admin/ProviderAdmin.php:256
 msgid "Review sender-domain authentication before relying on a provider for production delivery. Results are based only on TXT evidence visible to this WordPress server."
 msgstr ""
 
@@ -941,20 +962,20 @@ msgid "SMTP"
 msgstr ""
 
 #: src/Admin/SetupWizard.php:116
-#: src/Admin/ProviderAdmin.php:222
+#: src/Admin/ProviderAdmin.php:224
 msgid "SMTP host"
 msgstr ""
 
 #: src/Admin/SetupWizard.php:117
-#: src/Admin/ProviderAdmin.php:223
+#: src/Admin/ProviderAdmin.php:225
 msgid "SMTP port"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:259
+#: src/Admin/ProviderAdmin.php:261
 msgid "SPF"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:106
+#: src/Admin/ProviderAdmin.php:107
 msgid "Safe config"
 msgstr ""
 
@@ -978,7 +999,7 @@ msgstr ""
 msgid "Save first provider"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:191
+#: src/Admin/ProviderAdmin.php:193
 msgid "Save provider"
 msgstr ""
 
@@ -1032,7 +1053,7 @@ msgid "Send through the SendGrid API with an API key."
 msgstr ""
 
 #: src/Providers/ProviderTypes.php:80
-#: src/Admin/ProviderAdmin.php:364
+#: src/Admin/ProviderAdmin.php:366
 msgid "SendGrid"
 msgstr ""
 
@@ -1040,7 +1061,7 @@ msgstr ""
 msgid "Sender email"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:321
+#: src/Admin/ProviderAdmin.php:323
 msgid "Sender identity"
 msgstr ""
 
@@ -1102,7 +1123,7 @@ msgstr ""
 msgid "Since %s UTC"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:258
+#: src/Admin/ProviderAdmin.php:260
 msgid "Source"
 msgstr ""
 
@@ -1113,7 +1134,7 @@ msgstr ""
 msgid "Status"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:355
+#: src/Admin/ProviderAdmin.php:357
 msgid "TXT evidence found"
 msgstr ""
 
@@ -1237,12 +1258,12 @@ msgstr ""
 msgid "Use this guided setup to configure a sender identity, add the first delivery provider, verify delivery, and confirm logging is recording setup activity."
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:181
+#: src/Admin/ProviderAdmin.php:183
 msgid "Use this provider for delivery."
 msgstr ""
 
 #: src/Admin/SetupWizard.php:118
-#: src/Admin/ProviderAdmin.php:224
+#: src/Admin/ProviderAdmin.php:226
 msgid "Username"
 msgstr ""
 
@@ -1259,7 +1280,7 @@ msgid "Webhook alerts"
 msgstr ""
 
 #: src/Admin/ProviderAdmin.php:104
-#: src/Admin/ProviderAdmin.php:178
+#: src/Admin/ProviderAdmin.php:180
 msgid "Weight"
 msgstr ""
 
@@ -1323,14 +1344,14 @@ msgstr ""
 msgid "unknown domains"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:368
+#: src/Admin/ProviderAdmin.php:370
 msgid "your SMTP provider"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:369
+#: src/Admin/ProviderAdmin.php:371
 msgid "your hosting DNS provider"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:370
+#: src/Admin/ProviderAdmin.php:372
 msgid "your mail provider"
 msgstr ""
