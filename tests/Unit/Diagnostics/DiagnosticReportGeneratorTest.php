@@ -105,6 +105,30 @@ final class DiagnosticReportGeneratorTest extends TestCase
         self::assertSame([], $report['recent_failures']['categories']);
     }
 
+    public function test_report_handles_older_attempt_schema_without_failure_category(): void
+    {
+        $GLOBALS['wpdb']->attemptColumns = [
+            'id',
+            'message_id',
+            'attempt_no',
+            'provider_id',
+            'result',
+            'created_at',
+        ];
+        $GLOBALS['wpdb']->queueDiagnosticRow = [
+            'queued_count' => 0,
+            'retry_scheduled_count' => 0,
+            'retrying_count' => 0,
+            'failed_count' => 0,
+            'overdue_retry_count' => 0,
+            'next_retry_at' => null,
+        ];
+
+        $report = $this->generator(true)->generate();
+
+        self::assertSame([], $report['recent_failures']['categories']);
+    }
+
     private function generator(bool $schedulerAvailable): DiagnosticReportGenerator
     {
         $queue = new QueueDiagnostics($this->health($schedulerAvailable), new MessageRepository(), static fn (): int => self::NOW);

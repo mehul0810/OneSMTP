@@ -7,6 +7,7 @@ namespace OneSMTP;
 use OneSMTP\Admin\AdminPage;
 use OneSMTP\Admin\MailConflictNotice;
 use OneSMTP\Admin\SchedulerNotice;
+use OneSMTP\Cli\DiagnosticsCommand;
 use OneSMTP\Conflict\MailConflictDetector;
 use OneSMTP\Api\RestController;
 use OneSMTP\Core\Installer;
@@ -76,6 +77,8 @@ final class Plugin
             new Admin\DashboardAdmin(new MetricsRepository())
         );
         $adminPage->registerHooks();
+
+        DiagnosticsCommand::register(new DiagnosticsCommand(new DiagnosticReportGenerator($providers, $queueDiagnostics, $attempts)));
 
         add_action(
             'rest_api_init',

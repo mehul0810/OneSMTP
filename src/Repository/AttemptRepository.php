@@ -153,7 +153,9 @@ final class AttemptRepository
             $since,
             $limit
         );
+        $previousSuppressErrors = $wpdb->suppress_errors(true);
         $rows = $wpdb->get_results($sql, ARRAY_A);
+        $wpdb->suppress_errors($previousSuppressErrors);
 
         if (! is_array($rows)) {
             return [];
