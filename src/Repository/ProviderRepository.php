@@ -119,8 +119,11 @@ final class ProviderRepository
             'priority'      => max(1, (int) ($provider['priority'] ?? 100)),
             'weight'        => max(1, (int) ($provider['weight'] ?? 1)),
             'is_active'     => ! empty($provider['is_active']) ? 1 : 0,
-            'circuit_state' => sanitize_key((string) ($provider['circuit_state'] ?? 'closed')),
-            'circuit_until' => isset($provider['circuit_until']) ? (string) $provider['circuit_until'] : null,
+            'circuit_state' => $this->normalizeCircuitState((string) ($provider['circuit_state'] ?? 'closed')),
+            'circuit_until' => $this->normalizeCircuitUntil(
+                isset($provider['circuit_until']) ? (string) $provider['circuit_until'] : null,
+                (string) ($provider['circuit_state'] ?? 'closed')
+            ),
             'config_json'   => wp_json_encode($config),
             'updated_at'    => current_time('mysql', true),
         ];
@@ -174,11 +177,13 @@ final class ProviderRepository
     {
         global $wpdb;
 
+        $state = $this->normalizeCircuitState($state);
+
         $wpdb->update(
             TableNames::providers(),
             [
-                'circuit_state' => sanitize_key($state),
-                'circuit_until' => $until,
+                'circuit_state' => $state,
+                'circuit_until' => $this->normalizeCircuitUntil($until, $state),
                 'updated_at'    => current_time('mysql', true),
             ],
             ['id' => $providerId],
@@ -195,9 +200,38 @@ final class ProviderRepository
         $row['priority'] = (int) ($row['priority'] ?? 100);
         $row['weight'] = (int) ($row['weight'] ?? 1);
         $row['is_active'] = (int) ($row['is_active'] ?? 0);
+        $row['circuit_state'] = $this->normalizeCircuitState((string) ($row['circuit_state'] ?? 'closed'));
+        $row['circuit_until'] = $this->normalizeCircuitUntil(
+            isset($row['circuit_until']) ? (string) $row['circuit_until'] : null,
+            (string) $row['circuit_state']
+        );
         $row['config'] = $this->decodeConfig(isset($row['config_json']) ? (string) $row['config_json'] : '');
 
         return $row;
+    }
+
+    private function normalizeCircuitState(string $state): string
+    {
+        return sanitize_key($state) === 'open' ? 'open' : 'closed';
+    }
+
+    private function normalizeCircuitUntil(?string $until, string $state): ?string
+    {
+        if ($this->normalizeCircuitState($state) !== 'open' || $until === null) {
+            return null;
+        }
+
+        $until = sanitize_text_field($until);
+        if ($until === '') {
+            return null;
+        }
+
+        $timestamp = strtotime($until);
+        if ($timestamp === false) {
+            return null;
+        }
+
+        return gmdate('Y-m-d H:i:s', $timestamp);
     }
 
     private function safeProvider(array $provider): array

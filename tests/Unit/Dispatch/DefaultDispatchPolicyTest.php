@@ -101,4 +101,50 @@ final class DefaultDispatchPolicyTest extends TestCase
             'forced_provider_id' => 303,
         ]));
     }
+
+    public function test_initial_selection_observes_provider_weight(): void
+    {
+        $policy = new DefaultDispatchPolicy();
+
+        $providers = [
+            ['id' => 11, 'priority' => 1, 'weight' => 1, 'is_active' => 1],
+            ['id' => 22, 'priority' => 2, 'weight' => 3, 'is_active' => 1],
+        ];
+
+        self::assertSame(22, $policy->chooseNextProvider(1, 1, ['providers' => $providers]));
+        self::assertSame(22, $policy->chooseNextProvider(2, 1, ['providers' => $providers]));
+    }
+
+    public function test_open_provider_circuit_is_skipped_until_closed_or_expired(): void
+    {
+        $policy = new DefaultDispatchPolicy();
+
+        self::assertSame(22, $policy->chooseNextProvider(10, 1, [
+            'providers' => [
+                [
+                    'id' => 11,
+                    'priority' => 1,
+                    'weight' => 3,
+                    'is_active' => 1,
+                    'circuit_state' => 'open',
+                    'circuit_until' => gmdate('Y-m-d H:i:s', time() + 300),
+                ],
+                ['id' => 22, 'priority' => 2, 'weight' => 1, 'is_active' => 1],
+            ],
+        ]));
+
+        self::assertSame(11, $policy->chooseNextProvider(0, 1, [
+            'providers' => [
+                [
+                    'id' => 11,
+                    'priority' => 1,
+                    'weight' => 3,
+                    'is_active' => 1,
+                    'circuit_state' => 'open',
+                    'circuit_until' => gmdate('Y-m-d H:i:s', time() - 300),
+                ],
+                ['id' => 22, 'priority' => 2, 'weight' => 1, 'is_active' => 1],
+            ],
+        ]));
+    }
 }

@@ -128,6 +128,50 @@ final class ProviderRepositoryTest extends TestCase
         self::assertTrue($repository->hasCredentialRecoveryRequired(7));
     }
 
+    public function test_provider_state_is_normalized_on_save_find_and_mark_state(): void
+    {
+        $repository = new ProviderRepository();
+
+        $repository->save(
+            [
+                'slug' => 'primary',
+                'name' => 'Primary SMTP',
+                'adapter_type' => 'smtp',
+                'is_active' => true,
+                'circuit_state' => '<script>alert(1)</script>',
+                'circuit_until' => 'not-a-date',
+                'config' => [],
+            ]
+        );
+
+        self::assertSame('closed', $GLOBALS['wpdb']->inserts[0]['data']['circuit_state']);
+        self::assertNull($GLOBALS['wpdb']->inserts[0]['data']['circuit_until']);
+
+        $GLOBALS['wpdb']->providerRowsById[7] = [
+            'id' => 7,
+            'slug' => 'primary',
+            'name' => 'Primary SMTP',
+            'adapter_type' => 'smtp',
+            'priority' => 100,
+            'weight' => 1,
+            'is_active' => 1,
+            'circuit_state' => 'unexpected-state',
+            'circuit_until' => '2026-07-01 12:30:00',
+            'config_json' => wp_json_encode([]),
+        ];
+
+        $provider = $repository->find(7);
+
+        self::assertIsArray($provider);
+        self::assertSame('closed', $provider['circuit_state']);
+        self::assertNull($provider['circuit_until']);
+
+        $repository->markState(7, 'open', '2026-07-01 12:30:00');
+
+        self::assertSame('open', $GLOBALS['wpdb']->updates[0]['data']['circuit_state']);
+        self::assertSame('2026-07-01 12:30:00', $GLOBALS['wpdb']->updates[0]['data']['circuit_until']);
+    }
+
     private function undecryptableSecretValue(): string
     {
         $parts = explode(':', (new SecretVault())->encrypt('placeholder-value'), 6);

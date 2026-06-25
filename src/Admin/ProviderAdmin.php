@@ -103,6 +103,7 @@ final class ProviderAdmin
         echo '<th scope="col">' . esc_html__('Priority', 'onesmtp') . '</th>';
         echo '<th scope="col">' . esc_html__('Weight', 'onesmtp') . '</th>';
         echo '<th scope="col">' . esc_html__('Status', 'onesmtp') . '</th>';
+        echo '<th scope="col">' . esc_html__('Health', 'onesmtp') . '</th>';
         echo '<th scope="col">' . esc_html__('Safe config', 'onesmtp') . '</th>';
         echo '<th scope="col">' . esc_html__('Actions', 'onesmtp') . '</th>';
         echo '</tr></thead><tbody>';
@@ -129,6 +130,7 @@ final class ProviderAdmin
                 echo '<br><span class="description">' . esc_html__('Credential recovery required. Re-enter affected credentials to restore delivery.', 'onesmtp') . '</span>';
             }
             echo '</td>';
+            echo '<td>' . $this->formatCircuitHealth($provider) . '</td>';
             echo '<td style="max-width:32em;white-space:normal;word-break:break-word;">' . esc_html($this->formatSafeConfig(isset($provider['config']) && is_array($provider['config']) ? $provider['config'] : [])) . '</td>';
             echo '<td>';
             $this->renderRowActionForm($providerId, 'toggle', empty($provider['is_active']) ? __('Activate', 'onesmtp') : __('Deactivate', 'onesmtp'), $providerName);
@@ -395,8 +397,8 @@ final class ProviderAdmin
         $payload = [
             'name' => isset($_POST['name']) ? sanitize_text_field(wp_unslash((string) $_POST['name'])) : '',
             'adapter_type' => ProviderTypes::isSupported($adapterType) ? $adapterType : '',
-            'priority' => isset($_POST['priority']) ? max(1, absint(wp_unslash((string) $_POST['priority']))) : 100,
-            'weight' => isset($_POST['weight']) ? max(1, absint(wp_unslash((string) $_POST['weight']))) : 1,
+            'priority' => $this->normalizePostedPositiveInteger('priority', 100),
+            'weight' => $this->normalizePostedPositiveInteger('weight', 1),
             'is_active' => ! empty($_POST['is_active']) ? 1 : 0,
             'config' => $this->normalizePostedConfig($providerId),
         ];
@@ -442,6 +444,42 @@ final class ProviderAdmin
     private function isSensitiveField(string $field): bool
     {
         return (bool) preg_match('/pass|secret|token|api(?:_|-)?key/i', $field);
+    }
+
+    private function normalizePostedPositiveInteger(string $field, int $default): int
+    {
+        if (! isset($_POST[$field])) {
+            return $default;
+        }
+
+        $value = trim(wp_unslash((string) $_POST[$field]));
+        if ($value === '' || ! ctype_digit($value)) {
+            return 1;
+        }
+
+        return max(1, absint($value));
+    }
+
+    /**
+     * @param array<string,mixed> $provider Provider.
+     */
+    private function formatCircuitHealth(array $provider): string
+    {
+        $state = (string) ($provider['circuit_state'] ?? 'closed');
+        if ($state !== 'open') {
+            return esc_html__('Circuit closed', 'onesmtp');
+        }
+
+        $until = isset($provider['circuit_until']) ? trim((string) $provider['circuit_until']) : '';
+        if ($until === '') {
+            return esc_html__('Circuit open', 'onesmtp') . '<br><span class="description">' . esc_html__('Open until manually closed.', 'onesmtp') . '</span>';
+        }
+
+        return esc_html__('Circuit open', 'onesmtp') . '<br><span class="description">' . sprintf(
+            /* translators: %s: GMT circuit open-until date/time. */
+            esc_html__('Open until %s GMT.', 'onesmtp'),
+            esc_html($until)
+        ) . '</span>';
     }
 
     /**
