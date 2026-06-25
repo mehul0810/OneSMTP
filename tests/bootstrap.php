@@ -626,7 +626,20 @@ if (! function_exists('check_admin_referer')) {
 if (! function_exists('submit_button')) {
     function submit_button(string $text = '', string $type = 'primary', string $name = 'submit', bool $wrap = true, array|string $otherAttributes = ''): void
     {
-        $button = '<input type="submit" name="' . esc_attr($name) . '" class="button ' . esc_attr($type) . '" value="' . esc_attr($text) . '">';
+        $attributes = '';
+        if (is_array($otherAttributes)) {
+            foreach ($otherAttributes as $attribute => $value) {
+                if ($value === false) {
+                    continue;
+                }
+
+                $attributes .= ' ' . esc_attr((string) $attribute) . '="' . esc_attr($value === true ? (string) $attribute : (string) $value) . '"';
+            }
+        } elseif ($otherAttributes !== '') {
+            $attributes = ' ' . $otherAttributes;
+        }
+
+        $button = '<input type="submit" name="' . esc_attr($name) . '" class="button ' . esc_attr($type) . '" value="' . esc_attr($text) . '"' . $attributes . '>';
         echo $wrap ? '<p class="submit">' . $button . '</p>' : $button;
     }
 }
