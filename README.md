@@ -38,6 +38,7 @@ OneSMTP routes transactional emails across multiple providers with automatic fai
 
 - Admin docs: `docs/admin/`
 - Developer docs: `docs/developer/`
+- Compatibility matrix: `docs/developer/compatibility-matrix.md`
 - Internationalization workflow: `docs/developer/i18n.md`
 - Policies: `docs/policies/`
 - Templates: `docs/templates/`

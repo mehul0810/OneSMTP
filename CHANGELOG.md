@@ -32,6 +32,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Configurable terminal failure alerts for admin email and HTTPS webhook destinations with privacy-safe payloads and throttling.
 - Privacy-safe dashboard metrics for sent, failed, retried, pending, and failover activity with provider breakdowns.
 - Admin accessibility QA coverage and a 0.2.0 keyboard review checklist for OneSMTP admin screens, tables, forms, notices, and long-content states.
+- Compatibility test matrix covering synthetic core notification, form-like, commerce-like, membership-like, and background job email sources.
 
 ### Changed
 
