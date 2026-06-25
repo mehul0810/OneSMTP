@@ -7,25 +7,33 @@ namespace OneSMTP\Admin;
 use InvalidArgumentException;
 use OneSMTP\Alerts\FailureAlertSettings;
 use OneSMTP\Alerts\FailureAlertSettingsRepository;
+use OneSMTP\Core\Capabilities;
 use OneSMTP\Settings\RateLimitSettings;
 use OneSMTP\Settings\RateLimitSettingsRepository;
 use OneSMTP\Settings\SenderIdentity;
 use OneSMTP\Settings\SenderIdentityRepository;
+use OneSMTP\Settings\SettingsTransferService;
 use RuntimeException;
 
 final class SettingsAdmin
 {
     private const ACTION_NAME = 'onesmtp_save_settings';
     private const NONCE_NAME = 'onesmtp_settings_nonce';
+    private const EXPORT_ACTION = 'export_settings';
+    private const IMPORT_ACTION = 'import_settings';
+    private const EXPORT_NONCE_NAME = 'onesmtp_settings_export_nonce';
+    private const IMPORT_NONCE_NAME = 'onesmtp_settings_import_nonce';
 
     public function __construct(
         private ?SenderIdentityRepository $senderIdentity = null,
         private ?RateLimitSettingsRepository $rateLimits = null,
-        private ?FailureAlertSettingsRepository $failureAlerts = null
+        private ?FailureAlertSettingsRepository $failureAlerts = null,
+        private ?SettingsTransferService $transfers = null
     ) {
         $this->senderIdentity = $senderIdentity ?? new SenderIdentityRepository();
         $this->rateLimits = $rateLimits ?? new RateLimitSettingsRepository();
         $this->failureAlerts = $failureAlerts ?? new FailureAlertSettingsRepository();
+        $this->transfers = $transfers ?? new SettingsTransferService();
     }
 
     public function handleRequest(): void
@@ -34,9 +42,24 @@ final class SettingsAdmin
             return;
         }
 
-        $action = (string) ($_POST['onesmtp_settings_action'] ?? '');
+        $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? ''));
+        if ($method === 'GET') {
+            $action = isset($_GET['onesmtp_settings_action']) ? sanitize_key(wp_unslash((string) $_GET['onesmtp_settings_action'])) : '';
+            if ($action === self::EXPORT_ACTION) {
+                $this->handleExport();
+            }
+
+            return;
+        }
+
+        $action = isset($_POST['onesmtp_settings_action']) ? sanitize_key(wp_unslash((string) $_POST['onesmtp_settings_action'])) : '';
 
         try {
+            if ($action === self::IMPORT_ACTION) {
+                $this->handleImport();
+                return;
+            }
+
             if ($action === 'save_rate_limits') {
                 $this->rateLimits->save(RateLimitSettings::fromArray([
                     'per_minute' => isset($_POST['rate_limit_per_minute']) ? wp_unslash((string) $_POST['rate_limit_per_minute']) : 0,
@@ -92,6 +115,8 @@ final class SettingsAdmin
             echo '<div class="notice notice-success inline"><p>' . esc_html__('Delivery rate limit settings saved.', 'onesmtp') . '</p></div>';
         } elseif ($status === 'failure_alerts_saved') {
             echo '<div class="notice notice-success inline"><p>' . esc_html__('Failure alert settings saved.', 'onesmtp') . '</p></div>';
+        } elseif ($status === 'imported') {
+            echo '<div class="notice notice-success inline"><p>' . esc_html($message !== '' ? $message : __('OneSMTP settings imported. Secrets and recipient fields were excluded.', 'onesmtp')) . '</p></div>';
         } elseif ($status === 'invalid') {
             echo '<div class="notice notice-error inline"><p>' . esc_html($message !== '' ? $message : __('OneSMTP settings could not be saved.', 'onesmtp')) . '</p></div>';
         }
@@ -158,6 +183,8 @@ final class SettingsAdmin
         echo '</tbody></table>';
         submit_button(__('Save failure alerts', 'onesmtp'));
         echo '</form>';
+
+        $this->renderImportExport();
     }
 
     private function renderInput(string $name, string $label, mixed $value, string $type = 'text', string $class = 'regular-text', int $maxlength = 0): void
@@ -187,6 +214,99 @@ final class SettingsAdmin
         echo '</td></tr>';
     }
 
+    private function renderImportExport(): void
+    {
+        $downloadUrl = add_query_arg(
+            [
+                'page' => 'onesmtp',
+                'onesmtp_settings_action' => self::EXPORT_ACTION,
+                self::EXPORT_NONCE_NAME => wp_create_nonce(self::EXPORT_ACTION),
+            ],
+            admin_url('admin.php#onesmtp-settings')
+        );
+
+        echo '<h3>' . esc_html__('Settings import/export', 'onesmtp') . '</h3>';
+        echo '<p>' . esc_html__('Download a privacy-safe JSON settings file for migration or backup. Provider secrets, credentials, tokens, passwords, API keys, webhook URLs, raw recipients, message bodies, raw headers, and payload JSON are excluded by default.', 'onesmtp') . '</p>';
+        echo '<p><a class="button button-secondary" href="' . esc_url($downloadUrl) . '">' . esc_html__('Download safe settings export', 'onesmtp') . '</a></p>';
+
+        echo '<form method="post" action="' . esc_url(admin_url('admin.php?page=onesmtp#onesmtp-settings')) . '">';
+        echo '<input type="hidden" name="onesmtp_settings_action" value="' . esc_attr(self::IMPORT_ACTION) . '">';
+        wp_nonce_field(self::IMPORT_ACTION, self::IMPORT_NONCE_NAME);
+        echo '<p><label for="onesmtp-settings-import-json">' . esc_html__('Import safe settings JSON', 'onesmtp') . '</label></p>';
+        echo '<textarea id="onesmtp-settings-import-json" class="large-text code" rows="10" name="onesmtp_settings_import_json" spellcheck="false"></textarea>';
+        echo '<p class="description">' . esc_html__('Only supported non-secret settings are imported. Secret, credential, webhook URL, raw recipient, message body, raw header, and payload fields are ignored.', 'onesmtp') . '</p>';
+        submit_button(__('Import safe settings', 'onesmtp'), 'secondary');
+        echo '</form>';
+    }
+
+    private function handleExport(): void
+    {
+        if (! Capabilities::canManage()) {
+            wp_die(
+                esc_html__('You do not have permission to export OneSMTP settings.', 'onesmtp'),
+                esc_html__('OneSMTP access denied', 'onesmtp'),
+                ['response' => 403]
+            );
+        }
+
+        $nonce = isset($_GET[self::EXPORT_NONCE_NAME]) ? sanitize_text_field(wp_unslash((string) $_GET[self::EXPORT_NONCE_NAME])) : '';
+        if ($nonce === '' || ! wp_verify_nonce($nonce, self::EXPORT_ACTION)) {
+            wp_die(
+                esc_html__('The OneSMTP settings export link has expired. Refresh the page and try again.', 'onesmtp'),
+                esc_html__('OneSMTP export denied', 'onesmtp'),
+                ['response' => 403]
+            );
+        }
+
+        $payload = $this->transfers->export();
+
+        if (! headers_sent()) {
+            header('Content-Type: application/json; charset=utf-8');
+            header('Content-Disposition: attachment; filename=onesmtp-safe-settings.json');
+            header('X-Content-Type-Options: nosniff');
+        }
+
+        echo wp_json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+
+        if ($this->isTestingRuntime()) {
+            throw new RuntimeException('OneSMTP settings exported.');
+        }
+
+        exit;
+    }
+
+    private function handleImport(): void
+    {
+        if (! Capabilities::canManage()) {
+            wp_die(
+                esc_html__('You do not have permission to import OneSMTP settings.', 'onesmtp'),
+                esc_html__('OneSMTP access denied', 'onesmtp'),
+                ['response' => 403]
+            );
+        }
+
+        $nonce = isset($_POST[self::IMPORT_NONCE_NAME]) ? sanitize_text_field(wp_unslash((string) $_POST[self::IMPORT_NONCE_NAME])) : '';
+        if ($nonce === '' || ! wp_verify_nonce($nonce, self::IMPORT_ACTION)) {
+            wp_die(
+                esc_html__('The OneSMTP settings import form has expired. Refresh the page and try again.', 'onesmtp'),
+                esc_html__('OneSMTP import denied', 'onesmtp'),
+                ['response' => 403]
+            );
+        }
+
+        $json = isset($_POST['onesmtp_settings_import_json']) ? wp_unslash((string) $_POST['onesmtp_settings_import_json']) : '';
+        $summary = $this->transfers->importJson($json, self::IMPORT_NONCE_NAME);
+        $message = sprintf(
+            /* translators: 1: imported settings group count, 2: imported provider count, 3: excluded field count. */
+            __('Imported %1$d settings groups and %2$d providers. Excluded %3$d unsafe fields.', 'onesmtp'),
+            count($summary['settings_groups']),
+            $summary['providers_imported'],
+            $summary['excluded_fields']
+        );
+
+        $this->redirect('imported', $message);
+    }
+
     private function redirect(string $status, string $message = ''): void
     {
         $args = ['onesmtp_settings_status' => $status];
@@ -196,5 +316,10 @@ final class SettingsAdmin
 
         wp_safe_redirect(add_query_arg($args, admin_url('admin.php?page=onesmtp#onesmtp-settings')));
         throw new RuntimeException('OneSMTP settings admin redirected.');
+    }
+
+    private function isTestingRuntime(): bool
+    {
+        return defined('ONESMTP_TESTING') && (bool) constant('ONESMTP_TESTING');
     }
 }
