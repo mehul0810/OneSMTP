@@ -13,14 +13,16 @@ final class AdminPage
 {
     private const MENU_SLUG = 'onesmtp';
 
+    private DashboardAdmin $dashboard;
     private ProviderAdmin $providers;
     private SetupWizard $setupWizard;
     private LogAdmin $logs;
     private SettingsAdmin $settings;
     private QueueDiagnosticsAdmin $diagnostics;
 
-    public function __construct(?ProviderAdmin $providers = null, ?SetupWizard $setupWizard = null, ?LogAdmin $logs = null, ?SettingsAdmin $settings = null, ?QueueDiagnosticsAdmin $diagnostics = null)
+    public function __construct(?ProviderAdmin $providers = null, ?SetupWizard $setupWizard = null, ?LogAdmin $logs = null, ?SettingsAdmin $settings = null, ?QueueDiagnosticsAdmin $diagnostics = null, ?DashboardAdmin $dashboard = null)
     {
+        $this->dashboard = $dashboard ?? new DashboardAdmin();
         $this->providers = $providers ?? new ProviderAdmin(new ProviderRepository());
         $this->setupWizard = $setupWizard ?? new SetupWizard(new ProviderRepository());
         $this->logs = $logs ?? new LogAdmin(new MessageRepository(), new AttemptRepository(), new ProviderRepository());
@@ -86,7 +88,9 @@ final class AdminPage
             echo '<section id="' . esc_attr($section['id']) . '" class="onesmtp-admin-section">';
             echo '<h2>' . esc_html($section['title']) . '</h2>';
 
-            if ($section['id'] === 'onesmtp-setup') {
+            if ($section['id'] === 'onesmtp-dashboard') {
+                $this->dashboard->render();
+            } elseif ($section['id'] === 'onesmtp-setup') {
                 $this->setupWizard->render();
             } elseif ($section['id'] === 'onesmtp-providers') {
                 $this->providers->render();
@@ -115,6 +119,12 @@ final class AdminPage
         $baseUrl = admin_url('admin.php?page=' . self::MENU_SLUG);
 
         return [
+            [
+                'id' => 'onesmtp-dashboard',
+                'title' => esc_html__('Dashboard', 'onesmtp'),
+                'description' => esc_html__('Review aggregate delivery, pending queue, retry, and failover activity.', 'onesmtp'),
+                'href' => $baseUrl . '#onesmtp-dashboard',
+            ],
             [
                 'id' => 'onesmtp-setup',
                 'title' => esc_html__('Setup', 'onesmtp'),
