@@ -42,7 +42,8 @@ final class Plugin
         $stateCache->registerInvalidationHooks();
 
         $schedulerHealth = new ActionSchedulerHealth();
-        $schedulerNotice = new SchedulerNotice($schedulerHealth);
+        $queueDiagnostics = new QueueDiagnostics($schedulerHealth, $messages);
+        $schedulerNotice = new SchedulerNotice($schedulerHealth, $providers, $queueDiagnostics);
         $schedulerNotice->registerHooks();
 
         $mailConflictNotice = new MailConflictNotice(new MailConflictDetector());
@@ -70,7 +71,7 @@ final class Plugin
                 static fn (int $messageId, ?int $providerId): bool => $sendPipeline->resendMessage($messageId, $providerId)
             ),
             null,
-            new Admin\QueueDiagnosticsAdmin(new QueueDiagnostics($schedulerHealth, $messages)),
+            new Admin\QueueDiagnosticsAdmin($queueDiagnostics),
             new Admin\DashboardAdmin(new MetricsRepository())
         );
         $adminPage->registerHooks();
