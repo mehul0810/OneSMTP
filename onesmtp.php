@@ -2,7 +2,7 @@
 /**
  * Plugin Name: OneSMTP
  * Description: Enterprise-ready email deliverability orchestration with provider failover, rotation, and retry control.
- * Version: 0.1.0
+ * Version: 0.2.0
  * Author: OneSMTP
  * License: GPL-2.0-or-later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
@@ -18,7 +18,7 @@ if (! defined('ABSPATH')) {
     exit;
 }
 
-define('ONESMTP_VERSION', '0.1.0');
+define('ONESMTP_VERSION', '0.2.0');
 define('ONESMTP_FILE', __FILE__);
 define('ONESMTP_PATH', plugin_dir_path(__FILE__));
 define('ONESMTP_URL', plugin_dir_url(__FILE__));
