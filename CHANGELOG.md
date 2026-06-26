@@ -42,6 +42,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Provider DNS authentication readiness guidance with privacy-safe SPF, DKIM, and DMARC TXT checks for configured sender domains.
 - Optional background sending mode that queues normal mail through Action Scheduler while keeping provider tests and manual resends synchronous.
 - Optional attachment metadata logging for email logs with default-off storage, admin privacy warnings, and raw path/content exclusion.
+- Bulk resend controls for selected failed log entries and safe log-summary forwarding to the verified WordPress admin email address.
 
 ### Changed
 

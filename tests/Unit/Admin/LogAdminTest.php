@@ -28,14 +28,22 @@ final class LogAdminTest extends TestCase
             Capabilities::RESEND_EMAILS => false,
             'manage_options' => false,
         ];
+        $GLOBALS['onesmtp_test_options'] = [
+            'admin_email' => [
+                'value' => 'owner@example.test',
+                'autoload' => true,
+            ],
+        ];
         unset($GLOBALS['onesmtp_test_wp_die']);
         unset($GLOBALS['onesmtp_test_redirect']);
         unset($GLOBALS['onesmtp_test_nonce_valid']);
+        unset($GLOBALS['onesmtp_test_mail']);
+        unset($GLOBALS['onesmtp_test_mail_result']);
     }
 
     protected function tearDown(): void
     {
-        unset($GLOBALS['onesmtp_test_current_user_caps'], $GLOBALS['onesmtp_test_wp_die'], $GLOBALS['onesmtp_test_redirect'], $GLOBALS['onesmtp_test_object_cache'], $GLOBALS['onesmtp_test_nonce_valid']);
+        unset($GLOBALS['onesmtp_test_current_user_caps'], $GLOBALS['onesmtp_test_wp_die'], $GLOBALS['onesmtp_test_redirect'], $GLOBALS['onesmtp_test_object_cache'], $GLOBALS['onesmtp_test_nonce_valid'], $GLOBALS['onesmtp_test_mail'], $GLOBALS['onesmtp_test_mail_result'], $GLOBALS['onesmtp_test_options']);
         $_SERVER['REQUEST_METHOD'] = 'GET';
         $_POST = [];
     }
@@ -363,6 +371,71 @@ final class LogAdminTest extends TestCase
         self::assertStringNotContainsString('person@example.net', $html);
     }
 
+    public function test_render_list_exposes_bulk_resend_only_for_failed_messages(): void
+    {
+        $GLOBALS['onesmtp_test_current_user_caps'][Capabilities::RESEND_EMAILS] = true;
+        $GLOBALS['wpdb']->recentMessageRows = [
+            [
+                'id' => 31,
+                'message_uuid' => 'lineage-31',
+                'payload_json' => wp_json_encode(['to' => 'person@example.net']),
+                'status' => 'failed',
+                'selected_provider_id' => 0,
+                'current_attempt' => 2,
+                'max_attempts' => 6,
+                'attempt_count' => 2,
+                'created_at' => '2026-06-23 10:00:00',
+                'updated_at' => '2026-06-23 10:01:00',
+            ],
+            [
+                'id' => 32,
+                'message_uuid' => 'lineage-32',
+                'payload_json' => wp_json_encode(['to' => 'person@example.org']),
+                'status' => 'sent',
+                'selected_provider_id' => 0,
+                'current_attempt' => 1,
+                'max_attempts' => 6,
+                'attempt_count' => 1,
+                'created_at' => '2026-06-23 10:02:00',
+                'updated_at' => '2026-06-23 10:03:00',
+            ],
+        ];
+
+        $html = $this->renderLogs();
+        $bulkForm = $this->htmlBetween($html, '<form method="post" class="onesmtp-bulk-resend-form">', '</form>');
+
+        self::assertStringContainsString('Resend selected failed messages', $bulkForm);
+        self::assertStringContainsString('name="onesmtp_message_ids[]" value="31"', $bulkForm);
+        self::assertStringNotContainsString('name="onesmtp_message_ids[]" value="32"', $bulkForm);
+        self::assertStringContainsString('Only failed messages can be selected for bulk resend.', $bulkForm);
+        self::assertStringNotContainsString('person@example.net', $html);
+        self::assertStringNotContainsString('person@example.org', $html);
+    }
+
+    public function test_render_detail_shows_forward_form_to_safe_admin_address(): void
+    {
+        $GLOBALS['onesmtp_test_current_user_caps'][Capabilities::RESEND_EMAILS] = true;
+        $_GET['onesmtp_message_id'] = '99';
+        $GLOBALS['wpdb']->messageRowsById[99] = [
+            'id' => 99,
+            'message_uuid' => 'lineage-99',
+            'payload_json' => wp_json_encode(['to' => 'person@example.net', 'subject' => 'Secret subject']),
+            'status' => 'failed',
+            'selected_provider_id' => 0,
+            'current_attempt' => 2,
+            'max_attempts' => 6,
+        ];
+        $GLOBALS['wpdb']->recentMessageRows = [$GLOBALS['wpdb']->messageRowsById[99] + ['attempt_count' => 2]];
+
+        $html = $this->renderLogs();
+
+        self::assertStringContainsString('Forward safe summary', $html);
+        self::assertStringContainsString('owner@example.test', $html);
+        self::assertStringContainsString('name="onesmtp_log_action" value="forward_summary"', $html);
+        self::assertStringNotContainsString('Secret subject', $html);
+        self::assertStringNotContainsString('person@example.net', $html);
+    }
+
     public function test_render_detail_shows_safe_source_attribution_without_sensitive_metadata(): void
     {
         $_GET['onesmtp_message_id'] = '88';
@@ -449,6 +522,55 @@ final class LogAdminTest extends TestCase
         $this->expectExceptionMessage('You do not have permission to resend OneSMTP emails.');
 
         (new LogAdmin(new MessageRepository(), new AttemptRepository(), new ProviderRepository()))->handleRequest();
+    }
+
+    public function test_bulk_resend_requires_resend_capability(): void
+    {
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = [
+            'onesmtp_log_action' => 'bulk_resend',
+            'onesmtp_log_nonce' => 'test-nonce',
+            'onesmtp_message_ids' => ['41'],
+        ];
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('You do not have permission to bulk resend OneSMTP emails.');
+
+        (new LogAdmin(new MessageRepository(), new AttemptRepository(), new ProviderRepository()))->handleRequest();
+    }
+
+    public function test_bulk_resend_requires_valid_nonce(): void
+    {
+        $GLOBALS['onesmtp_test_current_user_caps'][Capabilities::RESEND_EMAILS] = true;
+        $GLOBALS['onesmtp_test_nonce_valid'] = false;
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = [
+            'onesmtp_log_action' => 'bulk_resend',
+            'onesmtp_log_nonce' => 'test-nonce',
+            'onesmtp_message_ids' => ['41'],
+        ];
+
+        $called = false;
+        $admin = new LogAdmin(
+            new MessageRepository(),
+            new AttemptRepository(),
+            new ProviderRepository(),
+            null,
+            static function () use (&$called): bool {
+                $called = true;
+
+                return true;
+            }
+        );
+
+        try {
+            $admin->handleRequest();
+            self::fail('Expected nonce denial.');
+        } catch (RuntimeException $exception) {
+            self::assertSame('Invalid nonce.', $exception->getMessage());
+        }
+
+        self::assertFalse($called);
     }
 
     public function test_csv_export_requires_view_capability_and_valid_nonce(): void
@@ -598,6 +720,60 @@ final class LogAdminTest extends TestCase
         self::assertStringContainsString('onesmtp_message_id=99', (string) $GLOBALS['onesmtp_test_redirect']['location']);
     }
 
+    public function test_bulk_resend_selected_failed_messages_invokes_pipeline_and_skips_non_failed(): void
+    {
+        $GLOBALS['onesmtp_test_current_user_caps'][Capabilities::RESEND_EMAILS] = true;
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = [
+            'onesmtp_log_action' => 'bulk_resend',
+            'onesmtp_log_nonce' => 'test-nonce',
+            'onesmtp_message_ids' => ['41', '42', '43', '41'],
+        ];
+        $GLOBALS['wpdb']->messageRowsById[41] = [
+            'id' => 41,
+            'message_uuid' => 'lineage-41',
+            'payload_json' => wp_json_encode(['to' => 'person@example.net']),
+            'status' => 'failed',
+        ];
+        $GLOBALS['wpdb']->messageRowsById[42] = [
+            'id' => 42,
+            'message_uuid' => 'lineage-42',
+            'payload_json' => wp_json_encode(['to' => 'person@example.org']),
+            'status' => 'sent',
+        ];
+        $GLOBALS['wpdb']->messageRowsById[43] = [
+            'id' => 43,
+            'message_uuid' => 'lineage-43',
+            'payload_json' => wp_json_encode(['to' => 'person@example.com']),
+            'status' => 'failed',
+        ];
+        $called = [];
+
+        $admin = new LogAdmin(
+            new MessageRepository(),
+            new AttemptRepository(),
+            new ProviderRepository(),
+            null,
+            static function (int $messageId, ?int $providerId) use (&$called): bool {
+                $called[] = [$messageId, $providerId];
+
+                return $messageId === 41;
+            }
+        );
+
+        try {
+            $admin->handleRequest();
+            self::fail('Expected redirect exception.');
+        } catch (RuntimeException $exception) {
+            self::assertSame('OneSMTP log admin redirected.', $exception->getMessage());
+        }
+
+        self::assertSame([[41, null], [43, null]], $called);
+        self::assertStringContainsString('onesmtp_bulk_resend_status=partial', (string) $GLOBALS['onesmtp_test_redirect']['location']);
+        self::assertStringContainsString('onesmtp_bulk_resent=1', (string) $GLOBALS['onesmtp_test_redirect']['location']);
+        self::assertStringContainsString('onesmtp_bulk_failed=2', (string) $GLOBALS['onesmtp_test_redirect']['location']);
+    }
+
     public function test_resend_action_rejects_ineligible_provider_before_pipeline_call(): void
     {
         $GLOBALS['onesmtp_test_current_user_caps'][Capabilities::RESEND_EMAILS] = true;
@@ -639,6 +815,125 @@ final class LogAdminTest extends TestCase
 
         self::assertFalse($called);
         self::assertStringContainsString('onesmtp_resend_status=ineligible_provider', (string) $GLOBALS['onesmtp_test_redirect']['location']);
+    }
+
+    public function test_forward_action_requires_resend_capability(): void
+    {
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = [
+            'onesmtp_log_action' => 'forward_summary',
+            'onesmtp_log_nonce' => 'test-nonce',
+            'onesmtp_message_id' => '99',
+        ];
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('You do not have permission to forward OneSMTP log summaries.');
+
+        (new LogAdmin(new MessageRepository(), new AttemptRepository(), new ProviderRepository()))->handleRequest();
+    }
+
+    public function test_forward_action_sends_safe_summary_without_raw_payload_or_secret_data(): void
+    {
+        $GLOBALS['onesmtp_test_current_user_caps'][Capabilities::RESEND_EMAILS] = true;
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = [
+            'onesmtp_log_action' => 'forward_summary',
+            'onesmtp_log_nonce' => 'test-nonce',
+            'onesmtp_message_id' => '55',
+        ];
+        $GLOBALS['wpdb']->messageRowsById[55] = [
+            'id' => 55,
+            'message_uuid' => 'lineage-55',
+            'payload_json' => wp_json_encode(
+                [
+                    'to' => ['first@example.com', 'second@example.org'],
+                    'subject' => 'Confidential subject',
+                    'message' => 'Very private message body',
+                    'headers' => ['Authorization: Bearer raw-token'],
+                    'attachments' => ['/private/tmp/customer-contract.pdf'],
+                    'onesmtp_source' => [
+                        'type' => 'plugin',
+                        'name' => 'Contact Forms',
+                        'slug' => 'contact-forms',
+                        'metadata' => ['file' => '/srv/private/plugin.php', 'token' => 'source-secret'],
+                    ],
+                    AttachmentLogSanitizer::PAYLOAD_KEY => [
+                        'enabled' => true,
+                        'count' => 1,
+                        'truncated' => false,
+                        'items' => [
+                            [
+                                'filename' => 'contract.pdf',
+                                'extension' => 'pdf',
+                                'size_bytes' => 1024,
+                                'mime_type' => '',
+                            ],
+                        ],
+                    ],
+                ]
+            ),
+            'status' => 'failed',
+            'selected_provider_id' => 5,
+            'current_attempt' => 2,
+            'max_attempts' => 6,
+            'next_retry_at' => null,
+            'created_at' => '2026-06-23 10:00:00',
+            'updated_at' => '2026-06-23 10:05:00',
+        ];
+        $GLOBALS['wpdb']->providerRowsById[5] = [
+            'id' => 5,
+            'name' => 'Primary SMTP',
+            'adapter_type' => 'smtp',
+            'priority' => 1,
+            'weight' => 1,
+            'is_active' => 1,
+            'config_json' => wp_json_encode(['password' => 'raw-secret']),
+        ];
+        $GLOBALS['wpdb']->attemptHistoryByMessage[55] = [
+            [
+                'id' => 7,
+                'message_id' => 55,
+                'attempt_no' => 2,
+                'provider_id' => 5,
+                'trigger_type' => 'manual_resend',
+                'result' => 'fail',
+                'error_code' => 'provider_failed',
+                'error_message' => 'token=abc123 ' . str_repeat('timeout ', 80),
+                'failure_category' => 'timeout',
+                'provider_message_id' => 'provider-secret-id',
+            ],
+        ];
+
+        try {
+            (new LogAdmin(new MessageRepository(), new AttemptRepository(), new ProviderRepository()))->handleRequest();
+            self::fail('Expected redirect exception.');
+        } catch (RuntimeException $exception) {
+            self::assertSame('OneSMTP log admin redirected.', $exception->getMessage());
+        }
+
+        self::assertCount(1, $GLOBALS['onesmtp_test_mail']);
+        $mail = $GLOBALS['onesmtp_test_mail'][0];
+        $body = (string) $mail['message'];
+
+        self::assertSame('owner@example.test', $mail['to']);
+        self::assertStringContainsString('OneSMTP safe log summary #55', (string) $mail['subject']);
+        self::assertStringContainsString('Lineage UUID: lineage-55', $body);
+        self::assertStringContainsString('Provider: Primary SMTP (smtp)', $body);
+        self::assertStringContainsString('Source: Plugin: Contact Forms', $body);
+        self::assertStringContainsString('Recipients: 2 recipients across example.com, example.org', $body);
+        self::assertStringContainsString('Attachments: 1 attachment: contract.pdf', $body);
+        self::assertStringContainsString('Latest safe error context: category=timeout provider_failed: token=[REDACTED]', $body);
+        self::assertStringContainsString('...', $body);
+        self::assertStringNotContainsString('first@example.com', $body);
+        self::assertStringNotContainsString('second@example.org', $body);
+        self::assertStringNotContainsString('Confidential subject', $body);
+        self::assertStringNotContainsString('Very private message body', $body);
+        self::assertStringNotContainsString('raw-token', $body);
+        self::assertStringNotContainsString('raw-secret', $body);
+        self::assertStringNotContainsString('/private/tmp', $body);
+        self::assertStringNotContainsString('/srv/private', $body);
+        self::assertStringNotContainsString('source-secret', $body);
+        self::assertStringContainsString('onesmtp_forward_status=forwarded', (string) $GLOBALS['onesmtp_test_redirect']['location']);
     }
 
     public function test_render_missing_detail_row(): void
