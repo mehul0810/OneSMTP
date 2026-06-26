@@ -8,6 +8,9 @@ use InvalidArgumentException;
 use OneSMTP\Alerts\FailureAlertSettings;
 use OneSMTP\Alerts\FailureAlertSettingsRepository;
 use OneSMTP\Core\Capabilities;
+use OneSMTP\Core\RetentionPolicy;
+use OneSMTP\Settings\AttachmentLoggingSettings;
+use OneSMTP\Settings\AttachmentLoggingSettingsRepository;
 use OneSMTP\Settings\BackgroundSendingSettings;
 use OneSMTP\Settings\BackgroundSendingSettingsRepository;
 use OneSMTP\Settings\RateLimitSettings;
@@ -31,13 +34,15 @@ final class SettingsAdmin
         private ?RateLimitSettingsRepository $rateLimits = null,
         private ?FailureAlertSettingsRepository $failureAlerts = null,
         private ?BackgroundSendingSettingsRepository $backgroundSending = null,
-        private ?SettingsTransferService $transfers = null
+        private ?SettingsTransferService $transfers = null,
+        private ?AttachmentLoggingSettingsRepository $attachmentLogging = null
     ) {
         $this->senderIdentity = $senderIdentity ?? new SenderIdentityRepository();
         $this->rateLimits = $rateLimits ?? new RateLimitSettingsRepository();
         $this->failureAlerts = $failureAlerts ?? new FailureAlertSettingsRepository();
         $this->backgroundSending = $backgroundSending ?? new BackgroundSendingSettingsRepository();
         $this->transfers = $transfers ?? new SettingsTransferService();
+        $this->attachmentLogging = $attachmentLogging ?? new AttachmentLoggingSettingsRepository();
     }
 
     public function handleRequest(): void
@@ -94,6 +99,14 @@ final class SettingsAdmin
                 return;
             }
 
+            if ($action === 'save_attachment_logging') {
+                $this->attachmentLogging->save(AttachmentLoggingSettings::fromArray([
+                    'enabled' => isset($_POST['attachment_logging_enabled']),
+                ]));
+                $this->redirect('attachment_logging_saved');
+                return;
+            }
+
             if ($action !== 'save_sender_identity') {
                 return;
             }
@@ -129,6 +142,8 @@ final class SettingsAdmin
             echo '<div class="notice notice-success inline"><p>' . esc_html__('Failure alert settings saved.', 'onesmtp') . '</p></div>';
         } elseif ($status === 'background_sending_saved') {
             echo '<div class="notice notice-success inline"><p>' . esc_html__('Background sending settings saved.', 'onesmtp') . '</p></div>';
+        } elseif ($status === 'attachment_logging_saved') {
+            echo '<div class="notice notice-success inline"><p>' . esc_html__('Attachment logging settings saved.', 'onesmtp') . '</p></div>';
         } elseif ($status === 'imported') {
             echo '<div class="notice notice-success inline"><p>' . esc_html($message !== '' ? $message : __('OneSMTP settings imported. Secrets and recipient fields were excluded.', 'onesmtp')) . '</p></div>';
         } elseif ($status === 'invalid') {
@@ -181,6 +196,28 @@ final class SettingsAdmin
         $this->renderCheckbox('background_sending_enabled', __('Enable background sending for normal mail.', 'onesmtp'), $backgroundSending->isEnabled());
         echo '</fieldset>';
         submit_button(__('Save background sending', 'onesmtp'));
+        echo '</form>';
+
+        $attachmentLogging = $this->attachmentLogging->get();
+        echo '<h3>' . esc_html__('Attachment logging', 'onesmtp') . '</h3>';
+        if (! $attachmentLogging->isEnabled()) {
+            echo '<div class="notice notice-info inline"><p>' . esc_html__('Attachment logging is off. OneSMTP removes raw attachment paths from stored log payloads by default.', 'onesmtp') . '</p></div>';
+        }
+        echo '<p>' . esc_html__('When enabled, OneSMTP stores attachment metadata only: count, safe filename, extension, and file size when available. File contents and raw server paths are not copied into logs.', 'onesmtp') . '</p>';
+        echo '<p class="description">' . esc_html(
+            sprintf(
+                /* translators: %d: log retention days. */
+                __('Attachment metadata is deleted with the parent email log according to the current %d-day log retention policy. Messages with file attachments may not preserve attachments for background retries or manual resend unless the source can provide them again.', 'onesmtp'),
+                RetentionPolicy::getLogRetentionDays()
+            )
+        ) . '</p>';
+        echo '<form method="post" action="' . esc_url(admin_url('admin.php?page=onesmtp#onesmtp-settings')) . '">';
+        echo '<input type="hidden" name="onesmtp_settings_action" value="save_attachment_logging">';
+        wp_nonce_field(self::ACTION_NAME, self::NONCE_NAME);
+        echo '<fieldset>';
+        $this->renderCheckbox('attachment_logging_enabled', __('Enable privacy-safe attachment metadata in email logs.', 'onesmtp'), $attachmentLogging->isEnabled());
+        echo '</fieldset>';
+        submit_button(__('Save attachment logging', 'onesmtp'));
         echo '</form>';
 
         $alerts = $this->failureAlerts->get();

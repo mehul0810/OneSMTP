@@ -44,6 +44,10 @@ final class SettingsTransferServiceTest extends TestCase
             'background_sending' => [
                 'enabled' => true,
             ],
+            'attachment_logging' => [
+                'enabled' => true,
+                'raw_path' => '/private/tmp/secret.pdf',
+            ],
             'failure_alerts' => [
                 'email_enabled' => true,
                 'email_recipients' => ['ops@example.test'],
@@ -82,6 +86,7 @@ final class SettingsTransferServiceTest extends TestCase
         self::assertSame('sender@example.test', $payload['settings']['sender_identity']['from_email']);
         self::assertSame(10, $payload['settings']['rate_limits']['per_minute']);
         self::assertTrue($payload['settings']['background_sending']['enabled']);
+        self::assertTrue($payload['settings']['attachment_logging']['enabled']);
         self::assertSame(1800, $payload['settings']['failure_alerts']['throttle_seconds']);
         self::assertSame('smtp.example.test', $payload['providers'][0]['config']['host']);
         self::assertSame('587', $payload['providers'][0]['config']['port']);
@@ -89,6 +94,7 @@ final class SettingsTransferServiceTest extends TestCase
         self::assertStringNotContainsString('audit@example.test', (string) $json);
         self::assertStringNotContainsString('ops@example.test', (string) $json);
         self::assertStringNotContainsString('hooks.example.test', (string) $json);
+        self::assertStringNotContainsString('/private/tmp/secret.pdf', (string) $json);
         self::assertStringNotContainsString('smtp-user', (string) $json);
         self::assertStringNotContainsString('plain-password', (string) $json);
         self::assertStringNotContainsString('plain-api-key', (string) $json);
@@ -105,6 +111,7 @@ final class SettingsTransferServiceTest extends TestCase
         self::assertSame('', $payload['settings']['sender_identity']['from_email']);
         self::assertSame(0, $payload['settings']['rate_limits']['per_minute']);
         self::assertFalse($payload['settings']['background_sending']['enabled']);
+        self::assertFalse($payload['settings']['attachment_logging']['enabled']);
         self::assertSame(900, $payload['settings']['failure_alerts']['throttle_seconds']);
         self::assertSame([], $payload['providers']);
     }
@@ -128,6 +135,10 @@ final class SettingsTransferServiceTest extends TestCase
                 ],
                 'background_sending' => [
                     'enabled' => true,
+                ],
+                'attachment_logging' => [
+                    'enabled' => true,
+                    'raw_path' => '/private/tmp/secret.pdf',
                 ],
                 'failure_alerts' => [
                     'email_enabled' => true,
@@ -161,7 +172,7 @@ final class SettingsTransferServiceTest extends TestCase
         $settings = get_option('onesmtp_settings', []);
         $storedProviderConfig = json_decode((string) $GLOBALS['wpdb']->inserts[0]['data']['config_json'], true);
 
-        self::assertSame(['sender_identity', 'rate_limits', 'failure_alerts', 'background_sending'], $summary['settings_groups']);
+        self::assertSame(['sender_identity', 'rate_limits', 'failure_alerts', 'background_sending', 'attachment_logging'], $summary['settings_groups']);
         self::assertSame(1, $summary['providers_imported']);
         self::assertGreaterThanOrEqual(6, $summary['excluded_fields']);
         self::assertSame('sender@example.test', $settings['sender_identity']['from_email']);
@@ -172,6 +183,8 @@ final class SettingsTransferServiceTest extends TestCase
         self::assertSame(120, $settings['rate_limits']['per_hour']);
         self::assertSame(1000000, $settings['rate_limits']['per_day']);
         self::assertTrue($settings['background_sending']['enabled']);
+        self::assertTrue($settings['attachment_logging']['enabled']);
+        self::assertArrayNotHasKey('raw_path', $settings['attachment_logging']);
         self::assertFalse($settings['failure_alerts']['email_enabled']);
         self::assertSame([], $settings['failure_alerts']['email_recipients']);
         self::assertFalse($settings['failure_alerts']['webhook_enabled']);

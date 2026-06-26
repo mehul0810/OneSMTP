@@ -6,6 +6,7 @@ namespace OneSMTP\Tests\Unit\Admin;
 
 use OneSMTP\Admin\LogAdmin;
 use OneSMTP\Core\Capabilities;
+use OneSMTP\Logging\AttachmentLogSanitizer;
 use OneSMTP\Repository\AttemptRepository;
 use OneSMTP\Repository\MessageRepository;
 use OneSMTP\Repository\ProviderRepository;
@@ -74,6 +75,7 @@ final class LogAdminTest extends TestCase
                         'subject' => 'Sensitive subject',
                         'message' => 'Secret body payload',
                         'headers' => ['Authorization: Bearer raw-token'],
+                        'attachments' => ['/private/tmp/secret-contract.pdf'],
                         'onesmtp_source' => [
                             'type' => 'plugin',
                             'name' => 'Contact Forms',
@@ -116,6 +118,8 @@ final class LogAdminTest extends TestCase
         self::assertStringNotContainsString('raw-token', $html);
         self::assertStringNotContainsString('raw-secret', $html);
         self::assertStringNotContainsString('/private/path', $html);
+        self::assertStringNotContainsString('/private/tmp', $html);
+        self::assertStringNotContainsString('secret-contract.pdf', $html);
     }
 
     public function test_render_list_applies_status_provider_date_and_safe_search_filters(): void
@@ -264,6 +268,56 @@ final class LogAdminTest extends TestCase
         self::assertStringContainsString('sent', $html);
         self::assertStringNotContainsString('hunter2', $html);
         self::assertStringNotContainsString('abc123', $html);
+        self::assertStringNotContainsString('person@example.net', $html);
+    }
+
+    public function test_render_detail_shows_attachment_metadata_without_raw_paths(): void
+    {
+        $_GET['onesmtp_message_id'] = '77';
+        $GLOBALS['wpdb']->messageRowsById[77] = [
+            'id' => 77,
+            'message_uuid' => 'lineage-77',
+            'payload_json' => wp_json_encode([
+                'to' => 'person@example.net',
+                'attachments' => ['/private/tmp/legacy-raw.pdf'],
+                AttachmentLogSanitizer::PAYLOAD_KEY => [
+                    'enabled' => true,
+                    'count' => 2,
+                    'truncated' => false,
+                    'items' => [
+                        [
+                            'filename' => 'invoice.pdf',
+                            'extension' => 'pdf',
+                            'size_bytes' => 2048,
+                            'mime_type' => '',
+                        ],
+                        [
+                            'filename' => 'customer.csv',
+                            'extension' => 'csv',
+                            'size_bytes' => null,
+                            'mime_type' => '',
+                        ],
+                    ],
+                ],
+            ]),
+            'status' => 'sent',
+            'selected_provider_id' => 0,
+            'current_attempt' => 1,
+            'max_attempts' => 6,
+            'created_at' => '2026-06-23 10:00:00',
+            'updated_at' => '2026-06-23 10:01:00',
+        ];
+        $GLOBALS['wpdb']->recentMessageRows = [$GLOBALS['wpdb']->messageRowsById[77] + ['attempt_count' => 1]];
+
+        $html = $this->renderLogs();
+
+        self::assertStringContainsString('2 attachments: invoice.pdf, customer.csv', $html);
+        self::assertStringContainsString('Attachment metadata', $html);
+        self::assertStringContainsString('invoice.pdf', $html);
+        self::assertStringContainsString('2.0 KB', $html);
+        self::assertStringContainsString('Unknown', $html);
+        self::assertStringNotContainsString('/private/tmp', $html);
+        self::assertStringNotContainsString('legacy-raw.pdf', $html);
         self::assertStringNotContainsString('person@example.net', $html);
     }
 
@@ -442,6 +496,19 @@ final class LogAdminTest extends TestCase
                         'subject' => 'Sensitive subject',
                         'message' => 'Secret body payload',
                         'headers' => ['Authorization: Bearer raw-token'],
+                        AttachmentLogSanitizer::PAYLOAD_KEY => [
+                            'enabled' => true,
+                            'count' => 1,
+                            'truncated' => false,
+                            'items' => [
+                                [
+                                    'filename' => 'report.pdf',
+                                    'extension' => 'pdf',
+                                    'size_bytes' => 1024,
+                                    'mime_type' => '',
+                                ],
+                            ],
+                        ],
                     ]
                 ),
                 'status' => 'sent',
@@ -473,9 +540,10 @@ final class LogAdminTest extends TestCase
         }
         $csv = (string) ob_get_clean();
 
-        self::assertStringContainsString('message_id,lineage_uuid,status,provider,attempt_count,max_attempts,recipient_summary,next_retry_at,created_at,updated_at', $csv);
+        self::assertStringContainsString('message_id,lineage_uuid,status,provider,attempt_count,max_attempts,attachment_summary,recipient_summary,next_retry_at,created_at,updated_at', $csv);
         self::assertStringContainsString('lineage-10', $csv);
         self::assertStringContainsString('Primary SMTP (smtp)', $csv);
+        self::assertStringContainsString('1 attachment: report.pdf', $csv);
         self::assertStringContainsString('2 recipients across example.com, example.org', $csv);
         self::assertStringNotContainsString('first@example.com', $csv);
         self::assertStringNotContainsString('second@example.org', $csv);
