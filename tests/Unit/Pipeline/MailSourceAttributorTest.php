@@ -28,7 +28,7 @@ final class MailSourceAttributorTest extends TestCase
             ]
         );
 
-        self::assertSame('pluginsource', $source['type']);
+        self::assertSame('unknown', $source['type']);
         self::assertSame('Checkout Mailer srv site private.php', $source['name']);
         self::assertSame('checkoutmailer', $source['slug']);
         self::assertSame('detected', $source['origin']);

@@ -643,10 +643,6 @@ final class LogAdmin
             $name = $this->labelFromSlug($slug);
         }
 
-        if ($name === '' && $type !== '' && ! in_array($type, ['plugin', 'theme', 'core', 'unknown'], true)) {
-            $name = $this->labelFromSlug($type);
-        }
-
         if ($type === 'plugin') {
             return $name !== ''
                 ? sprintf(
@@ -669,14 +665,6 @@ final class LogAdmin
 
         if ($type === 'core') {
             return __('WordPress core', 'onesmtp');
-        }
-
-        if ($name !== '') {
-            return sprintf(
-                /* translators: %s: source name. */
-                __('Source: %s', 'onesmtp'),
-                $name
-            );
         }
 
         return __('Unknown source', 'onesmtp');

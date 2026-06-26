@@ -10,6 +10,7 @@ final class MailSourceAttributor
 
     private const TRACE_LIMIT = 18;
     private const MAX_VALUE_LENGTH = 120;
+    private const SOURCE_TYPES = ['plugin', 'theme', 'core', 'unknown'];
 
     /**
      * @param array<string,mixed> $mailArgs
@@ -68,7 +69,7 @@ final class MailSourceAttributor
             $normalized['metadata'] = $metadata;
         }
 
-        if (! isset($normalized['type'])) {
+        if (! isset($normalized['type']) || ! in_array($normalized['type'], self::SOURCE_TYPES, true)) {
             $normalized['type'] = 'unknown';
         }
 

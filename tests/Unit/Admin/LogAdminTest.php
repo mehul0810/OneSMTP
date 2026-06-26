@@ -349,6 +349,39 @@ final class LogAdminTest extends TestCase
         self::assertStringNotContainsString('secret-token', $html);
     }
 
+    public function test_render_list_hides_unsupported_source_labels(): void
+    {
+        $GLOBALS['wpdb']->recentMessageRows = [
+            [
+                'id' => 12,
+                'message_uuid' => 'lineage-12',
+                'payload_json' => wp_json_encode(
+                    [
+                        'to' => ['person@example.test'],
+                        'onesmtp_source' => [
+                            'type' => 'custom-mailer',
+                            'name' => 'Private integration /srv/site/private.php',
+                            'slug' => 'private-integration',
+                        ],
+                    ]
+                ),
+                'status' => 'sent',
+                'selected_provider_id' => 0,
+                'current_attempt' => 1,
+                'max_attempts' => 6,
+                'attempt_count' => 1,
+                'created_at' => '2026-06-23 10:00:00',
+                'updated_at' => '2026-06-23 10:01:00',
+            ],
+        ];
+
+        $html = $this->renderLogs();
+
+        self::assertStringContainsString('Unknown source', $html);
+        self::assertStringNotContainsString('Private integration', $html);
+        self::assertStringNotContainsString('/srv/site', $html);
+    }
+
     public function test_resend_action_requires_resend_capability(): void
     {
         $_SERVER['REQUEST_METHOD'] = 'POST';
