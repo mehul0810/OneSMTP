@@ -11,6 +11,10 @@
     "build:prod": "npm run build",
     "watch": "echo 'No watch pipeline configured yet'",
     "lint:js": "echo 'No JS lint configured yet'",
+    "test:e2e": "playwright test --config=playwright.config.js",
     "ci": "npm run build"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.1"
   }
 }
