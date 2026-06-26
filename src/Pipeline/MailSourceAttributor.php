@@ -10,7 +10,6 @@ final class MailSourceAttributor
 
     private const TRACE_LIMIT = 18;
     private const MAX_VALUE_LENGTH = 120;
-    private const SOURCE_TYPES = ['plugin', 'theme', 'core', 'unknown'];
 
     /**
      * @param array<string,mixed> $mailArgs
@@ -43,9 +42,14 @@ final class MailSourceAttributor
                 continue;
             }
 
+            $rawValue = (string) $source[$key];
             $value = $key === 'type' || $key === 'slug'
-                ? sanitize_key((string) $source[$key])
-                : $this->sanitizeLabel((string) $source[$key]);
+                ? sanitize_key($rawValue)
+                : $this->sanitizeLabel($rawValue);
+
+            if ($key === 'type' && $value !== $rawValue) {
+                continue;
+            }
 
             if ($value !== '') {
                 $normalized[$key] = $value;
@@ -69,7 +73,7 @@ final class MailSourceAttributor
             $normalized['metadata'] = $metadata;
         }
 
-        if (! isset($normalized['type']) || ! in_array($normalized['type'], self::SOURCE_TYPES, true)) {
+        if (! isset($normalized['type'])) {
             $normalized['type'] = 'unknown';
         }
 
@@ -180,16 +184,20 @@ final class MailSourceAttributor
     private function isCorePath(string $file): bool
     {
         $root = defined('ABSPATH') ? $this->normalizePath((string) constant('ABSPATH')) : '';
-        if ($root === '') {
-            return str_contains($file, '/wp-admin/') || str_contains($file, '/wp-includes/');
+        if ($root !== '') {
+            $root = rtrim($root, '/');
+
+            if (
+                str_starts_with($file, $root . '/wp-admin/')
+                || str_starts_with($file, $root . '/wp-includes/')
+                || $file === $root . '/wp-load.php'
+                || $file === $root . '/wp-mail.php'
+            ) {
+                return true;
+            }
         }
 
-        $root = rtrim($root, '/');
-
-        return str_starts_with($file, $root . '/wp-admin/')
-            || str_starts_with($file, $root . '/wp-includes/')
-            || $file === $root . '/wp-load.php'
-            || $file === $root . '/wp-mail.php';
+        return str_contains($file, '/wp-admin/') || str_contains($file, '/wp-includes/');
     }
 
     private function isOwnFile(string $file): bool
