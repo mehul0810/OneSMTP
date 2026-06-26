@@ -27,6 +27,7 @@ use OneSMTP\Repository\EventRepository;
 use OneSMTP\Repository\MetricsRepository;
 use OneSMTP\Repository\MessageRepository;
 use OneSMTP\Repository\ProviderRepository;
+use OneSMTP\Settings\BackgroundSendingSettingsRepository;
 
 final class Plugin
 {
@@ -56,10 +57,11 @@ final class Plugin
 
         $deliveryEngine = new DeliveryEngine($providers, $attempts, $dispatchPolicy);
         $rateLimiter = new RateLimiter($attempts);
+        $backgroundSending = new BackgroundSendingSettingsRepository();
         $senderIdentity = new SenderIdentityApplier();
         $senderIdentity->registerHooks();
 
-        $sendPipeline = new SendPipeline($messages, $attempts, $providers, $events, $retryScheduler, $deliveryEngine, $rateLimiter);
+        $sendPipeline = new SendPipeline($messages, $attempts, $providers, $events, $retryScheduler, $deliveryEngine, $rateLimiter, $backgroundSending);
         $sendPipeline->registerHooks();
 
         $adminPage = new AdminPage(

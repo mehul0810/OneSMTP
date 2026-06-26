@@ -41,6 +41,9 @@ final class SettingsAdminTest extends TestCase
                 'per_hour' => 100,
                 'per_day' => 500,
             ],
+            'background_sending' => [
+                'enabled' => true,
+            ],
             'failure_alerts' => [
                 'email_enabled' => true,
                 'email_recipients' => ['ops@example.test'],
@@ -66,6 +69,9 @@ final class SettingsAdminTest extends TestCase
         self::assertStringContainsString('value="10"', $output);
         self::assertStringContainsString('value="100"', $output);
         self::assertStringContainsString('value="500"', $output);
+        self::assertStringContainsString('Background sending', $output);
+        self::assertStringContainsString('name="background_sending_enabled"', $output);
+        self::assertStringContainsString('checked="checked"', $output);
         self::assertStringContainsString('Failure alerts', $output);
         self::assertStringContainsString('ops@example.test', $output);
         self::assertStringContainsString('https://hooks.example.test/long-path-', $output);
@@ -128,6 +134,51 @@ final class SettingsAdminTest extends TestCase
         self::assertSame(60, $settings['rate_limits']['per_hour']);
         self::assertSame(700, $settings['rate_limits']['per_day']);
         self::assertStringContainsString('onesmtp_settings_status=rate_limits_saved', (string) $GLOBALS['onesmtp_test_redirect']['location']);
+    }
+
+    public function test_handle_request_saves_background_sending_mode(): void
+    {
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = [
+            'onesmtp_settings_action' => 'save_background_sending',
+            'onesmtp_settings_nonce' => 'test-nonce',
+            'background_sending_enabled' => '1',
+        ];
+
+        $admin = new SettingsAdmin();
+
+        try {
+            $admin->handleRequest();
+        } catch (RuntimeException $e) {
+            self::assertSame('OneSMTP settings admin redirected.', $e->getMessage());
+        }
+
+        $settings = get_option('onesmtp_settings', []);
+        self::assertTrue($settings['background_sending']['enabled']);
+        self::assertStringContainsString('onesmtp_settings_status=background_sending_saved', (string) $GLOBALS['onesmtp_test_redirect']['location']);
+    }
+
+    public function test_handle_request_disables_background_sending_when_unchecked(): void
+    {
+        update_option('onesmtp_settings', [
+            'background_sending' => [
+                'enabled' => true,
+            ],
+        ], false);
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = [
+            'onesmtp_settings_action' => 'save_background_sending',
+            'onesmtp_settings_nonce' => 'test-nonce',
+        ];
+
+        try {
+            (new SettingsAdmin())->handleRequest();
+        } catch (RuntimeException $e) {
+            self::assertSame('OneSMTP settings admin redirected.', $e->getMessage());
+        }
+
+        $settings = get_option('onesmtp_settings', []);
+        self::assertFalse($settings['background_sending']['enabled']);
     }
 
     public function test_render_shows_disabled_failure_alert_state_for_empty_configuration(): void

@@ -39,6 +39,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Large synthetic log-table benchmark coverage for admin log list, filter, export, detail, and schema index regression signals.
 - Privacy-safe settings import/export workflow with provider secrets, credentials, tokens, webhook URLs, raw recipient destinations, headers, message bodies, and payload JSON excluded by default.
 - Provider DNS authentication readiness guidance with privacy-safe SPF, DKIM, and DMARC TXT checks for configured sender domains.
+- Optional background sending mode that queues normal mail through Action Scheduler while keeping provider tests and manual resends synchronous.
 
 ### Changed
 
