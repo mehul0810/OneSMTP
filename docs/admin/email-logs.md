@@ -16,6 +16,7 @@ The recent message list shows:
 - Message ID and lineage UUID
 - Delivery status
 - Selected provider
+- Safe source attribution when available, limited to plugin, theme, WordPress core, or unknown-source labels
 - Attempt count
 - Safe recipient metadata, limited to recipient count and domains
 - Created and updated timestamps
@@ -27,6 +28,7 @@ Pagination is available on the log list so larger datasets can be reviewed witho
 The message detail view shows:
 
 - Message status, selected provider, retry timestamp, and lineage UUID
+- Safe source attribution for the WordPress origin when OneSMTP can detect or normalize it
 - Attempt-level provider, trigger type, result, latency, provider message identifier, and timestamp
 - Redacted and length-limited error context for failed attempts
 - Safe failure category when a provider error can be classified without exposing provider internals or secrets
@@ -44,7 +46,7 @@ Administrators with the OneSMTP log-view capability can export the current filte
 
 ## Privacy Boundary
 
-The admin log views and CSV export do not display full recipient addresses, message bodies, raw headers, provider secrets, API keys, tokens, unsafe payload JSON, or raw stored payloads. Error context is redacted and truncated before rendering.
+The admin log views and CSV export do not display full recipient addresses, message bodies, raw headers, provider secrets, API keys, tokens, unsafe payload JSON, raw stored payloads, filesystem paths, or stack details. Error context and source labels are redacted and truncated before rendering.
 
 ## Storage
 

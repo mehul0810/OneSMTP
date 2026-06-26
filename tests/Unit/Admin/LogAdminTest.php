@@ -74,6 +74,13 @@ final class LogAdminTest extends TestCase
                         'subject' => 'Sensitive subject',
                         'message' => 'Secret body payload',
                         'headers' => ['Authorization: Bearer raw-token'],
+                        'onesmtp_source' => [
+                            'type' => 'plugin',
+                            'name' => 'Contact Forms',
+                            'slug' => 'contact-forms',
+                            'origin' => 'detected',
+                            'metadata' => ['file' => '/private/path/wp-content/plugins/contact-forms/mail.php'],
+                        ],
                     ]
                 ),
                 'status' => 'sent',
@@ -100,6 +107,7 @@ final class LogAdminTest extends TestCase
         self::assertStringContainsString('lineage-10', $html);
         self::assertStringContainsString('sent', $html);
         self::assertStringContainsString('Primary SMTP (smtp)', $html);
+        self::assertStringContainsString('Plugin: Contact Forms', $html);
         self::assertStringContainsString('2 recipients across example.com, example.org', $html);
         self::assertStringNotContainsString('first@example.com', $html);
         self::assertStringNotContainsString('second@example.org', $html);
@@ -107,6 +115,7 @@ final class LogAdminTest extends TestCase
         self::assertStringNotContainsString('Secret body payload', $html);
         self::assertStringNotContainsString('raw-token', $html);
         self::assertStringNotContainsString('raw-secret', $html);
+        self::assertStringNotContainsString('/private/path', $html);
     }
 
     public function test_render_list_applies_status_provider_date_and_safe_search_filters(): void
@@ -202,6 +211,7 @@ final class LogAdminTest extends TestCase
             'id' => 99,
             'message_uuid' => 'lineage-99',
             'payload_json' => wp_json_encode(['to' => 'person@example.net']),
+            'onesmtp_source' => wp_json_encode(['type' => 'theme', 'name' => 'Storefront Child']),
             'status' => 'retry_scheduled',
             'selected_provider_id' => 7,
             'current_attempt' => 2,
@@ -246,6 +256,7 @@ final class LogAdminTest extends TestCase
         self::assertStringContainsString('Message detail', $html);
         self::assertStringContainsString('lineage-99', $html);
         self::assertStringContainsString('retry scheduled', $html);
+        self::assertStringContainsString('Unknown source', $html);
         self::assertStringContainsString('2 / 6', $html);
         self::assertStringContainsString('category=timeout provider_failed: password=[REDACTED] token=[REDACTED]', $html);
         self::assertStringContainsString('...', $html);
@@ -296,6 +307,46 @@ final class LogAdminTest extends TestCase
         self::assertStringNotContainsString('Open Circuit', $resendFormHtml);
         self::assertStringNotContainsString('Private body', $html);
         self::assertStringNotContainsString('person@example.net', $html);
+    }
+
+    public function test_render_detail_shows_safe_source_attribution_without_sensitive_metadata(): void
+    {
+        $_GET['onesmtp_message_id'] = '88';
+        $GLOBALS['wpdb']->messageRowsById[88] = [
+            'id' => 88,
+            'message_uuid' => 'lineage-88',
+            'payload_json' => wp_json_encode(
+                [
+                    'to' => 'person@example.net',
+                    'onesmtp_source' => [
+                        'type' => 'theme',
+                        'name' => str_repeat('Long Theme Name ', 12),
+                        'slug' => 'child-theme',
+                        'origin' => 'detected',
+                        'metadata' => [
+                            'file' => '/srv/site/wp-content/themes/child-theme/functions.php',
+                            'recipient' => 'person@example.net',
+                            'token' => 'secret-token',
+                        ],
+                    ],
+                ]
+            ),
+            'status' => 'sent',
+            'selected_provider_id' => 0,
+            'current_attempt' => 1,
+            'max_attempts' => 6,
+            'created_at' => '2026-06-23 10:00:00',
+            'updated_at' => '2026-06-23 10:01:00',
+        ];
+        $GLOBALS['wpdb']->recentMessageRows = [$GLOBALS['wpdb']->messageRowsById[88] + ['attempt_count' => 1]];
+
+        $html = $this->renderLogs();
+
+        self::assertStringContainsString('Theme: Long Theme Name Long Theme Name Long Theme Name Long Theme Name Long Theme Na...', $html);
+        self::assertStringContainsString('1 recipients across example.net', $html);
+        self::assertStringNotContainsString('/srv/site', $html);
+        self::assertStringNotContainsString('person@example.net', $html);
+        self::assertStringNotContainsString('secret-token', $html);
     }
 
     public function test_resend_action_requires_resend_capability(): void
