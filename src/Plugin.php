@@ -28,6 +28,7 @@ use OneSMTP\Repository\MetricsRepository;
 use OneSMTP\Repository\MessageRepository;
 use OneSMTP\Repository\ProviderRepository;
 use OneSMTP\Settings\BackgroundSendingSettingsRepository;
+use OneSMTP\Summary\WeeklySummaryMailer;
 
 final class Plugin
 {
@@ -54,6 +55,9 @@ final class Plugin
 
         $retryScheduler = new RetryScheduler($dispatchPolicy, $messages, $attempts, $providers, $events);
         $retryScheduler->registerHooks();
+
+        $weeklySummary = new WeeklySummaryMailer(null, new MetricsRepository());
+        $weeklySummary->registerHooks();
 
         $deliveryEngine = new DeliveryEngine($providers, $attempts, $dispatchPolicy);
         $rateLimiter = new RateLimiter($attempts);

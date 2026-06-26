@@ -54,6 +54,10 @@ final class SettingsAdminTest extends TestCase
                 'webhook_url' => 'https://hooks.example.test/' . str_repeat('long-path-', 20),
                 'throttle_seconds' => 1200,
             ],
+            'weekly_summary' => [
+                'enabled' => true,
+                'email_recipients' => ['summary@example.test'],
+            ],
         ], false);
 
         $admin = new SettingsAdmin();
@@ -84,6 +88,10 @@ final class SettingsAdminTest extends TestCase
         self::assertStringContainsString('maxlength="2048"', $output);
         self::assertStringContainsString('value="1200"', $output);
         self::assertStringNotContainsString('Failure alerts are disabled', $output);
+        self::assertStringContainsString('Weekly delivery summary', $output);
+        self::assertStringContainsString('summary@example.test', $output);
+        self::assertStringContainsString('Save weekly delivery summary', $output);
+        self::assertStringNotContainsString('Weekly delivery summaries are disabled', $output);
     }
 
     public function test_handle_request_saves_valid_sender_identity(): void
@@ -242,6 +250,8 @@ final class SettingsAdminTest extends TestCase
         self::assertStringContainsString('name="failure_alert_email_enabled"', $output);
         self::assertStringContainsString('name="failure_alert_webhook_enabled"', $output);
         self::assertStringContainsString('Save failure alerts', $output);
+        self::assertStringContainsString('Weekly delivery summaries are disabled', $output);
+        self::assertStringContainsString('name="weekly_summary_enabled"', $output);
     }
 
     public function test_handle_request_saves_failure_alert_settings(): void
@@ -295,6 +305,77 @@ final class SettingsAdminTest extends TestCase
         self::assertSame([], get_option('onesmtp_settings', []));
         self::assertStringContainsString('onesmtp_settings_status=invalid', (string) $GLOBALS['onesmtp_test_redirect']['location']);
         self::assertStringContainsString('webhook+URL+must+be+a+valid+HTTPS+URL', (string) $GLOBALS['onesmtp_test_redirect']['location']);
+    }
+
+    public function test_handle_request_saves_weekly_summary_settings(): void
+    {
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = [
+            'onesmtp_settings_action' => 'save_weekly_summary',
+            'onesmtp_settings_nonce' => 'test-nonce',
+            'weekly_summary_enabled' => '1',
+            'weekly_summary_email_recipients' => "summary@example.test\nops@example.test",
+        ];
+
+        $admin = new SettingsAdmin();
+
+        try {
+            $admin->handleRequest();
+        } catch (RuntimeException $e) {
+            self::assertSame('OneSMTP settings admin redirected.', $e->getMessage());
+        }
+
+        $settings = get_option('onesmtp_settings', []);
+        self::assertTrue($settings['weekly_summary']['enabled']);
+        self::assertSame(['summary@example.test', 'ops@example.test'], $settings['weekly_summary']['email_recipients']);
+        self::assertStringContainsString('onesmtp_settings_status=weekly_summary_saved', (string) $GLOBALS['onesmtp_test_redirect']['location']);
+    }
+
+    public function test_handle_request_disables_weekly_summary_when_unchecked(): void
+    {
+        update_option('onesmtp_settings', [
+            'weekly_summary' => [
+                'enabled' => true,
+                'email_recipients' => ['summary@example.test'],
+            ],
+        ], false);
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = [
+            'onesmtp_settings_action' => 'save_weekly_summary',
+            'onesmtp_settings_nonce' => 'test-nonce',
+            'weekly_summary_email_recipients' => 'summary@example.test',
+        ];
+
+        try {
+            (new SettingsAdmin())->handleRequest();
+        } catch (RuntimeException $e) {
+            self::assertSame('OneSMTP settings admin redirected.', $e->getMessage());
+        }
+
+        $settings = get_option('onesmtp_settings', []);
+        self::assertFalse($settings['weekly_summary']['enabled']);
+        self::assertSame(['summary@example.test'], $settings['weekly_summary']['email_recipients']);
+    }
+
+    public function test_invalid_weekly_summary_recipient_is_rejected_without_saving(): void
+    {
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = [
+            'onesmtp_settings_action' => 'save_weekly_summary',
+            'onesmtp_settings_nonce' => 'test-nonce',
+            'weekly_summary_enabled' => '1',
+            'weekly_summary_email_recipients' => 'not-an-email',
+        ];
+
+        try {
+            (new SettingsAdmin())->handleRequest();
+        } catch (RuntimeException $e) {
+            self::assertSame('OneSMTP settings admin redirected.', $e->getMessage());
+        }
+
+        self::assertSame([], get_option('onesmtp_settings', []));
+        self::assertStringContainsString('onesmtp_settings_status=invalid', (string) $GLOBALS['onesmtp_test_redirect']['location']);
+        self::assertStringContainsString('Weekly+summary+recipients+must+be+valid+email+addresses', (string) $GLOBALS['onesmtp_test_redirect']['location']);
     }
 
     public function test_negative_rate_limits_are_saved_as_disabled(): void
@@ -419,6 +500,10 @@ final class SettingsAdminTest extends TestCase
                 'email_recipients' => ['ops@example.test'],
                 'webhook_url' => 'https://hooks.example.test/secret',
             ],
+            'weekly_summary' => [
+                'enabled' => true,
+                'email_recipients' => ['summary@example.test'],
+            ],
             'attachment_logging' => [
                 'enabled' => true,
                 'raw_path' => '/private/tmp/secret.pdf',
@@ -459,11 +544,13 @@ final class SettingsAdminTest extends TestCase
         self::assertStringContainsString('"from_email": "sender@example.test"', $json);
         self::assertStringContainsString('"attachment_logging": {', $json);
         self::assertStringContainsString('"enabled": true', $json);
+        self::assertStringContainsString('"weekly_summary": {', $json);
         self::assertStringContainsString('"host": "smtp.example.test"', $json);
         self::assertStringNotContainsString('/private/tmp/secret.pdf', $json);
         self::assertStringNotContainsString('reply@example.test', $json);
         self::assertStringNotContainsString('audit@example.test', $json);
         self::assertStringNotContainsString('ops@example.test', $json);
+        self::assertStringNotContainsString('summary@example.test', $json);
         self::assertStringNotContainsString('hooks.example.test', $json);
         self::assertStringNotContainsString('plain-password', $json);
         self::assertStringNotContainsString('plain-api-key', $json);

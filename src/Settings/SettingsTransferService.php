@@ -9,6 +9,7 @@ use OneSMTP\Alerts\FailureAlertSettings;
 use OneSMTP\Providers\ProviderTypes;
 use OneSMTP\Repository\ProviderRepository;
 use OneSMTP\Security\Redactor;
+use OneSMTP\Summary\WeeklySummarySettings;
 
 final class SettingsTransferService
 {
@@ -45,7 +46,7 @@ final class SettingsTransferService
                 'secrets' => 'excluded',
                 'excluded_fields' => [
                     'provider passwords, API keys, tokens, client secrets, refresh tokens, and credential-like values',
-                    'alert recipients, webhook URLs, Reply-To, BCC, raw recipients, message bodies, raw headers, and payload JSON',
+                    'alert recipients, weekly summary recipients, webhook URLs, Reply-To, BCC, raw recipients, message bodies, raw headers, and payload JSON',
                 ],
             ],
             'settings' => [
@@ -54,6 +55,7 @@ final class SettingsTransferService
                 'background_sending' => $this->exportBackgroundSending($settings['background_sending'] ?? []),
                 'attachment_logging' => $this->exportAttachmentLogging($settings['attachment_logging'] ?? []),
                 'failure_alerts' => $this->exportFailureAlerts($settings['failure_alerts'] ?? []),
+                'weekly_summary' => $this->exportWeeklySummary($settings['weekly_summary'] ?? []),
             ],
             'providers' => $this->exportProviders(),
         ];
@@ -155,6 +157,16 @@ final class SettingsTransferService
             $summary['settings_groups'][] = 'attachment_logging';
         }
 
+        if (is_array($settings) && array_key_exists('weekly_summary', $settings)) {
+            if (! is_array($settings['weekly_summary'])) {
+                throw new InvalidArgumentException('Weekly summary settings must be a JSON object.');
+            }
+
+            [$nextSettings['weekly_summary'], $excluded] = $this->importWeeklySummary($settings['weekly_summary']);
+            $summary['excluded_fields'] += $excluded;
+            $summary['settings_groups'][] = 'weekly_summary';
+        }
+
         $providers = $payload['providers'] ?? [];
         if (isset($payload['providers']) && ! is_array($providers)) {
             throw new InvalidArgumentException('Providers must be a JSON array.');
@@ -241,6 +253,19 @@ final class SettingsTransferService
 
         return [
             'throttle_seconds' => $alerts['throttle_seconds'],
+        ];
+    }
+
+    /**
+     * @param mixed $settings Weekly summary settings.
+     * @return array<string,bool>
+     */
+    private function exportWeeklySummary(mixed $settings): array
+    {
+        $summary = WeeklySummarySettings::fromArray(is_array($settings) ? $settings : [])->toArray();
+
+        return [
+            'enabled' => (bool) $summary['enabled'],
         ];
     }
 
@@ -339,6 +364,27 @@ final class SettingsTransferService
         }
 
         return [FailureAlertSettings::fromArray($safe)->toArray(), $excluded];
+    }
+
+    /**
+     * @param array<string,mixed> $settings Weekly summary settings.
+     * @return array{0:array<string,mixed>,1:int}
+     */
+    private function importWeeklySummary(array $settings): array
+    {
+        $safe = [];
+        $excluded = 0;
+
+        foreach ($settings as $key => $value) {
+            if ((string) $key !== 'enabled') {
+                $excluded++;
+                continue;
+            }
+
+            $safe['enabled'] = $value;
+        }
+
+        return [WeeklySummarySettings::fromArray($safe)->toArray(), $excluded];
     }
 
     /**

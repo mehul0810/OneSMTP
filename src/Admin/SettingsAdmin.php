@@ -18,6 +18,8 @@ use OneSMTP\Settings\RateLimitSettingsRepository;
 use OneSMTP\Settings\SenderIdentity;
 use OneSMTP\Settings\SenderIdentityRepository;
 use OneSMTP\Settings\SettingsTransferService;
+use OneSMTP\Summary\WeeklySummarySettings;
+use OneSMTP\Summary\WeeklySummarySettingsRepository;
 use RuntimeException;
 
 final class SettingsAdmin
@@ -35,7 +37,8 @@ final class SettingsAdmin
         private ?FailureAlertSettingsRepository $failureAlerts = null,
         private ?BackgroundSendingSettingsRepository $backgroundSending = null,
         private ?SettingsTransferService $transfers = null,
-        private ?AttachmentLoggingSettingsRepository $attachmentLogging = null
+        private ?AttachmentLoggingSettingsRepository $attachmentLogging = null,
+        private ?WeeklySummarySettingsRepository $weeklySummary = null
     ) {
         $this->senderIdentity = $senderIdentity ?? new SenderIdentityRepository();
         $this->rateLimits = $rateLimits ?? new RateLimitSettingsRepository();
@@ -43,6 +46,7 @@ final class SettingsAdmin
         $this->backgroundSending = $backgroundSending ?? new BackgroundSendingSettingsRepository();
         $this->transfers = $transfers ?? new SettingsTransferService();
         $this->attachmentLogging = $attachmentLogging ?? new AttachmentLoggingSettingsRepository();
+        $this->weeklySummary = $weeklySummary ?? new WeeklySummarySettingsRepository();
     }
 
     public function handleRequest(): void
@@ -107,6 +111,15 @@ final class SettingsAdmin
                 return;
             }
 
+            if ($action === 'save_weekly_summary') {
+                $this->weeklySummary->save(WeeklySummarySettings::fromArray([
+                    'enabled' => isset($_POST['weekly_summary_enabled']),
+                    'email_recipients' => isset($_POST['weekly_summary_email_recipients']) ? wp_unslash((string) $_POST['weekly_summary_email_recipients']) : '',
+                ]));
+                $this->redirect('weekly_summary_saved');
+                return;
+            }
+
             if ($action !== 'save_sender_identity') {
                 return;
             }
@@ -144,6 +157,8 @@ final class SettingsAdmin
             echo '<div class="notice notice-success inline"><p>' . esc_html__('Background sending settings saved.', 'onesmtp') . '</p></div>';
         } elseif ($status === 'attachment_logging_saved') {
             echo '<div class="notice notice-success inline"><p>' . esc_html__('Attachment logging settings saved.', 'onesmtp') . '</p></div>';
+        } elseif ($status === 'weekly_summary_saved') {
+            echo '<div class="notice notice-success inline"><p>' . esc_html__('Weekly delivery summary settings saved.', 'onesmtp') . '</p></div>';
         } elseif ($status === 'imported') {
             echo '<div class="notice notice-success inline"><p>' . esc_html($message !== '' ? $message : __('OneSMTP settings imported. Secrets and recipient fields were excluded.', 'onesmtp')) . '</p></div>';
         } elseif ($status === 'invalid') {
@@ -245,6 +260,25 @@ final class SettingsAdmin
         $this->renderNumberInput('failure_alert_throttle_seconds', __('Throttle window in seconds', 'onesmtp'), (int) ($alertValues['throttle_seconds'] ?? 900));
         echo '</tbody></table>';
         submit_button(__('Save failure alerts', 'onesmtp'));
+        echo '</form>';
+
+        $weeklySummary = $this->weeklySummary->get();
+        $weeklyValues = $weeklySummary->toArray();
+        echo '<h3>' . esc_html__('Weekly delivery summary', 'onesmtp') . '</h3>';
+        if (! $weeklySummary->isEnabled()) {
+            echo '<div class="notice notice-info inline"><p>' . esc_html__('Weekly delivery summaries are disabled until the summary email is enabled and at least one recipient is configured.', 'onesmtp') . '</p></div>';
+        }
+        echo '<p>' . esc_html__('Send a weekly privacy-safe delivery health summary with aggregate sent, failed, retried, pending, and failover counts. Message bodies, raw recipients, headers, secrets, attachment paths, and diagnostic payload JSON are never included.', 'onesmtp') . '</p>';
+        echo '<form method="post" action="' . esc_url(admin_url('admin.php?page=onesmtp#onesmtp-settings')) . '">';
+        echo '<input type="hidden" name="onesmtp_settings_action" value="save_weekly_summary">';
+        wp_nonce_field(self::ACTION_NAME, self::NONCE_NAME);
+        echo '<table class="form-table" role="presentation"><tbody>';
+        echo '<tr><th scope="row">' . esc_html__('Summary email', 'onesmtp') . '</th><td>';
+        $this->renderCheckbox('weekly_summary_enabled', __('Enable weekly delivery summary email.', 'onesmtp'), ! empty($weeklyValues['enabled']));
+        echo '</td></tr>';
+        $this->renderTextarea('weekly_summary_email_recipients', __('Summary recipients', 'onesmtp'), implode("\n", (array) ($weeklyValues['email_recipients'] ?? [])));
+        echo '</tbody></table>';
+        submit_button(__('Save weekly delivery summary', 'onesmtp'));
         echo '</form>';
 
         $this->renderImportExport();

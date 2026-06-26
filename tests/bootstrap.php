@@ -37,6 +37,10 @@ if (! defined('DAY_IN_SECONDS')) {
     define('DAY_IN_SECONDS', 86400);
 }
 
+if (! defined('WEEK_IN_SECONDS')) {
+    define('WEEK_IN_SECONDS', 604800);
+}
+
 if (! class_exists('WP_Error')) {
     class WP_Error
     {
@@ -387,6 +391,19 @@ if (! function_exists('wp_schedule_event')) {
         ];
 
         return true;
+    }
+}
+
+if (! function_exists('wp_clear_scheduled_hook')) {
+    function wp_clear_scheduled_hook(string $hook): int
+    {
+        if (! isset($GLOBALS['onesmtp_test_cron_events'][$hook])) {
+            return 0;
+        }
+
+        unset($GLOBALS['onesmtp_test_cron_events'][$hook]);
+
+        return 1;
     }
 }
 

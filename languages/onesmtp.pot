@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: OneSMTP 0.1.0\n"
 "Report-Msgid-Bugs-To: https://github.com/mehul0810/OneSMTP/issues\n"
-"POT-Creation-Date: 2026-06-26 05:00+0000\n"
+"POT-Creation-Date: 2026-06-26 10:59+0000\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -13,11 +13,11 @@ msgstr ""
 msgid " and more"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:739
+#: src/Admin/LogAdmin.php:912
 msgid "%.1f KB"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:674
+#: src/Admin/LogAdmin.php:847
 msgid "%1$d recipients across %2$s"
 msgstr ""
 
@@ -25,28 +25,36 @@ msgstr ""
 msgid "%1$s provider %2$s"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:708
+#: src/Admin/LogAdmin.php:881
 msgid "%d attachment"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:708
+#: src/Admin/LogAdmin.php:881
 msgid "%d attachments"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:732
+#: src/Admin/LogAdmin.php:905
 msgid "%d bytes"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:689
+#: src/Admin/LogAdmin.php:862
 msgid "0 attachments"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:656
+#: src/Admin/LogAdmin.php:829
 msgid "0 recipients"
 msgstr ""
 
 #: src/Admin/SetupWizard.php:166
 msgid "A backup provider is recommended for failover. You can add one now or return later from Providers."
+msgstr ""
+
+#: src/Admin/LogAdmin.php:757
+msgid "A valid WordPress admin email is required before OneSMTP can forward log summaries."
+msgstr ""
+
+#: src/Admin/LogAdmin.php:1223
+msgid "A valid WordPress admin email is required before forwarding log summaries."
 msgstr ""
 
 #: src/Providers/ProviderTypes.php:134
@@ -99,62 +107,66 @@ msgstr ""
 msgid "Add the provider DKIM selector when available so OneSMTP can check the selector-specific TXT name."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:234
+#: src/Admin/SettingsAdmin.php:249
 msgid "Admin email alerts"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:237
+#: src/Admin/SettingsAdmin.php:252
 msgid "Alert recipients"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:215
+#: src/Admin/LogAdmin.php:347
 msgid "Any provider"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:207
+#: src/Admin/LogAdmin.php:339
 msgid "Any status"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:636
+#: src/Admin/LogAdmin.php:260
+msgid "Apply"
+msgstr ""
+
+#: src/Admin/LogAdmin.php:809
 msgid "Attachment"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:202
+#: src/Admin/SettingsAdmin.php:217
 msgid "Attachment logging"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:204
+#: src/Admin/SettingsAdmin.php:219
 msgid "Attachment logging is off. OneSMTP removes raw attachment paths from stored log payloads by default."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:146
+#: src/Admin/SettingsAdmin.php:159
 msgid "Attachment logging settings saved."
 msgstr ""
 
-#: src/Admin/LogAdmin.php:621
+#: src/Admin/LogAdmin.php:794
 msgid "Attachment metadata"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:210
+#: src/Admin/SettingsAdmin.php:225
 msgid "Attachment metadata is deleted with the parent email log according to the current %d-day log retention policy. Messages with file attachments may not preserve attachments for background retries or manual resend unless the source can provide them again."
 msgstr ""
 
 #: src/Providers/ProviderTypes.php:137
-#: src/Admin/LogAdmin.php:158
-#: src/Admin/LogAdmin.php:511
+#: src/Admin/LogAdmin.php:274
+#: src/Admin/LogAdmin.php:643
 msgid "Attachments"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:530
+#: src/Admin/LogAdmin.php:663
 msgid "Attempt"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:521
+#: src/Admin/LogAdmin.php:654
 msgid "Attempt lineage"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:157
-#: src/Admin/LogAdmin.php:510
+#: src/Admin/LogAdmin.php:273
+#: src/Admin/LogAdmin.php:642
 msgid "Attempts"
 msgstr ""
 
@@ -163,15 +175,15 @@ msgstr ""
 msgid "Available"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:164
+#: src/Admin/SettingsAdmin.php:179
 msgid "BCC"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:190
+#: src/Admin/SettingsAdmin.php:205
 msgid "Background sending"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:144
+#: src/Admin/SettingsAdmin.php:157
 msgid "Background sending settings saved."
 msgstr ""
 
@@ -182,6 +194,30 @@ msgstr ""
 #: src/Providers/ProviderTypes.php:110
 #: src/Admin/ProviderAdmin.php:368
 msgid "Brevo"
+msgstr ""
+
+#: src/Admin/LogAdmin.php:255
+msgid "Bulk action"
+msgstr ""
+
+#: src/Admin/LogAdmin.php:1209
+msgid "Bulk resend action could not be completed."
+msgstr ""
+
+#: src/Admin/LogAdmin.php:1202
+msgid "Bulk resend completed for %1$d messages; %2$d selected messages failed or were skipped."
+msgstr ""
+
+#: src/Admin/LogAdmin.php:1197
+msgid "Bulk resend completed for %d failed message."
+msgstr ""
+
+#: src/Admin/LogAdmin.php:1197
+msgid "Bulk resend completed for %d failed messages."
+msgstr ""
+
+#: src/Admin/LogAdmin.php:1206
+msgid "Bulk resend did not complete for the selected messages. Only failed logs with stored safe payloads can be resent."
 msgstr ""
 
 #: src/Admin/ProviderAdmin.php:470
@@ -215,7 +251,7 @@ msgstr ""
 msgid "Configure a provider From email or sender identity From Email to see SPF, DKIM, and DMARC guidance for sender domains."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:156
+#: src/Admin/SettingsAdmin.php:171
 msgid "Configure default sender headers for outgoing WordPress mail. Existing headers are preserved unless the matching force option is enabled."
 msgstr ""
 
@@ -239,9 +275,9 @@ msgstr ""
 msgid "Create and manage the delivery providers OneSMTP can use for failover and rotation."
 msgstr ""
 
-#: src/Admin/LogAdmin.php:160
-#: src/Admin/LogAdmin.php:514
-#: src/Admin/LogAdmin.php:537
+#: src/Admin/LogAdmin.php:276
+#: src/Admin/LogAdmin.php:646
+#: src/Admin/LogAdmin.php:670
 msgid "Created"
 msgstr ""
 
@@ -269,7 +305,7 @@ msgstr ""
 msgid "DNS authentication readiness"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:184
+#: src/Admin/SettingsAdmin.php:199
 msgid "Daily limit"
 msgstr ""
 
@@ -289,11 +325,11 @@ msgstr ""
 msgid "Delivery activity"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:140
+#: src/Admin/SettingsAdmin.php:153
 msgid "Delivery rate limit settings saved."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:176
+#: src/Admin/SettingsAdmin.php:191
 msgid "Delivery rate limits"
 msgstr ""
 
@@ -317,7 +353,7 @@ msgstr ""
 msgid "Domain"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:292
+#: src/Admin/SettingsAdmin.php:326
 msgid "Download a privacy-safe JSON settings file for migration or backup. Provider secrets, credentials, tokens, passwords, API keys, webhook URLs, raw recipients, message bodies, raw headers, and payload JSON are excluded by default."
 msgstr ""
 
@@ -325,7 +361,7 @@ msgstr ""
 msgid "Download diagnostic report"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:293
+#: src/Admin/SettingsAdmin.php:327
 msgid "Download safe settings export"
 msgstr ""
 
@@ -333,39 +369,43 @@ msgstr ""
 msgid "Email delivery log views will appear here when the logging interface is available."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:239
+#: src/Admin/SettingsAdmin.php:254
 msgid "Enable HTTPS webhook alerts."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:235
+#: src/Admin/SettingsAdmin.php:250
 msgid "Enable admin email alerts."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:196
+#: src/Admin/SettingsAdmin.php:211
 msgid "Enable background sending for normal mail."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:218
+#: src/Admin/SettingsAdmin.php:233
 msgid "Enable privacy-safe attachment metadata in email logs."
+msgstr ""
+
+#: src/Admin/SettingsAdmin.php:277
+msgid "Enable weekly delivery summary email."
 msgstr ""
 
 #: src/Admin/SetupWizard.php:306
 msgid "Enter a valid recipient email address for the test email."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:264
+#: src/Admin/SettingsAdmin.php:298
 msgid "Enter one email address per line or separate addresses with commas."
 msgstr ""
 
-#: src/Admin/LogAdmin.php:256
+#: src/Admin/LogAdmin.php:388
 msgid "Export CSV"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:256
+#: src/Admin/LogAdmin.php:388
 msgid "Export filtered log CSV"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:626
+#: src/Admin/LogAdmin.php:799
 msgid "Extension"
 msgstr ""
 
@@ -386,23 +426,23 @@ msgstr ""
 msgid "Failovers"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:142
+#: src/Admin/SettingsAdmin.php:155
 msgid "Failure alert settings saved."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:225
+#: src/Admin/SettingsAdmin.php:240
 msgid "Failure alerts"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:227
+#: src/Admin/SettingsAdmin.php:242
 msgid "Failure alerts are disabled until an email recipient or HTTPS webhook is enabled."
 msgstr ""
 
-#: src/Admin/LogAdmin.php:625
+#: src/Admin/LogAdmin.php:798
 msgid "Filename"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:247
+#: src/Admin/LogAdmin.php:379
 msgid "Filter logs"
 msgstr ""
 
@@ -410,35 +450,44 @@ msgstr ""
 msgid "First provider"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:170
+#: src/Admin/SettingsAdmin.php:185
 msgid "Force BCC when a message already has BCC."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:167
+#: src/Admin/SettingsAdmin.php:182
 msgid "Force From Email when a message already has a From header."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:168
+#: src/Admin/SettingsAdmin.php:183
 msgid "Force From Name when a message already has a From header."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:169
+#: src/Admin/SettingsAdmin.php:184
 msgid "Force Reply-To when a message already has Reply-To."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:166
+#: src/Admin/SettingsAdmin.php:181
 msgid "Force settings"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:226
+#: src/Admin/LogAdmin.php:1226
+msgid "Forward action could not be completed."
+msgstr ""
+
+#: src/Admin/LogAdmin.php:747
+#: src/Admin/LogAdmin.php:773
+msgid "Forward safe summary"
+msgstr ""
+
+#: src/Admin/LogAdmin.php:358
 msgid "From"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:161
+#: src/Admin/SettingsAdmin.php:176
 msgid "From Email"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:162
+#: src/Admin/SettingsAdmin.php:177
 msgid "From Name"
 msgstr ""
 
@@ -470,19 +519,19 @@ msgstr ""
 msgid "Health"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:183
+#: src/Admin/SettingsAdmin.php:198
 msgid "Hourly limit"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:301
+#: src/Admin/SettingsAdmin.php:335
 msgid "Import safe settings"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:298
+#: src/Admin/SettingsAdmin.php:332
 msgid "Import safe settings JSON"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:364
+#: src/Admin/SettingsAdmin.php:398
 msgid "Imported %1$d settings groups and %2$d providers. Excluded %3$d unsafe fields."
 msgstr ""
 
@@ -502,7 +551,7 @@ msgstr ""
 msgid "Last 7 days"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:536
+#: src/Admin/LogAdmin.php:669
 msgid "Latency"
 msgstr ""
 
@@ -510,11 +559,11 @@ msgstr ""
 msgid "Leave credential fields blank when updating a provider to keep existing stored secrets."
 msgstr ""
 
-#: src/Admin/LogAdmin.php:506
+#: src/Admin/LogAdmin.php:638
 msgid "Lineage UUID"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:235
+#: src/Admin/LogAdmin.php:367
 msgid "Lineage UUID, log ID, or recipient hash"
 msgstr ""
 
@@ -530,31 +579,31 @@ msgstr ""
 msgid "Manage delivery providers, priority, weights, and activation state."
 msgstr ""
 
-#: src/Admin/LogAdmin.php:562
+#: src/Admin/LogAdmin.php:695
 msgid "Manual resend"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:931
+#: src/Admin/LogAdmin.php:1181
 msgid "Manual resend action could not be completed."
 msgstr ""
 
-#: src/Admin/LogAdmin.php:925
+#: src/Admin/LogAdmin.php:1175
 msgid "Manual resend completed. Review the attempt lineage for the recorded provider and result."
 msgstr ""
 
-#: src/Admin/LogAdmin.php:926
+#: src/Admin/LogAdmin.php:1176
 msgid "Manual resend failed safely. Review the latest attempt lineage for sanitized failure context."
 msgstr ""
 
-#: src/Admin/LogAdmin.php:153
+#: src/Admin/LogAdmin.php:269
 msgid "Message"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:505
+#: src/Admin/LogAdmin.php:637
 msgid "Message ID"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:503
+#: src/Admin/LogAdmin.php:635
 msgid "Message detail"
 msgstr ""
 
@@ -567,15 +616,15 @@ msgstr ""
 msgid "Needs setup"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:291
+#: src/Admin/LogAdmin.php:423
 msgid "Next"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:291
+#: src/Admin/LogAdmin.php:423
 msgid "Next log page"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:513
+#: src/Admin/LogAdmin.php:645
 #: src/Admin/QueueDiagnosticsAdmin.php:99
 msgid "Next retry"
 msgstr ""
@@ -588,19 +637,19 @@ msgstr ""
 msgid "No delivery activity has been recorded yet. Metrics will appear after OneSMTP records sends, retries, failures, or failover events."
 msgstr ""
 
-#: src/Admin/LogAdmin.php:523
+#: src/Admin/LogAdmin.php:656
 msgid "No delivery attempts have been recorded for this message yet."
 msgstr ""
 
-#: src/Admin/LogAdmin.php:577
+#: src/Admin/LogAdmin.php:710
 msgid "No eligible active providers are available for manual resend."
 msgstr ""
 
-#: src/Admin/LogAdmin.php:135
+#: src/Admin/LogAdmin.php:234
 msgid "No email log entries have been recorded yet."
 msgstr ""
 
-#: src/Admin/LogAdmin.php:134
+#: src/Admin/LogAdmin.php:233
 msgid "No email log entries matched the current filters."
 msgstr ""
 
@@ -628,20 +677,22 @@ msgstr ""
 msgid "No queued or retrying messages need administrator action."
 msgstr ""
 
-#: src/Admin/LogAdmin.php:968
+#: src/Admin/LogAdmin.php:1069
+#: src/Admin/LogAdmin.php:1302
 msgid "None"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:513
+#: src/Admin/LogAdmin.php:645
+#: src/Admin/LogAdmin.php:1066
 #: src/Admin/QueueDiagnosticsAdmin.php:99
 msgid "None scheduled"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:684
+#: src/Admin/LogAdmin.php:857
 msgid "Not logged"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:837
+#: src/Admin/LogAdmin.php:1080
 msgid "Not selected"
 msgstr ""
 
@@ -669,6 +720,10 @@ msgstr ""
 msgid "OAuth refresh token"
 msgstr ""
 
+#: src/Summary/WeeklySummaryMailer.php:38
+msgid "Once Weekly"
+msgstr ""
+
 #: src/Admin/AdminPage.php:46
 #: src/Admin/AdminPage.php:47
 #: src/Admin/AdminPage.php:78
@@ -677,14 +732,16 @@ msgstr ""
 
 #: src/Admin/AdminPage.php:70
 #: src/Admin/SetupWizard.php:46
-#: src/Admin/LogAdmin.php:72
-#: src/Admin/LogAdmin.php:100
-#: src/Admin/LogAdmin.php:373
+#: src/Admin/LogAdmin.php:91
+#: src/Admin/LogAdmin.php:119
+#: src/Admin/LogAdmin.php:162
+#: src/Admin/LogAdmin.php:199
+#: src/Admin/LogAdmin.php:505
 #: src/Admin/ProviderAdmin.php:43
 #: src/Admin/QueueDiagnosticsAdmin.php:44
 #: src/Admin/DashboardAdmin.php:36
-#: src/Admin/SettingsAdmin.php:310
-#: src/Admin/SettingsAdmin.php:346
+#: src/Admin/SettingsAdmin.php:344
+#: src/Admin/SettingsAdmin.php:380
 msgid "OneSMTP access denied"
 msgstr ""
 
@@ -700,8 +757,8 @@ msgstr ""
 msgid "OneSMTP diagnostics denied"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:382
-#: src/Admin/SettingsAdmin.php:319
+#: src/Admin/LogAdmin.php:514
+#: src/Admin/SettingsAdmin.php:353
 msgid "OneSMTP export denied"
 msgstr ""
 
@@ -721,7 +778,7 @@ msgstr ""
 msgid "OneSMTP has overdue retry jobs, so queue processing may be blocked. Review diagnostics before resending or changing provider settings."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:355
+#: src/Admin/SettingsAdmin.php:389
 msgid "OneSMTP import denied"
 msgstr ""
 
@@ -733,19 +790,23 @@ msgstr ""
 msgid "OneSMTP retry scheduling is unavailable because Action Scheduler is not loaded. Failed messages will not be queued for background retry until the scheduler is available."
 msgstr ""
 
+#: src/Admin/LogAdmin.php:184
+msgid "OneSMTP safe log summary #%d"
+msgstr ""
+
 #: src/Admin/AdminPage.php:79
 msgid "OneSMTP sections"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:150
+#: src/Admin/SettingsAdmin.php:165
 msgid "OneSMTP settings could not be saved."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:148
+#: src/Admin/SettingsAdmin.php:163
 msgid "OneSMTP settings imported. Secrets and recipient fields were excluded."
 msgstr ""
 
-#: src/Admin/LogAdmin.php:622
+#: src/Admin/LogAdmin.php:795
 msgid "OneSMTP stores metadata only. File contents and raw server paths are not stored or displayed."
 msgstr ""
 
@@ -753,7 +814,15 @@ msgstr ""
 msgid "OneSMTP terminal failure alert"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:300
+#: src/Summary/WeeklySummaryMailer.php:75
+msgid "OneSMTP weekly delivery summary"
+msgstr ""
+
+#: src/Admin/LogAdmin.php:297
+msgid "Only failed messages can be selected for bulk resend."
+msgstr ""
+
+#: src/Admin/SettingsAdmin.php:334
 msgid "Only supported non-secret settings are imported. Secret, credential, webhook URL, raw recipient, message body, raw header, and payload fields are ignored."
 msgstr ""
 
@@ -773,11 +842,11 @@ msgstr ""
 msgid "PHP mail"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:284
+#: src/Admin/LogAdmin.php:416
 msgid "Page %1$d of %2$d"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:144
+#: src/Admin/LogAdmin.php:243
 msgid "Page %1$d of %2$d (%3$d log entries)"
 msgstr ""
 
@@ -798,11 +867,11 @@ msgstr ""
 msgid "Pending provider save"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:240
+#: src/Admin/LogAdmin.php:372
 msgid "Per page"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:182
+#: src/Admin/SettingsAdmin.php:197
 msgid "Per-minute limit"
 msgstr ""
 
@@ -810,11 +879,11 @@ msgstr ""
 msgid "Plugin settings will appear here once the settings form is ready."
 msgstr ""
 
-#: src/Admin/LogAdmin.php:771
+#: src/Admin/LogAdmin.php:944
 msgid "Plugin: %s"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:774
+#: src/Admin/LogAdmin.php:947
 msgid "Plugin: Unknown plugin"
 msgstr ""
 
@@ -823,11 +892,11 @@ msgstr ""
 msgid "Postmark"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:278
+#: src/Admin/LogAdmin.php:410
 msgid "Previous"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:278
+#: src/Admin/LogAdmin.php:410
 msgid "Previous log page"
 msgstr ""
 
@@ -846,15 +915,15 @@ msgstr ""
 
 #: src/Admin/ProviderCapabilityMatrix.php:27
 #: src/Admin/SetupWizard.php:268
-#: src/Admin/LogAdmin.php:155
-#: src/Admin/LogAdmin.php:213
-#: src/Admin/LogAdmin.php:531
+#: src/Admin/LogAdmin.php:271
+#: src/Admin/LogAdmin.php:345
+#: src/Admin/LogAdmin.php:664
 #: src/Admin/DashboardAdmin.php:154
 msgid "Provider"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:844
-#: src/Admin/LogAdmin.php:909
+#: src/Admin/LogAdmin.php:1087
+#: src/Admin/LogAdmin.php:1152
 #: src/Admin/ProviderAdmin.php:117
 msgid "Provider #%d"
 msgstr ""
@@ -887,7 +956,7 @@ msgstr ""
 msgid "Provider capability metadata is not available."
 msgstr ""
 
-#: src/Admin/LogAdmin.php:535
+#: src/Admin/LogAdmin.php:668
 msgid "Provider message"
 msgstr ""
 
@@ -899,7 +968,7 @@ msgstr ""
 msgid "Provider name"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:586
+#: src/Admin/LogAdmin.php:719
 msgid "Provider override"
 msgstr ""
 
@@ -924,7 +993,7 @@ msgstr ""
 msgid "Publish the SPF, DKIM, and DMARC TXT records supplied by %s for this sender domain."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:191
+#: src/Admin/SettingsAdmin.php:206
 msgid "Queue normal WordPress mail for asynchronous delivery so user-facing requests are not held by provider latency. Provider test emails and manual resends continue to run synchronously."
 msgstr ""
 
@@ -940,7 +1009,7 @@ msgstr ""
 msgid "Queued messages"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:128
+#: src/Admin/LogAdmin.php:227
 msgid "Recent messages"
 msgstr ""
 
@@ -948,12 +1017,12 @@ msgstr ""
 msgid "Recipient email"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:237
+#: src/Admin/LogAdmin.php:369
 msgid "Recipient hash"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:159
-#: src/Admin/LogAdmin.php:512
+#: src/Admin/LogAdmin.php:275
+#: src/Admin/LogAdmin.php:644
 msgid "Recipients"
 msgstr ""
 
@@ -981,7 +1050,7 @@ msgstr ""
 msgid "Remind me later about the OneSMTP mail conflict notice"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:163
+#: src/Admin/SettingsAdmin.php:178
 msgid "Reply-To"
 msgstr ""
 
@@ -989,11 +1058,15 @@ msgstr ""
 msgid "Report preview"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:600
+#: src/Admin/LogAdmin.php:733
 msgid "Resend message"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:533
+#: src/Admin/LogAdmin.php:258
+msgid "Resend selected failed messages"
+msgstr ""
+
+#: src/Admin/LogAdmin.php:666
 msgid "Result"
 msgstr ""
 
@@ -1021,7 +1094,7 @@ msgstr ""
 msgid "Review aggregate queue health without exposing recipients, message bodies, provider credentials, tokens, or raw payload content."
 msgstr ""
 
-#: src/Admin/LogAdmin.php:105
+#: src/Admin/LogAdmin.php:204
 msgid "Review delivery lineage without exposing message bodies, raw headers, secrets, or full recipient addresses."
 msgstr ""
 
@@ -1069,27 +1142,35 @@ msgstr ""
 msgid "Safe config"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:534
+#: src/Admin/LogAdmin.php:667
 msgid "Safe error context"
+msgstr ""
+
+#: src/Admin/LogAdmin.php:1221
+msgid "Safe log summary could not be forwarded."
+msgstr ""
+
+#: src/Admin/LogAdmin.php:1220
+msgid "Safe log summary forwarded to the verified site admin address."
 msgstr ""
 
 #: src/Admin/SetupWizard.php:123
 msgid "Save another provider"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:220
+#: src/Admin/SettingsAdmin.php:235
 msgid "Save attachment logging"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:198
+#: src/Admin/SettingsAdmin.php:213
 msgid "Save background sending"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:186
+#: src/Admin/SettingsAdmin.php:201
 msgid "Save delivery rate limits"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:247
+#: src/Admin/SettingsAdmin.php:262
 msgid "Save failure alerts"
 msgstr ""
 
@@ -1101,8 +1182,12 @@ msgstr ""
 msgid "Save provider"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:172
+#: src/Admin/SettingsAdmin.php:187
 msgid "Save sender identity"
+msgstr ""
+
+#: src/Admin/SettingsAdmin.php:281
+msgid "Save weekly delivery summary"
 msgstr ""
 
 #: src/Admin/QueueDiagnosticsAdmin.php:95
@@ -1114,7 +1199,7 @@ msgstr ""
 msgid "Scheduler availability"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:234
+#: src/Admin/LogAdmin.php:366
 msgid "Search"
 msgstr ""
 
@@ -1122,11 +1207,35 @@ msgstr ""
 msgid "Secrets are stored through the provider repository and are not printed back in the wizard."
 msgstr ""
 
-#: src/Admin/LogAdmin.php:508
+#: src/Admin/LogAdmin.php:267
+msgid "Select"
+msgstr ""
+
+#: src/Admin/LogAdmin.php:257
+msgid "Select action"
+msgstr ""
+
+#: src/Admin/LogAdmin.php:1194
+msgid "Select at least one failed message before applying bulk resend."
+msgstr ""
+
+#: src/Admin/LogAdmin.php:293
+msgid "Select failed log entry #%d for resend"
+msgstr ""
+
+#: src/Admin/LogAdmin.php:640
 msgid "Selected provider"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:229
+#: src/Admin/LogAdmin.php:765
+msgid "Send a redacted delivery summary to the verified site admin address: %s."
+msgstr ""
+
+#: src/Admin/SettingsAdmin.php:271
+msgid "Send a weekly privacy-safe delivery health summary with aggregate sent, failed, retried, pending, and failover counts. Message bodies, raw recipients, headers, secrets, attachment paths, and diagnostic payload JSON are never included."
+msgstr ""
+
+#: src/Admin/SettingsAdmin.php:244
 msgid "Send privacy-safe alerts for terminal delivery failures. Alert payloads include IDs, hashes, status, provider summary, reason, and category only."
 msgstr ""
 
@@ -1167,7 +1276,7 @@ msgstr ""
 msgid "Sender identity and first provider"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:138
+#: src/Admin/SettingsAdmin.php:151
 msgid "Sender identity settings saved."
 msgstr ""
 
@@ -1183,7 +1292,7 @@ msgstr ""
 msgid "Sent attempts"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:177
+#: src/Admin/SettingsAdmin.php:192
 msgid "Set optional site-wide delivery caps. When a cap is exhausted, OneSMTP defers queued mail until capacity is available. Use 0 to disable a limit."
 msgstr ""
 
@@ -1193,7 +1302,7 @@ msgstr ""
 msgid "Settings"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:291
+#: src/Admin/SettingsAdmin.php:325
 msgid "Settings import/export"
 msgstr ""
 
@@ -1221,21 +1330,29 @@ msgstr ""
 msgid "Since %s UTC"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:627
+#: src/Admin/LogAdmin.php:800
 msgid "Size"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:156
-#: src/Admin/LogAdmin.php:509
+#: src/Admin/LogAdmin.php:272
+#: src/Admin/LogAdmin.php:641
 #: src/Admin/ProviderAdmin.php:260
 msgid "Source"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:154
-#: src/Admin/LogAdmin.php:205
-#: src/Admin/LogAdmin.php:507
+#: src/Admin/LogAdmin.php:270
+#: src/Admin/LogAdmin.php:337
+#: src/Admin/LogAdmin.php:639
 #: src/Admin/ProviderAdmin.php:105
 msgid "Status"
+msgstr ""
+
+#: src/Admin/SettingsAdmin.php:276
+msgid "Summary email"
+msgstr ""
+
+#: src/Admin/SettingsAdmin.php:279
+msgid "Summary recipients"
 msgstr ""
 
 #: src/Admin/ProviderAdmin.php:357
@@ -1266,15 +1383,15 @@ msgstr ""
 msgid "The OneSMTP diagnostic report link has expired. Refresh the page and try again."
 msgstr ""
 
-#: src/Admin/LogAdmin.php:381
+#: src/Admin/LogAdmin.php:513
 msgid "The OneSMTP log export link has expired. Refresh the page and try again."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:318
+#: src/Admin/SettingsAdmin.php:352
 msgid "The OneSMTP settings export link has expired. Refresh the page and try again."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:354
+#: src/Admin/SettingsAdmin.php:388
 msgid "The OneSMTP settings import form has expired. Refresh the page and try again."
 msgstr ""
 
@@ -1282,23 +1399,27 @@ msgstr ""
 msgid "The diagnostic report preview is empty."
 msgstr ""
 
-#: src/Admin/LogAdmin.php:494
+#: src/Admin/LogAdmin.php:626
 msgid "The requested log entry was not found."
 msgstr ""
 
-#: src/Admin/LogAdmin.php:927
+#: src/Admin/LogAdmin.php:1222
+msgid "The requested message could not be found for forwarding."
+msgstr ""
+
+#: src/Admin/LogAdmin.php:1177
 msgid "The requested message could not be found for resend."
 msgstr ""
 
-#: src/Admin/LogAdmin.php:928
+#: src/Admin/LogAdmin.php:1178
 msgid "The selected provider is not eligible for manual resend."
 msgstr ""
 
-#: src/Admin/LogAdmin.php:781
+#: src/Admin/LogAdmin.php:954
 msgid "Theme: %s"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:784
+#: src/Admin/LogAdmin.php:957
 msgid "Theme: Unknown theme"
 msgstr ""
 
@@ -1306,15 +1427,15 @@ msgstr ""
 msgid "This can cause duplicate sends, unexpected transport changes, or confusing delivery results. OneSMTP will not disable or reorder third-party code automatically."
 msgstr ""
 
-#: src/Admin/LogAdmin.php:571
+#: src/Admin/LogAdmin.php:704
 msgid "This message cannot be resent because the stored safe payload is unavailable."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:245
+#: src/Admin/SettingsAdmin.php:260
 msgid "Throttle window in seconds"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:229
+#: src/Admin/LogAdmin.php:361
 msgid "To"
 msgstr ""
 
@@ -1322,7 +1443,7 @@ msgstr ""
 msgid "Total pending"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:532
+#: src/Admin/LogAdmin.php:665
 msgid "Trigger"
 msgstr ""
 
@@ -1332,13 +1453,13 @@ msgid "Type"
 msgstr ""
 
 #: src/Admin/ProviderCapabilityMatrix.php:43
-#: src/Admin/LogAdmin.php:983
+#: src/Admin/LogAdmin.php:1317
 #: src/Admin/QueueDiagnosticsAdmin.php:92
 msgid "Unavailable"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:725
-#: src/Admin/LogAdmin.php:959
+#: src/Admin/LogAdmin.php:898
+#: src/Admin/LogAdmin.php:1293
 msgid "Unknown"
 msgstr ""
 
@@ -1346,17 +1467,17 @@ msgstr ""
 msgid "Unknown provider"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:756
-#: src/Admin/LogAdmin.php:791
+#: src/Admin/LogAdmin.php:929
+#: src/Admin/LogAdmin.php:964
 msgid "Unknown source"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:161
-#: src/Admin/LogAdmin.php:515
+#: src/Admin/LogAdmin.php:277
+#: src/Admin/LogAdmin.php:647
 msgid "Updated"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:243
+#: src/Admin/SettingsAdmin.php:258
 msgid "Use an HTTPS endpoint. Raw recipients, headers, message bodies, provider credentials, and stored payload JSON are never sent."
 msgstr ""
 
@@ -1364,7 +1485,7 @@ msgstr ""
 msgid "Use any standard SMTP server with username and password credentials."
 msgstr ""
 
-#: src/Admin/LogAdmin.php:588
+#: src/Admin/LogAdmin.php:721
 msgid "Use normal provider selection"
 msgstr ""
 
@@ -1385,16 +1506,28 @@ msgstr ""
 msgid "Username"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:174
+#: src/Admin/LogAdmin.php:303
 msgid "View log entry #%d details"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:241
+#: src/Admin/SettingsAdmin.php:256
 msgid "Webhook URL"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:238
+#: src/Admin/SettingsAdmin.php:253
 msgid "Webhook alerts"
+msgstr ""
+
+#: src/Admin/SettingsAdmin.php:269
+msgid "Weekly delivery summaries are disabled until the summary email is enabled and at least one recipient is configured."
+msgstr ""
+
+#: src/Admin/SettingsAdmin.php:267
+msgid "Weekly delivery summary"
+msgstr ""
+
+#: src/Admin/SettingsAdmin.php:161
+msgid "Weekly delivery summary settings saved."
 msgstr ""
 
 #: src/Admin/ProviderAdmin.php:104
@@ -1402,7 +1535,7 @@ msgstr ""
 msgid "Weight"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:206
+#: src/Admin/SettingsAdmin.php:221
 msgid "When enabled, OneSMTP stores attachment metadata only: count, safe filename, extension, and file size when available. File contents and raw server paths are not copied into logs."
 msgstr ""
 
@@ -1410,12 +1543,16 @@ msgstr ""
 msgid "Window"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:788
+#: src/Admin/LogAdmin.php:961
 msgid "WordPress core"
 msgstr ""
 
 #: src/Admin/AdminPage.php:69
 msgid "You do not have permission to access OneSMTP settings."
+msgstr ""
+
+#: src/Admin/LogAdmin.php:118
+msgid "You do not have permission to bulk resend OneSMTP emails."
 msgstr ""
 
 #: src/Admin/MailConflictNotice.php:75
@@ -1426,15 +1563,23 @@ msgstr ""
 msgid "You do not have permission to download OneSMTP diagnostics."
 msgstr ""
 
-#: src/Admin/LogAdmin.php:372
+#: src/Admin/LogAdmin.php:504
 msgid "You do not have permission to export OneSMTP logs."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:309
+#: src/Admin/SettingsAdmin.php:343
 msgid "You do not have permission to export OneSMTP settings."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:345
+#: src/Admin/LogAdmin.php:161
+msgid "You do not have permission to forward OneSMTP log summaries."
+msgstr ""
+
+#: src/Admin/LogAdmin.php:750
+msgid "You do not have permission to forward this log summary."
+msgstr ""
+
+#: src/Admin/SettingsAdmin.php:379
 msgid "You do not have permission to import OneSMTP settings."
 msgstr ""
 
@@ -1442,11 +1587,11 @@ msgstr ""
 msgid "You do not have permission to manage OneSMTP providers."
 msgstr ""
 
-#: src/Admin/LogAdmin.php:71
+#: src/Admin/LogAdmin.php:90
 msgid "You do not have permission to resend OneSMTP emails."
 msgstr ""
 
-#: src/Admin/LogAdmin.php:565
+#: src/Admin/LogAdmin.php:698
 msgid "You do not have permission to resend this message."
 msgstr ""
 
@@ -1458,7 +1603,7 @@ msgstr ""
 msgid "You do not have permission to view OneSMTP dashboard metrics."
 msgstr ""
 
-#: src/Admin/LogAdmin.php:99
+#: src/Admin/LogAdmin.php:198
 msgid "You do not have permission to view OneSMTP logs."
 msgstr ""
 
@@ -1466,7 +1611,7 @@ msgstr ""
 msgid "unknown"
 msgstr ""
 
-#: src/Admin/LogAdmin.php:676
+#: src/Admin/LogAdmin.php:849
 msgid "unknown domains"
 msgstr ""
 
