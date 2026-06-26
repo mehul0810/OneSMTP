@@ -36,6 +36,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Privacy-safe dashboard metrics for sent, failed, retried, pending, and failover activity with provider breakdowns.
 - Admin accessibility QA coverage and a 0.2.0 keyboard review checklist for OneSMTP admin screens, tables, forms, notices, and long-content states.
 - Compatibility test matrix covering synthetic core notification, form-like, commerce-like, membership-like, and background job email sources.
+- Privacy-safe mail source attribution for plugins, themes, WordPress core, and unknown origins in admin email logs.
 - Large synthetic log-table benchmark coverage for admin log list, filter, export, detail, and schema index regression signals.
 - Privacy-safe settings import/export workflow with provider secrets, credentials, tokens, webhook URLs, raw recipient destinations, headers, message bodies, and payload JSON excluded by default.
 - Provider DNS authentication readiness guidance with privacy-safe SPF, DKIM, and DMARC TXT checks for configured sender domains.

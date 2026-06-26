@@ -28,6 +28,7 @@ final class SendPipeline
     private DeliveryEngine $deliveryEngine;
     private RateLimiter $rateLimiter;
     private BackgroundSendingSettingsRepository $backgroundSending;
+    private MailSourceAttributor $sourceAttributor;
 
     /**
      * @var array<string,int>
@@ -42,7 +43,8 @@ final class SendPipeline
         RetryScheduler $retryScheduler,
         DeliveryEngine $deliveryEngine,
         ?RateLimiter $rateLimiter = null,
-        ?BackgroundSendingSettingsRepository $backgroundSending = null
+        ?BackgroundSendingSettingsRepository $backgroundSending = null,
+        ?MailSourceAttributor $sourceAttributor = null
     ) {
         $this->messages = $messages;
         $this->attempts = $attempts;
@@ -52,6 +54,7 @@ final class SendPipeline
         $this->deliveryEngine = $deliveryEngine;
         $this->rateLimiter = $rateLimiter ?? new RateLimiter($attempts);
         $this->backgroundSending = $backgroundSending ?? new BackgroundSendingSettingsRepository();
+        $this->sourceAttributor = $sourceAttributor ?? new MailSourceAttributor();
     }
 
     public function registerHooks(): void
@@ -123,6 +126,8 @@ final class SendPipeline
 
     public function captureMessage(array $args): array
     {
+        $args = $this->sourceAttributor->withSource($args);
+
         $messageUuid = $this->extractMessageUuidFromHeaders($args['headers'] ?? []);
         if ($messageUuid === '') {
             $messageUuid = (string) wp_generate_uuid4();

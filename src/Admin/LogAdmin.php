@@ -152,6 +152,7 @@ final class LogAdmin
         echo '<th scope="col">' . esc_html__('Message', 'onesmtp') . '</th>';
         echo '<th scope="col">' . esc_html__('Status', 'onesmtp') . '</th>';
         echo '<th scope="col">' . esc_html__('Provider', 'onesmtp') . '</th>';
+        echo '<th scope="col">' . esc_html__('Source', 'onesmtp') . '</th>';
         echo '<th scope="col">' . esc_html__('Attempts', 'onesmtp') . '</th>';
         echo '<th scope="col">' . esc_html__('Recipients', 'onesmtp') . '</th>';
         echo '<th scope="col">' . esc_html__('Created', 'onesmtp') . '</th>';
@@ -171,10 +172,12 @@ final class LogAdmin
                 __('View log entry #%d details', 'onesmtp'),
                 $messageId
             )) . '">#' . esc_html((string) $messageId) . '</a><br><code>' . esc_html((string) ($message['message_uuid'] ?? '')) . '</code></th>';
+            $payload = $this->payloadFor($message);
             echo '<td>' . esc_html($this->formatStatus((string) ($message['status'] ?? ''))) . '</td>';
             echo '<td>' . esc_html($this->formatProvider((int) ($message['selected_provider_id'] ?? 0))) . '</td>';
+            echo '<td>' . esc_html($this->formatSourceAttribution($payload)) . '</td>';
             echo '<td>' . esc_html((string) ((int) ($message['attempt_count'] ?? $message['current_attempt'] ?? 0))) . ' / ' . esc_html((string) ((int) ($message['max_attempts'] ?? 0))) . '</td>';
-            echo '<td>' . esc_html($this->formatRecipientSummary($this->payloadFor($message))) . '</td>';
+            echo '<td>' . esc_html($this->formatRecipientSummary($payload)) . '</td>';
             echo '<td>' . esc_html((string) ($message['created_at'] ?? '')) . '</td>';
             echo '<td>' . esc_html((string) ($message['updated_at'] ?? '')) . '</td>';
             echo '</tr>';
@@ -492,6 +495,7 @@ final class LogAdmin
         $this->renderDetailRow(__('Lineage UUID', 'onesmtp'), (string) ($message['message_uuid'] ?? ''));
         $this->renderDetailRow(__('Status', 'onesmtp'), $this->formatStatus((string) ($message['status'] ?? '')));
         $this->renderDetailRow(__('Selected provider', 'onesmtp'), $this->formatProvider((int) ($message['selected_provider_id'] ?? 0)));
+        $this->renderDetailRow(__('Source', 'onesmtp'), $this->formatSourceAttribution($payload));
         $this->renderDetailRow(__('Attempts', 'onesmtp'), (string) count($attempts) . ' / ' . (string) ((int) ($message['max_attempts'] ?? 0)));
         $this->renderDetailRow(__('Recipients', 'onesmtp'), $this->formatRecipientSummary($payload));
         $this->renderDetailRow(__('Next retry', 'onesmtp'), (string) ($message['next_retry_at'] ?? __('None scheduled', 'onesmtp')));
@@ -622,6 +626,67 @@ final class LogAdmin
             count($recipients),
             $visibleDomains !== [] ? implode(', ', $visibleDomains) . $suffix : __('unknown domains', 'onesmtp')
         );
+    }
+
+    private function formatSourceAttribution(array $payload): string
+    {
+        $source = $payload['onesmtp_source'] ?? null;
+        if (! is_array($source)) {
+            return __('Unknown source', 'onesmtp');
+        }
+
+        $type = isset($source['type']) ? sanitize_key((string) $source['type']) : '';
+        $name = isset($source['name']) && is_scalar($source['name']) ? $this->shortText((string) $source['name'], 80) : '';
+        $slug = isset($source['slug']) && is_scalar($source['slug']) ? sanitize_key((string) $source['slug']) : '';
+
+        if ($name === '' && $slug !== '') {
+            $name = $this->labelFromSlug($slug);
+        }
+
+        if ($type === 'plugin') {
+            return $name !== ''
+                ? sprintf(
+                    /* translators: %s: plugin name. */
+                    __('Plugin: %s', 'onesmtp'),
+                    $name
+                )
+                : __('Plugin: Unknown plugin', 'onesmtp');
+        }
+
+        if ($type === 'theme') {
+            return $name !== ''
+                ? sprintf(
+                    /* translators: %s: theme name. */
+                    __('Theme: %s', 'onesmtp'),
+                    $name
+                )
+                : __('Theme: Unknown theme', 'onesmtp');
+        }
+
+        if ($type === 'core') {
+            return __('WordPress core', 'onesmtp');
+        }
+
+        return __('Unknown source', 'onesmtp');
+    }
+
+    private function labelFromSlug(string $slug): string
+    {
+        $label = str_replace(['-', '_'], ' ', $slug);
+
+        return ucwords($label);
+    }
+
+    private function shortText(string $value, int $limit): string
+    {
+        $value = trim(preg_replace('/\s+/', ' ', sanitize_text_field($value)) ?? '');
+        $limit = max(10, $limit);
+
+        if (strlen($value) <= $limit) {
+            return $value;
+        }
+
+        return rtrim(substr($value, 0, $limit - 3)) . '...';
     }
 
     private function normalizeRecipients(mixed $raw): array
