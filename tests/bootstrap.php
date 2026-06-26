@@ -843,7 +843,11 @@ if (! function_exists('delete_transient')) {
     }
 }
 
-if (! file_exists(__DIR__ . '/../vendor/autoload.php') && ! file_exists(__DIR__ . '/../../vendor/autoload.php')) {
+if (
+    getenv('ONESMTP_PLAYWRIGHT_SMOKE') !== '1'
+    && ! file_exists(__DIR__ . '/../vendor/autoload.php')
+    && ! file_exists(__DIR__ . '/../../vendor/autoload.php')
+) {
     fwrite(
         STDERR,
         "[OneSMTP tests] Composer autoload not found. Run 'composer install' before executing PHPUnit.\n"
