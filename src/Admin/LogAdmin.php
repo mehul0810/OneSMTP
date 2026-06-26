@@ -18,8 +18,12 @@ final class LogAdmin
     private const NONCE_NAME   = 'onesmtp_log_nonce';
     private const EXPORT_ACTION = 'export_csv';
     private const EXPORT_NONCE_NAME = 'onesmtp_log_export_nonce';
+    private const BULK_RESEND_ACTION = 'bulk_resend';
+    private const FORWARD_ACTION = 'forward_summary';
+    private const BULK_MESSAGE_IDS_PARAM = 'onesmtp_message_ids';
     private const DEFAULT_PER_PAGE = 25;
     private const MAX_PER_PAGE = 100;
+    private const MAX_BULK_MESSAGES = 50;
     private const EXPORT_LIMIT = 1000;
     private const ERROR_LIMIT = 220;
 
@@ -62,10 +66,25 @@ final class LogAdmin
         }
 
         $action = isset($_POST[self::ACTION_NAME]) ? sanitize_key(wp_unslash((string) $_POST[self::ACTION_NAME])) : '';
-        if ($action !== 'resend') {
+        if ($action === 'resend') {
+            $this->handleResend();
+
             return;
         }
 
+        if ($action === self::BULK_RESEND_ACTION) {
+            $this->handleBulkResend();
+
+            return;
+        }
+
+        if ($action === self::FORWARD_ACTION) {
+            $this->handleForward();
+        }
+    }
+
+    private function handleResend(): void
+    {
         if (! Capabilities::canResendEmails()) {
             wp_die(
                 esc_html__('You do not have permission to resend OneSMTP emails.', 'onesmtp'),
@@ -92,6 +111,86 @@ final class LogAdmin
         $this->redirect($sent ? 'resent' : 'failed', $messageId);
     }
 
+    private function handleBulkResend(): void
+    {
+        if (! Capabilities::canResendEmails()) {
+            wp_die(
+                esc_html__('You do not have permission to bulk resend OneSMTP emails.', 'onesmtp'),
+                esc_html__('OneSMTP access denied', 'onesmtp'),
+                ['response' => 403]
+            );
+        }
+
+        check_admin_referer(self::ACTION_NAME, self::NONCE_NAME);
+
+        $messageIds = $this->postedMessageIds();
+        if ($messageIds === []) {
+            $this->redirectBulk('empty', 0, 0);
+        }
+
+        $handler = $this->resendHandler;
+        $resent = 0;
+        $failed = 0;
+
+        foreach ($messageIds as $messageId) {
+            $message = $this->messages->find($messageId);
+            if (! is_array($message) || (string) ($message['status'] ?? '') !== 'failed') {
+                $failed++;
+                continue;
+            }
+
+            $sent = is_callable($handler) && (bool) $handler($messageId, null);
+            if ($sent) {
+                $resent++;
+            } else {
+                $failed++;
+            }
+        }
+
+        if ($resent > 0 && $failed === 0) {
+            $this->redirectBulk('resent', $resent, $failed);
+        }
+
+        $this->redirectBulk($resent > 0 ? 'partial' : 'failed', $resent, $failed);
+    }
+
+    private function handleForward(): void
+    {
+        if (! Capabilities::canResendEmails()) {
+            wp_die(
+                esc_html__('You do not have permission to forward OneSMTP log summaries.', 'onesmtp'),
+                esc_html__('OneSMTP access denied', 'onesmtp'),
+                ['response' => 403]
+            );
+        }
+
+        check_admin_referer(self::ACTION_NAME, self::NONCE_NAME);
+
+        $messageId = isset($_POST[self::DETAIL_PARAM]) ? absint(wp_unslash((string) $_POST[self::DETAIL_PARAM])) : 0;
+        $message = $messageId > 0 ? $this->messages->find($messageId) : null;
+        if (! is_array($message)) {
+            $this->redirectForward('missing', $messageId);
+        }
+
+        $to = $this->safeForwardAddress();
+        if ($to === '') {
+            $this->redirectForward('unsafe_recipient', $messageId);
+        }
+
+        $sent = function_exists('wp_mail') && (bool) wp_mail(
+            $to,
+            sprintf(
+                /* translators: %d: message log id. */
+                __('OneSMTP safe log summary #%d', 'onesmtp'),
+                $messageId
+            ),
+            $this->safeForwardBody($message),
+            ['Content-Type: text/plain; charset=UTF-8']
+        );
+
+        $this->redirectForward($sent ? 'forwarded' : 'failed', $messageId);
+    }
+
     public function render(): void
     {
         if (! Capabilities::canViewLogs()) {
@@ -103,10 +202,10 @@ final class LogAdmin
         }
 
         echo '<p>' . esc_html__('Review delivery lineage without exposing message bodies, raw headers, secrets, or full recipient addresses.', 'onesmtp') . '</p>';
+        $this->renderActionNotices();
 
         $messageId = isset($_GET[self::DETAIL_PARAM]) ? absint(wp_unslash((string) $_GET[self::DETAIL_PARAM])) : 0;
         if ($messageId > 0) {
-            $this->renderNotice($messageId);
             $this->renderDetail($messageId);
             echo '<hr>';
         }
@@ -148,8 +247,25 @@ final class LogAdmin
             )
         ) . '</p>';
 
+        $canBulkResend = Capabilities::canResendEmails();
+        if ($canBulkResend) {
+            echo '<form method="post" class="onesmtp-bulk-resend-form">';
+            wp_nonce_field(self::ACTION_NAME, self::NONCE_NAME);
+            echo '<p>';
+            echo '<label for="onesmtp-bulk-action">' . esc_html__('Bulk action', 'onesmtp') . '</label> ';
+            echo '<select id="onesmtp-bulk-action" name="' . esc_attr(self::ACTION_NAME) . '">';
+            echo '<option value="">' . esc_html__('Select action', 'onesmtp') . '</option>';
+            echo '<option value="' . esc_attr(self::BULK_RESEND_ACTION) . '">' . esc_html__('Resend selected failed messages', 'onesmtp') . '</option>';
+            echo '</select> ';
+            submit_button(__('Apply', 'onesmtp'), 'secondary', 'submit', false);
+            echo '</p>';
+        }
+
         echo '<table class="widefat striped">';
         echo '<thead><tr>';
+        if ($canBulkResend) {
+            echo '<th scope="col">' . esc_html__('Select', 'onesmtp') . '</th>';
+        }
         echo '<th scope="col">' . esc_html__('Message', 'onesmtp') . '</th>';
         echo '<th scope="col">' . esc_html__('Status', 'onesmtp') . '</th>';
         echo '<th scope="col">' . esc_html__('Provider', 'onesmtp') . '</th>';
@@ -169,6 +285,19 @@ final class LogAdmin
             );
 
             echo '<tr>';
+            if ($canBulkResend) {
+                echo '<td>';
+                if ((string) ($message['status'] ?? '') === 'failed') {
+                    echo '<input type="checkbox" name="' . esc_attr(self::BULK_MESSAGE_IDS_PARAM) . '[]" value="' . esc_attr((string) $messageId) . '" aria-label="' . esc_attr(sprintf(
+                        /* translators: %d: message log id. */
+                        __('Select failed log entry #%d for resend', 'onesmtp'),
+                        $messageId
+                    )) . '">';
+                } else {
+                    echo '<span aria-hidden="true">&mdash;</span><span class="screen-reader-text">' . esc_html__('Only failed messages can be selected for bulk resend.', 'onesmtp') . '</span>';
+                }
+                echo '</td>';
+            }
             echo '<th scope="row"><a href="' . esc_url($detailUrl) . '" aria-label="' . esc_attr(sprintf(
                 /* translators: %d: message log id. */
                 __('View log entry #%d details', 'onesmtp'),
@@ -187,6 +316,9 @@ final class LogAdmin
         }
 
         echo '</tbody></table>';
+        if ($canBulkResend) {
+            echo '</form>';
+        }
         $this->renderPagination($filters, $page, $perPage, $total);
     }
 
@@ -517,6 +649,7 @@ final class LogAdmin
 
         $this->renderAttachmentMetadata($payload);
         $this->renderResendForm($messageId, $payload, $eligibleProviders);
+        $this->renderForwardForm($message);
 
         echo '<h4>' . esc_html__('Attempt lineage', 'onesmtp') . '</h4>';
         if ($attempts === []) {
@@ -598,6 +731,46 @@ final class LogAdmin
 
         echo '</select></p>';
         submit_button(__('Resend message', 'onesmtp'), 'secondary', 'submit', false);
+        echo '</form>';
+    }
+
+    /**
+     * @param array<string,mixed> $message
+     */
+    private function renderForwardForm(array $message): void
+    {
+        $messageId = (int) ($message['id'] ?? 0);
+        if ($messageId <= 0) {
+            return;
+        }
+
+        echo '<h4>' . esc_html__('Forward safe summary', 'onesmtp') . '</h4>';
+
+        if (! Capabilities::canResendEmails()) {
+            echo '<p>' . esc_html__('You do not have permission to forward this log summary.', 'onesmtp') . '</p>';
+
+            return;
+        }
+
+        $to = $this->safeForwardAddress();
+        if ($to === '') {
+            echo '<div class="notice notice-warning inline"><p>' . esc_html__('A valid WordPress admin email is required before OneSMTP can forward log summaries.', 'onesmtp') . '</p></div>';
+
+            return;
+        }
+
+        echo '<p>' . esc_html(
+            sprintf(
+                /* translators: %s: safe destination email address. */
+                __('Send a redacted delivery summary to the verified site admin address: %s.', 'onesmtp'),
+                $to
+            )
+        ) . '</p>';
+        echo '<form method="post" class="onesmtp-forward-summary-form">';
+        wp_nonce_field(self::ACTION_NAME, self::NONCE_NAME);
+        echo '<input type="hidden" name="' . esc_attr(self::ACTION_NAME) . '" value="' . esc_attr(self::FORWARD_ACTION) . '">';
+        echo '<input type="hidden" name="' . esc_attr(self::DETAIL_PARAM) . '" value="' . esc_attr((string) $messageId) . '">';
+        submit_button(__('Forward safe summary', 'onesmtp'), 'secondary', 'submit', false);
         echo '</form>';
     }
 
@@ -831,6 +1004,76 @@ final class LogAdmin
         return array_values(array_unique($recipients));
     }
 
+    /**
+     * @return array<int,int>
+     */
+    private function postedMessageIds(): array
+    {
+        $raw = $_POST[self::BULK_MESSAGE_IDS_PARAM] ?? [];
+        if (! is_array($raw)) {
+            $raw = [$raw];
+        }
+
+        $messageIds = [];
+        foreach ($raw as $value) {
+            if (! is_scalar($value)) {
+                continue;
+            }
+
+            $messageId = absint(wp_unslash((string) $value));
+            if ($messageId > 0) {
+                $messageIds[$messageId] = $messageId;
+            }
+        }
+
+        return array_slice(array_values($messageIds), 0, self::MAX_BULK_MESSAGES);
+    }
+
+    private function safeForwardAddress(): string
+    {
+        $email = sanitize_email((string) get_option('admin_email'));
+        if ($email === '') {
+            return '';
+        }
+
+        if (function_exists('is_email') && ! is_email($email)) {
+            return '';
+        }
+
+        return $email;
+    }
+
+    /**
+     * @param array<string,mixed> $message
+     */
+    private function safeForwardBody(array $message): string
+    {
+        $messageId = (int) ($message['id'] ?? 0);
+        $payload = $this->payloadFor($message);
+        $attempts = $messageId > 0 ? $this->attempts->listByMessageId($messageId) : [];
+        $lastAttempt = $attempts !== [] ? $attempts[count($attempts) - 1] : [];
+        $lines = [
+            'OneSMTP safe log summary',
+            '',
+            'Message ID: #' . (string) $messageId,
+            'Lineage UUID: ' . $this->shortCode((string) ($message['message_uuid'] ?? '')),
+            'Status: ' . $this->formatStatus((string) ($message['status'] ?? '')),
+            'Provider: ' . $this->formatProvider((int) ($message['selected_provider_id'] ?? 0)),
+            'Source: ' . $this->formatSourceAttribution($payload),
+            'Recipients: ' . $this->formatRecipientSummary($payload),
+            'Attachments: ' . $this->formatAttachmentSummary($payload),
+            'Attempts: ' . (string) count($attempts) . ' / ' . (string) ((int) ($message['max_attempts'] ?? 0)),
+            'Next retry: ' . (string) ($message['next_retry_at'] ?? __('None scheduled', 'onesmtp')),
+            'Created: ' . (string) ($message['created_at'] ?? ''),
+            'Updated: ' . (string) ($message['updated_at'] ?? ''),
+            'Latest safe error context: ' . ($lastAttempt !== [] ? $this->formatError($lastAttempt) : __('None', 'onesmtp')),
+            '',
+            'Privacy boundary: this summary excludes message subject, body, raw recipients, raw headers, provider secrets, and attachment paths or contents.',
+        ];
+
+        return implode("\n", array_map(fn (string $line): string => $this->redactor->redactText($line, 400), $lines));
+    }
+
     private function formatProvider(int $providerId): string
     {
         if ($providerId <= 0) {
@@ -914,7 +1157,14 @@ final class LogAdmin
         return trim($name . ($type !== '' ? ' (' . $type . ')' : ''));
     }
 
-    private function renderNotice(int $messageId): void
+    private function renderActionNotices(): void
+    {
+        $this->renderResendNotice();
+        $this->renderBulkNotice();
+        $this->renderForwardNotice();
+    }
+
+    private function renderResendNotice(): void
     {
         $status = isset($_GET['onesmtp_resend_status']) ? sanitize_key(wp_unslash((string) $_GET['onesmtp_resend_status'])) : '';
         if ($status === '') {
@@ -928,10 +1178,57 @@ final class LogAdmin
             'ineligible_provider' => __('The selected provider is not eligible for manual resend.', 'onesmtp'),
         ];
 
-        $message = $messages[$status] ?? __('Manual resend action could not be completed.', 'onesmtp');
-        $class = $status === 'resent' ? 'notice-success' : 'notice-error';
+        $this->renderActionNotice($messages[$status] ?? __('Manual resend action could not be completed.', 'onesmtp'), $status === 'resent');
+    }
 
-        echo '<div class="notice ' . esc_attr($class) . '"><p>' . esc_html($message) . '</p></div>';
+    private function renderBulkNotice(): void
+    {
+        $status = isset($_GET['onesmtp_bulk_resend_status']) ? sanitize_key(wp_unslash((string) $_GET['onesmtp_bulk_resend_status'])) : '';
+        if ($status === '') {
+            return;
+        }
+
+        $resent = isset($_GET['onesmtp_bulk_resent']) ? absint(wp_unslash((string) $_GET['onesmtp_bulk_resent'])) : 0;
+        $failed = isset($_GET['onesmtp_bulk_failed']) ? absint(wp_unslash((string) $_GET['onesmtp_bulk_failed'])) : 0;
+        $messages = [
+            'empty' => __('Select at least one failed message before applying bulk resend.', 'onesmtp'),
+            'resent' => sprintf(
+                /* translators: %d: resent message count. */
+                $resent === 1 ? __('Bulk resend completed for %d failed message.', 'onesmtp') : __('Bulk resend completed for %d failed messages.', 'onesmtp'),
+                $resent
+            ),
+            'partial' => sprintf(
+                /* translators: 1: resent message count, 2: failed or skipped message count. */
+                __('Bulk resend completed for %1$d messages; %2$d selected messages failed or were skipped.', 'onesmtp'),
+                $resent,
+                $failed
+            ),
+            'failed' => __('Bulk resend did not complete for the selected messages. Only failed logs with stored safe payloads can be resent.', 'onesmtp'),
+        ];
+
+        $this->renderActionNotice($messages[$status] ?? __('Bulk resend action could not be completed.', 'onesmtp'), $status === 'resent');
+    }
+
+    private function renderForwardNotice(): void
+    {
+        $status = isset($_GET['onesmtp_forward_status']) ? sanitize_key(wp_unslash((string) $_GET['onesmtp_forward_status'])) : '';
+        if ($status === '') {
+            return;
+        }
+
+        $messages = [
+            'forwarded' => __('Safe log summary forwarded to the verified site admin address.', 'onesmtp'),
+            'failed' => __('Safe log summary could not be forwarded.', 'onesmtp'),
+            'missing' => __('The requested message could not be found for forwarding.', 'onesmtp'),
+            'unsafe_recipient' => __('A valid WordPress admin email is required before forwarding log summaries.', 'onesmtp'),
+        ];
+
+        $this->renderActionNotice($messages[$status] ?? __('Forward action could not be completed.', 'onesmtp'), $status === 'forwarded');
+    }
+
+    private function renderActionNotice(string $message, bool $success): void
+    {
+        echo '<div class="notice ' . esc_attr($success ? 'notice-success' : 'notice-error') . '"><p>' . esc_html($message) . '</p></div>';
     }
 
     private function redirect(string $status, int $messageId): void
@@ -940,6 +1237,43 @@ final class LogAdmin
             [
                 self::DETAIL_PARAM => $messageId,
                 'onesmtp_resend_status' => $status,
+            ],
+            admin_url('admin.php?page=onesmtp#onesmtp-logs')
+        );
+
+        wp_safe_redirect($url);
+        if ($this->isTestingRuntime()) {
+            throw new \RuntimeException('OneSMTP log admin redirected.');
+        }
+
+        exit;
+    }
+
+    private function redirectBulk(string $status, int $resent, int $failed): void
+    {
+        $url = add_query_arg(
+            [
+                'onesmtp_bulk_resend_status' => $status,
+                'onesmtp_bulk_resent' => max(0, $resent),
+                'onesmtp_bulk_failed' => max(0, $failed),
+            ],
+            admin_url('admin.php?page=onesmtp#onesmtp-logs')
+        );
+
+        wp_safe_redirect($url);
+        if ($this->isTestingRuntime()) {
+            throw new \RuntimeException('OneSMTP log admin redirected.');
+        }
+
+        exit;
+    }
+
+    private function redirectForward(string $status, int $messageId): void
+    {
+        $url = add_query_arg(
+            [
+                self::DETAIL_PARAM => $messageId,
+                'onesmtp_forward_status' => $status,
             ],
             admin_url('admin.php?page=onesmtp#onesmtp-logs')
         );
