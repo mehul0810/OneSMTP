@@ -336,7 +336,7 @@ if (! function_exists('add_submenu_page')) {
         string $menuSlug,
         ?callable $callback = null,
         int|float|null $position = null
-    ): string|false {
+    ): string {
         if (! isset($GLOBALS['onesmtp_test_admin_submenu_pages'])) {
             $GLOBALS['onesmtp_test_admin_submenu_pages'] = [];
         }
@@ -637,7 +637,7 @@ if (! function_exists('wp_nonce_field')) {
 }
 
 if (! function_exists('check_admin_referer')) {
-    function check_admin_referer(string $action = '-1', string $queryArg = '_wpnonce'): int|false
+    function check_admin_referer(string $action = '-1', string $queryArg = '_wpnonce'): int
     {
         if (($GLOBALS['onesmtp_test_nonce_valid'] ?? true) === false) {
             wp_die('Invalid nonce.');
