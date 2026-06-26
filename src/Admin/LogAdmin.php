@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace OneSMTP\Admin;
 
 use OneSMTP\Core\Capabilities;
+use OneSMTP\Logging\AttachmentLogSanitizer;
 use OneSMTP\Repository\AttemptRepository;
 use OneSMTP\Repository\MessageRepository;
 use OneSMTP\Repository\ProviderRepository;
@@ -154,6 +155,7 @@ final class LogAdmin
         echo '<th scope="col">' . esc_html__('Provider', 'onesmtp') . '</th>';
         echo '<th scope="col">' . esc_html__('Source', 'onesmtp') . '</th>';
         echo '<th scope="col">' . esc_html__('Attempts', 'onesmtp') . '</th>';
+        echo '<th scope="col">' . esc_html__('Attachments', 'onesmtp') . '</th>';
         echo '<th scope="col">' . esc_html__('Recipients', 'onesmtp') . '</th>';
         echo '<th scope="col">' . esc_html__('Created', 'onesmtp') . '</th>';
         echo '<th scope="col">' . esc_html__('Updated', 'onesmtp') . '</th>';
@@ -177,6 +179,7 @@ final class LogAdmin
             echo '<td>' . esc_html($this->formatProvider((int) ($message['selected_provider_id'] ?? 0))) . '</td>';
             echo '<td>' . esc_html($this->formatSourceAttribution($payload)) . '</td>';
             echo '<td>' . esc_html((string) ((int) ($message['attempt_count'] ?? $message['current_attempt'] ?? 0))) . ' / ' . esc_html((string) ((int) ($message['max_attempts'] ?? 0))) . '</td>';
+            echo '<td>' . esc_html($this->formatAttachmentSummary($payload)) . '</td>';
             echo '<td>' . esc_html($this->formatRecipientSummary($payload)) . '</td>';
             echo '<td>' . esc_html((string) ($message['created_at'] ?? '')) . '</td>';
             echo '<td>' . esc_html((string) ($message['updated_at'] ?? '')) . '</td>';
@@ -430,11 +433,15 @@ final class LogAdmin
                 'provider',
                 'attempt_count',
                 'max_attempts',
+                'attachment_summary',
                 'recipient_summary',
                 'next_retry_at',
                 'created_at',
                 'updated_at',
-            ]
+            ],
+            ',',
+            '"',
+            '\\'
         );
 
         foreach ($messages as $message) {
@@ -447,11 +454,15 @@ final class LogAdmin
                     $this->csvCell($this->formatProvider((int) ($message['selected_provider_id'] ?? 0))),
                     (string) ((int) ($message['attempt_count'] ?? $message['current_attempt'] ?? 0)),
                     (string) ((int) ($message['max_attempts'] ?? 0)),
+                    $this->csvCell($this->formatAttachmentSummary($this->payloadFor($message))),
                     $this->csvCell($this->formatRecipientSummary($this->payloadFor($message))),
                     $this->csvCell((string) ($message['next_retry_at'] ?? '')),
                     $this->csvCell((string) ($message['created_at'] ?? '')),
                     $this->csvCell((string) ($message['updated_at'] ?? '')),
-                ]
+                ],
+                ',',
+                '"',
+                '\\'
             );
         }
 
@@ -497,12 +508,14 @@ final class LogAdmin
         $this->renderDetailRow(__('Selected provider', 'onesmtp'), $this->formatProvider((int) ($message['selected_provider_id'] ?? 0)));
         $this->renderDetailRow(__('Source', 'onesmtp'), $this->formatSourceAttribution($payload));
         $this->renderDetailRow(__('Attempts', 'onesmtp'), (string) count($attempts) . ' / ' . (string) ((int) ($message['max_attempts'] ?? 0)));
+        $this->renderDetailRow(__('Attachments', 'onesmtp'), $this->formatAttachmentSummary($payload));
         $this->renderDetailRow(__('Recipients', 'onesmtp'), $this->formatRecipientSummary($payload));
         $this->renderDetailRow(__('Next retry', 'onesmtp'), (string) ($message['next_retry_at'] ?? __('None scheduled', 'onesmtp')));
         $this->renderDetailRow(__('Created', 'onesmtp'), (string) ($message['created_at'] ?? ''));
         $this->renderDetailRow(__('Updated', 'onesmtp'), (string) ($message['updated_at'] ?? ''));
         echo '</tbody></table>';
 
+        $this->renderAttachmentMetadata($payload);
         $this->renderResendForm($messageId, $payload, $eligibleProviders);
 
         echo '<h4>' . esc_html__('Attempt lineage', 'onesmtp') . '</h4>';
@@ -593,6 +606,42 @@ final class LogAdmin
         echo '<tr><th scope="row">' . esc_html($label) . '</th><td>' . esc_html($value) . '</td></tr>';
     }
 
+    private function renderAttachmentMetadata(array $payload): void
+    {
+        $attachmentLog = $this->attachmentLogFor($payload);
+        if ($attachmentLog === null || (int) ($attachmentLog['count'] ?? 0) <= 0) {
+            return;
+        }
+
+        $items = isset($attachmentLog['items']) && is_array($attachmentLog['items']) ? $attachmentLog['items'] : [];
+        if ($items === []) {
+            return;
+        }
+
+        echo '<h4>' . esc_html__('Attachment metadata', 'onesmtp') . '</h4>';
+        echo '<p>' . esc_html__('OneSMTP stores metadata only. File contents and raw server paths are not stored or displayed.', 'onesmtp') . '</p>';
+        echo '<table class="widefat striped">';
+        echo '<thead><tr>';
+        echo '<th scope="col">' . esc_html__('Filename', 'onesmtp') . '</th>';
+        echo '<th scope="col">' . esc_html__('Extension', 'onesmtp') . '</th>';
+        echo '<th scope="col">' . esc_html__('Size', 'onesmtp') . '</th>';
+        echo '</tr></thead><tbody>';
+
+        foreach ($items as $item) {
+            if (! is_array($item)) {
+                continue;
+            }
+
+            echo '<tr>';
+            echo '<th scope="row">' . esc_html($this->safeAttachmentText((string) ($item['filename'] ?? __('Attachment', 'onesmtp')), 120)) . '</th>';
+            echo '<td>' . esc_html(sanitize_key((string) ($item['extension'] ?? ''))) . '</td>';
+            echo '<td>' . esc_html($this->formatAttachmentSize($item['size_bytes'] ?? null)) . '</td>';
+            echo '</tr>';
+        }
+
+        echo '</tbody></table>';
+    }
+
     private function payloadFor(array $message): array
     {
         $payload = isset($message['payload_json']) ? json_decode((string) $message['payload_json'], true) : [];
@@ -626,6 +675,78 @@ final class LogAdmin
             count($recipients),
             $visibleDomains !== [] ? implode(', ', $visibleDomains) . $suffix : __('unknown domains', 'onesmtp')
         );
+    }
+
+    private function formatAttachmentSummary(array $payload): string
+    {
+        $attachmentLog = $this->attachmentLogFor($payload);
+        if ($attachmentLog === null) {
+            return __('Not logged', 'onesmtp');
+        }
+
+        $count = max(0, (int) ($attachmentLog['count'] ?? 0));
+        if ($count === 0) {
+            return __('0 attachments', 'onesmtp');
+        }
+
+        $items = isset($attachmentLog['items']) && is_array($attachmentLog['items']) ? $attachmentLog['items'] : [];
+        $names = [];
+        foreach (array_slice($items, 0, 3) as $item) {
+            if (! is_array($item)) {
+                continue;
+            }
+
+            $name = $this->safeAttachmentText((string) ($item['filename'] ?? ''), 60);
+            if ($name !== '') {
+                $names[] = $name;
+            }
+        }
+
+        $suffix = ! empty($attachmentLog['truncated']) || $count > count($names) ? ', +' . (string) max(0, $count - count($names)) . ' more' : '';
+        $label = sprintf(
+            /* translators: %d: attachment count. */
+            $count === 1 ? __('%d attachment', 'onesmtp') : __('%d attachments', 'onesmtp'),
+            $count
+        );
+
+        return $names !== [] ? $label . ': ' . implode(', ', $names) . $suffix : $label;
+    }
+
+    private function attachmentLogFor(array $payload): ?array
+    {
+        $attachmentLog = $payload[AttachmentLogSanitizer::PAYLOAD_KEY] ?? null;
+
+        return is_array($attachmentLog) && ! empty($attachmentLog['enabled']) ? $attachmentLog : null;
+    }
+
+    private function formatAttachmentSize(mixed $size): string
+    {
+        if (! is_numeric($size) || (int) $size < 0) {
+            return __('Unknown', 'onesmtp');
+        }
+
+        $bytes = (int) $size;
+        if ($bytes < 1024) {
+            return sprintf(
+                /* translators: %d: file size in bytes. */
+                __('%d bytes', 'onesmtp'),
+                $bytes
+            );
+        }
+
+        return sprintf(
+            /* translators: %.1f: file size in kilobytes. */
+            __('%.1f KB', 'onesmtp'),
+            $bytes / 1024
+        );
+    }
+
+    private function safeAttachmentText(string $value, int $limit): string
+    {
+        $value = trim(preg_replace('/\s+/', ' ', sanitize_text_field($value)) ?? '');
+        $value = str_replace(['/', '\\'], '', $value);
+
+        return $this->shortText($value, $limit);
     }
 
     private function formatSourceAttribution(array $payload): string

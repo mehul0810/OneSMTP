@@ -5,9 +5,17 @@ declare(strict_types=1);
 namespace OneSMTP\Repository;
 
 use OneSMTP\Core\TableNames;
+use OneSMTP\Logging\AttachmentLogSanitizer;
 
 final class MessageRepository
 {
+    private AttachmentLogSanitizer $attachmentLogSanitizer;
+
+    public function __construct(?AttachmentLogSanitizer $attachmentLogSanitizer = null)
+    {
+        $this->attachmentLogSanitizer = $attachmentLogSanitizer ?? new AttachmentLogSanitizer();
+    }
+
     public function create(array $mailArgs, int $maxAttempts = 6, ?string $messageUuid = null): int
     {
         global $wpdb;
@@ -23,7 +31,7 @@ final class MessageRepository
                 'subject'               => isset($mailArgs['subject']) ? (string) $mailArgs['subject'] : null,
                 'recipients_hash'       => hash('sha256', wp_json_encode($mailArgs['to'] ?? [])),
                 'body_hash'             => hash('sha256', (string) ($mailArgs['message'] ?? '')),
-                'payload_json'          => wp_json_encode($mailArgs),
+                'payload_json'          => wp_json_encode($this->attachmentLogSanitizer->sanitizePayload($mailArgs)),
                 'status'                => 'queued',
                 'selected_provider_id'  => null,
                 'current_attempt'       => 0,
@@ -97,7 +105,7 @@ final class MessageRepository
         $wpdb->update(
             TableNames::messages(),
             [
-                'payload_json' => wp_json_encode($payload),
+                'payload_json' => wp_json_encode($this->attachmentLogSanitizer->sanitizePayload($payload)),
                 'updated_at'   => current_time('mysql', true),
             ],
             ['id' => $messageId],

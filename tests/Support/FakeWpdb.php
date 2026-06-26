@@ -15,6 +15,12 @@ final class FakeWpdb
     /** @var array<int,array<string,mixed>> */
     public array $updates = [];
 
+    /** @var array<int,string> */
+    public array $queries = [];
+
+    /** @var array<int,int|false> */
+    public array $queryResults = [];
+
     /** @var array<int,array<string,mixed>> */
     public array $messageRowsById = [];
 
@@ -108,6 +114,13 @@ final class FakeWpdb
         ];
 
         return 1;
+    }
+
+    public function query(string $sql): int|false
+    {
+        $this->queries[] = $sql;
+
+        return $this->queryResults !== [] ? array_shift($this->queryResults) : 0;
     }
 
     public function prepare(string $query, mixed ...$args): string

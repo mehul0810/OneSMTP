@@ -44,6 +44,9 @@ final class SettingsAdminTest extends TestCase
             'background_sending' => [
                 'enabled' => true,
             ],
+            'attachment_logging' => [
+                'enabled' => true,
+            ],
             'failure_alerts' => [
                 'email_enabled' => true,
                 'email_recipients' => ['ops@example.test'],
@@ -72,6 +75,9 @@ final class SettingsAdminTest extends TestCase
         self::assertStringContainsString('Background sending', $output);
         self::assertStringContainsString('name="background_sending_enabled"', $output);
         self::assertStringContainsString('checked="checked"', $output);
+        self::assertStringContainsString('Attachment logging', $output);
+        self::assertStringContainsString('name="attachment_logging_enabled"', $output);
+        self::assertStringContainsString('metadata only', $output);
         self::assertStringContainsString('Failure alerts', $output);
         self::assertStringContainsString('ops@example.test', $output);
         self::assertStringContainsString('https://hooks.example.test/long-path-', $output);
@@ -179,6 +185,49 @@ final class SettingsAdminTest extends TestCase
 
         $settings = get_option('onesmtp_settings', []);
         self::assertFalse($settings['background_sending']['enabled']);
+    }
+
+    public function test_handle_request_saves_attachment_logging_mode(): void
+    {
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = [
+            'onesmtp_settings_action' => 'save_attachment_logging',
+            'onesmtp_settings_nonce' => 'test-nonce',
+            'attachment_logging_enabled' => '1',
+        ];
+
+        try {
+            (new SettingsAdmin())->handleRequest();
+        } catch (RuntimeException $e) {
+            self::assertSame('OneSMTP settings admin redirected.', $e->getMessage());
+        }
+
+        $settings = get_option('onesmtp_settings', []);
+        self::assertTrue($settings['attachment_logging']['enabled']);
+        self::assertStringContainsString('onesmtp_settings_status=attachment_logging_saved', (string) $GLOBALS['onesmtp_test_redirect']['location']);
+    }
+
+    public function test_handle_request_disables_attachment_logging_when_unchecked(): void
+    {
+        update_option('onesmtp_settings', [
+            'attachment_logging' => [
+                'enabled' => true,
+            ],
+        ], false);
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = [
+            'onesmtp_settings_action' => 'save_attachment_logging',
+            'onesmtp_settings_nonce' => 'test-nonce',
+        ];
+
+        try {
+            (new SettingsAdmin())->handleRequest();
+        } catch (RuntimeException $e) {
+            self::assertSame('OneSMTP settings admin redirected.', $e->getMessage());
+        }
+
+        $settings = get_option('onesmtp_settings', []);
+        self::assertFalse($settings['attachment_logging']['enabled']);
     }
 
     public function test_render_shows_disabled_failure_alert_state_for_empty_configuration(): void
@@ -370,6 +419,10 @@ final class SettingsAdminTest extends TestCase
                 'email_recipients' => ['ops@example.test'],
                 'webhook_url' => 'https://hooks.example.test/secret',
             ],
+            'attachment_logging' => [
+                'enabled' => true,
+                'raw_path' => '/private/tmp/secret.pdf',
+            ],
         ], false);
         $GLOBALS['wpdb']->activeProviders = [
             [
@@ -404,7 +457,10 @@ final class SettingsAdminTest extends TestCase
 
         self::assertStringContainsString('"plugin": "onesmtp"', $json);
         self::assertStringContainsString('"from_email": "sender@example.test"', $json);
+        self::assertStringContainsString('"attachment_logging": {', $json);
+        self::assertStringContainsString('"enabled": true', $json);
         self::assertStringContainsString('"host": "smtp.example.test"', $json);
+        self::assertStringNotContainsString('/private/tmp/secret.pdf', $json);
         self::assertStringNotContainsString('reply@example.test', $json);
         self::assertStringNotContainsString('audit@example.test', $json);
         self::assertStringNotContainsString('ops@example.test', $json);
