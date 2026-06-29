@@ -18,6 +18,7 @@ This project aims for low operational overhead with strong reliability and clear
 ## Pull Request Checklist
 
 - [ ] Code follows `CODE_STANDARDS.md`
+- [ ] Changed PHP files pass `composer lint`
 - [ ] Tests added or existing tests updated
 - [ ] Docs updated (or marked "No Docs Impact")
 - [ ] Design contract checked for admin UI, docs, or launch-asset changes

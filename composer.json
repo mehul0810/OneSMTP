@@ -25,7 +25,9 @@
     }
   },
   "scripts": {
-    "lint": "phpcs --standard=phpcs.xml.dist",
+    "lint": "scripts/ci/phpcs-changed-files.sh",
+    "lint:changed": "scripts/ci/phpcs-changed-files.sh",
+    "lint:full": "phpcs --standard=phpcs.xml.dist",
     "lint:fix": "phpcbf --standard=phpcs.xml.dist",
     "test": "phpunit --configuration phpunit.xml.dist",
     "analyze": "phpstan analyse --configuration=phpstan.neon --no-progress",
