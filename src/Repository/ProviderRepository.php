@@ -7,17 +7,20 @@ namespace OneSMTP\Repository;
 use OneSMTP\Core\TableNames;
 use OneSMTP\Providers\ProviderStateCache;
 use OneSMTP\Providers\ProviderTypes;
+use OneSMTP\Security\Redactor;
 use OneSMTP\Security\SecretVault;
 
 final class ProviderRepository
 {
     private SecretVault $vault;
     private ProviderStateCache $cache;
+    private Redactor $redactor;
 
-    public function __construct(?SecretVault $vault = null, ?ProviderStateCache $cache = null)
+    public function __construct(?SecretVault $vault = null, ?ProviderStateCache $cache = null, ?Redactor $redactor = null)
     {
         $this->vault = $vault ?? new SecretVault();
         $this->cache = $cache ?? new ProviderStateCache();
+        $this->redactor = $redactor ?? new Redactor();
     }
 
     public function getActiveProviders(): array
@@ -48,6 +51,11 @@ final class ProviderRepository
         return is_array($rows) ? array_map([$this, 'mapProviderRow'], $rows) : [];
     }
 
+    public function getAllSafe(): array
+    {
+        return array_map([$this, 'safeProvider'], $this->getAll());
+    }
+
     public function find(int $providerId): ?array
     {
         global $wpdb;
@@ -56,6 +64,35 @@ final class ProviderRepository
         $row = $wpdb->get_row($sql, ARRAY_A);
 
         return is_array($row) ? $this->mapProviderRow($row) : null;
+    }
+
+    public function findSafe(int $providerId): ?array
+    {
+        $provider = $this->find($providerId);
+
+        return is_array($provider) ? $this->safeProvider($provider) : null;
+    }
+
+    public function hasCredentialRecoveryRequired(int $providerId): bool
+    {
+        if ($providerId <= 0) {
+            return false;
+        }
+
+        $config = $this->getRawConfig($providerId);
+        foreach ($config as $key => $value) {
+            if (! is_string($value) || ! $this->isSensitiveKey((string) $key) || ! $this->vault->isEncrypted($value)) {
+                continue;
+            }
+
+            try {
+                $this->vault->decrypt($value);
+            } catch (\RuntimeException $e) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public function save(array $provider): int
@@ -67,7 +104,12 @@ final class ProviderRepository
             return 0;
         }
 
+        $id = isset($provider['id']) ? (int) $provider['id'] : 0;
         $config = isset($provider['config']) && is_array($provider['config']) ? $provider['config'] : [];
+        if ($id > 0) {
+            $config = $this->preserveStoredSensitiveConfig($id, $config);
+        }
+
         $config = $this->encryptSecrets($config);
 
         $payload = [
@@ -77,13 +119,15 @@ final class ProviderRepository
             'priority'      => max(1, (int) ($provider['priority'] ?? 100)),
             'weight'        => max(1, (int) ($provider['weight'] ?? 1)),
             'is_active'     => ! empty($provider['is_active']) ? 1 : 0,
-            'circuit_state' => sanitize_key((string) ($provider['circuit_state'] ?? 'closed')),
-            'circuit_until' => isset($provider['circuit_until']) ? (string) $provider['circuit_until'] : null,
+            'circuit_state' => $this->normalizeCircuitState((string) ($provider['circuit_state'] ?? 'closed')),
+            'circuit_until' => $this->normalizeCircuitUntil(
+                isset($provider['circuit_until']) ? (string) $provider['circuit_until'] : null,
+                (string) ($provider['circuit_state'] ?? 'closed')
+            ),
             'config_json'   => wp_json_encode($config),
             'updated_at'    => current_time('mysql', true),
         ];
 
-        $id = isset($provider['id']) ? (int) $provider['id'] : 0;
         if ($id > 0) {
             $wpdb->update(
                 TableNames::providers(),
@@ -133,11 +177,13 @@ final class ProviderRepository
     {
         global $wpdb;
 
+        $state = $this->normalizeCircuitState($state);
+
         $wpdb->update(
             TableNames::providers(),
             [
-                'circuit_state' => sanitize_key($state),
-                'circuit_until' => $until,
+                'circuit_state' => $state,
+                'circuit_until' => $this->normalizeCircuitUntil($until, $state),
                 'updated_at'    => current_time('mysql', true),
             ],
             ['id' => $providerId],
@@ -154,9 +200,49 @@ final class ProviderRepository
         $row['priority'] = (int) ($row['priority'] ?? 100);
         $row['weight'] = (int) ($row['weight'] ?? 1);
         $row['is_active'] = (int) ($row['is_active'] ?? 0);
+        $row['circuit_state'] = $this->normalizeCircuitState((string) ($row['circuit_state'] ?? 'closed'));
+        $row['circuit_until'] = $this->normalizeCircuitUntil(
+            isset($row['circuit_until']) ? (string) $row['circuit_until'] : null,
+            (string) $row['circuit_state']
+        );
         $row['config'] = $this->decodeConfig(isset($row['config_json']) ? (string) $row['config_json'] : '');
 
         return $row;
+    }
+
+    private function normalizeCircuitState(string $state): string
+    {
+        return sanitize_key($state) === 'open' ? 'open' : 'closed';
+    }
+
+    private function normalizeCircuitUntil(?string $until, string $state): ?string
+    {
+        if ($this->normalizeCircuitState($state) !== 'open' || $until === null) {
+            return null;
+        }
+
+        $until = sanitize_text_field($until);
+        if ($until === '') {
+            return null;
+        }
+
+        $timestamp = strtotime($until);
+        if ($timestamp === false) {
+            return null;
+        }
+
+        return gmdate('Y-m-d H:i:s', $timestamp);
+    }
+
+    private function safeProvider(array $provider): array
+    {
+        unset($provider['config_json']);
+
+        $provider['config'] = $this->redactor->redactArray(
+            isset($provider['config']) && is_array($provider['config']) ? $provider['config'] : []
+        );
+
+        return $provider;
     }
 
     private function decodeConfig(string $json): array
@@ -180,7 +266,7 @@ final class ProviderRepository
                 continue;
             }
 
-            if (! preg_match('/pass|secret|token|api(?:_|-)?key/i', (string) $key)) {
+            if (! $this->isSensitiveKey((string) $key)) {
                 continue;
             }
 
@@ -204,10 +290,47 @@ final class ProviderRepository
             try {
                 $config[$key] = $this->vault->decrypt($value);
             } catch (\RuntimeException $e) {
-                $config[$key] = '';
+                unset($config[$key]);
             }
         }
 
         return $config;
+    }
+
+    private function preserveStoredSensitiveConfig(int $providerId, array $config): array
+    {
+        $storedConfig = $this->getRawConfig($providerId);
+        foreach ($storedConfig as $key => $value) {
+            if (array_key_exists($key, $config) || ! is_string($value) || ! $this->isSensitiveKey((string) $key)) {
+                continue;
+            }
+
+            $config[$key] = $value;
+        }
+
+        return $config;
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function getRawConfig(int $providerId): array
+    {
+        global $wpdb;
+
+        $sql = $wpdb->prepare('SELECT * FROM ' . TableNames::providers() . ' WHERE id = %d', $providerId);
+        $row = $wpdb->get_row($sql, ARRAY_A);
+        if (! is_array($row)) {
+            return [];
+        }
+
+        $decoded = json_decode(isset($row['config_json']) ? (string) $row['config_json'] : '', true);
+
+        return is_array($decoded) ? $decoded : [];
+    }
+
+    private function isSensitiveKey(string $key): bool
+    {
+        return (bool) preg_match('/pass|secret|token|api(?:_|-)?key/i', $key);
     }
 }

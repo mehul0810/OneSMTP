@@ -18,9 +18,12 @@ final class ProviderAdapterRegistry
      */
     private array $adapters;
 
-    public function __construct()
+    /**
+     * @param array<string,ProviderAdapterInterface>|null $adapters
+     */
+    public function __construct(?array $adapters = null)
     {
-        $this->adapters = [
+        $this->adapters = $adapters ?? [
             ProviderTypes::SMTP     => new SmtpAdapter(),
             ProviderTypes::PHP_MAIL => new PhpMailAdapter(),
             ProviderTypes::GMAIL    => new GmailAdapter(),

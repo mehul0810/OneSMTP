@@ -7,10 +7,13 @@ namespace OneSMTP\Pipeline;
 use OneSMTP\Delivery\DeliveryEngine;
 use OneSMTP\Delivery\DeliveryOutcome;
 use OneSMTP\Queue\RetryScheduler;
+use OneSMTP\RateLimit\RateLimitDecision;
+use OneSMTP\RateLimit\RateLimiter;
 use OneSMTP\Repository\AttemptRepository;
 use OneSMTP\Repository\EventRepository;
 use OneSMTP\Repository\MessageRepository;
 use OneSMTP\Repository\ProviderRepository;
+use OneSMTP\Settings\BackgroundSendingSettingsRepository;
 
 final class SendPipeline
 {
@@ -23,6 +26,9 @@ final class SendPipeline
     private EventRepository $events;
     private RetryScheduler $retryScheduler;
     private DeliveryEngine $deliveryEngine;
+    private RateLimiter $rateLimiter;
+    private BackgroundSendingSettingsRepository $backgroundSending;
+    private MailSourceAttributor $sourceAttributor;
 
     /**
      * @var array<string,int>
@@ -35,7 +41,10 @@ final class SendPipeline
         ProviderRepository $providers,
         EventRepository $events,
         RetryScheduler $retryScheduler,
-        DeliveryEngine $deliveryEngine
+        DeliveryEngine $deliveryEngine,
+        ?RateLimiter $rateLimiter = null,
+        ?BackgroundSendingSettingsRepository $backgroundSending = null,
+        ?MailSourceAttributor $sourceAttributor = null
     ) {
         $this->messages = $messages;
         $this->attempts = $attempts;
@@ -43,6 +52,9 @@ final class SendPipeline
         $this->events = $events;
         $this->retryScheduler = $retryScheduler;
         $this->deliveryEngine = $deliveryEngine;
+        $this->rateLimiter = $rateLimiter ?? new RateLimiter($attempts);
+        $this->backgroundSending = $backgroundSending ?? new BackgroundSendingSettingsRepository();
+        $this->sourceAttributor = $sourceAttributor ?? new MailSourceAttributor();
     }
 
     public function registerHooks(): void
@@ -50,6 +62,7 @@ final class SendPipeline
         add_filter('pre_wp_mail', [$this, 'handlePreWpMail'], 10, 2);
         add_filter('wp_mail', [$this, 'captureMessage'], 1, 1);
         add_action('onesmtp_retry_attempt', [$this, 'handleRetryAttempt'], 10, 5);
+        add_action('onesmtp_background_send_attempt', [$this, 'handleBackgroundSendAttempt'], 10, 5);
         add_action('onesmtp_manual_resend', [$this, 'handleManualResend'], 10, 2);
     }
 
@@ -70,14 +83,51 @@ final class SendPipeline
         }
 
         $attemptNo = max(1, $this->attempts->getAttemptCountForMessage($messageId) + 1);
-        $outcome = $this->deliveryEngine->deliver($messageId, $attemptNo, $captured, null);
-        $this->persistOutcome($messageId, $attemptNo, 'initial', $captured, $outcome);
+        $messageUuid = $this->extractMessageUuidFromHeaders($captured['headers'] ?? []);
 
-        return $outcome->isSuccess();
+        if ($this->shouldQueueInitialSend($captured)) {
+            $runAt = $this->retryScheduler->scheduleBackgroundSend($messageId, $attemptNo, $messageUuid);
+
+            return is_int($runAt) && $runAt > 0;
+        }
+
+        return $this->sendWithRateLimit(
+            $messageId,
+            $attemptNo,
+            'initial',
+            $captured,
+            fn () => $this->deliveryEngine->deliver($messageId, $attemptNo, $captured, null)
+        );
+    }
+
+    public function handleBackgroundSendAttempt($messageId, int $attemptNo = 1, array $payload = [], ?string $messageUuid = null, ?int $providerId = null): void
+    {
+        $messageId = (int) $messageId;
+        if ($messageId <= 0 || $attemptNo <= 0) {
+            return;
+        }
+
+        $payload = $payload !== [] ? $payload : $this->messages->getPayloadForMessage($messageId);
+        if ($payload === []) {
+            $this->messages->markFailedTerminal($messageId, max(1, $attemptNo - 1));
+            $this->events->add('terminal_failure', ['reason' => 'background_payload_missing'], $messageId);
+            return;
+        }
+
+        $this->sendWithRateLimit(
+            $messageId,
+            $attemptNo,
+            'background',
+            $payload,
+            fn () => $this->deliveryEngine->deliver($messageId, $attemptNo, $payload, $providerId !== null ? (int) $providerId : null),
+            $messageUuid
+        );
     }
 
     public function captureMessage(array $args): array
     {
+        $args = $this->sourceAttributor->withSource($args);
+
         $messageUuid = $this->extractMessageUuidFromHeaders($args['headers'] ?? []);
         if ($messageUuid === '') {
             $messageUuid = (string) wp_generate_uuid4();
@@ -120,8 +170,14 @@ final class SendPipeline
             return;
         }
 
-        $outcome = $this->deliveryEngine->deliver($messageId, $attemptNo, $payload, $providerId !== null ? (int) $providerId : null);
-        $this->persistOutcome($messageId, $attemptNo, 'retry', $payload, $outcome, $messageUuid);
+        $this->sendWithRateLimit(
+            $messageId,
+            $attemptNo,
+            'retry',
+            $payload,
+            fn () => $this->deliveryEngine->deliver($messageId, $attemptNo, $payload, $providerId !== null ? (int) $providerId : null),
+            $messageUuid
+        );
     }
 
     public function handleManualResend(int $messageId, int $forcedProviderId = 0): void
@@ -137,10 +193,97 @@ final class SendPipeline
         }
 
         $attemptNo = max(1, $this->attempts->getAttemptCountForMessage($messageId) + 1);
-        $outcome = $this->deliveryEngine->deliver($messageId, $attemptNo, $payload, $forcedProviderId);
-        $this->persistOutcome($messageId, $attemptNo, 'manual_resend', $payload, $outcome);
+        return $this->sendWithRateLimit(
+            $messageId,
+            $attemptNo,
+            'manual_resend',
+            $payload,
+            fn () => $this->deliveryEngine->deliver($messageId, $attemptNo, $payload, $forcedProviderId)
+        );
+    }
 
-        return $outcome->isSuccess();
+    private function sendWithRateLimit(
+        int $messageId,
+        int $attemptNo,
+        string $triggerType,
+        array $payload,
+        callable $send,
+        ?string $messageUuid = null
+    ): bool {
+        if (! $this->rateLimiter->acquireSendLock()) {
+            return $this->deferForRateLimit(
+                $messageId,
+                $attemptNo,
+                $triggerType,
+                $payload,
+                RateLimitDecision::limited(5, 'backpressure_lock', 0, 0),
+                $messageUuid
+            );
+        }
+
+        try {
+            $decision = $this->rateLimiter->evaluate();
+            if (! $decision->canSend()) {
+                return $this->deferForRateLimit($messageId, $attemptNo, $triggerType, $payload, $decision, $messageUuid);
+            }
+
+            $outcome = $send();
+            if (! $outcome instanceof DeliveryOutcome) {
+                return false;
+            }
+
+            $this->persistOutcome($messageId, $attemptNo, $triggerType, $payload, $outcome, $messageUuid);
+
+            return $outcome->isSuccess();
+        } finally {
+            $this->rateLimiter->releaseSendLock();
+        }
+    }
+
+    private function deferForRateLimit(
+        int $messageId,
+        int $attemptNo,
+        string $triggerType,
+        array $payload,
+        RateLimitDecision $decision,
+        ?string $messageUuid = null
+    ): bool {
+        if ($messageUuid === null || $messageUuid === '') {
+            $messageUuid = $this->extractMessageUuidFromHeaders($payload['headers'] ?? []);
+        }
+
+        if ($messageUuid === '') {
+            $message = $this->messages->find($messageId);
+            $messageUuid = is_array($message) ? (string) ($message['message_uuid'] ?? '') : '';
+        }
+
+        $runAt = $this->retryScheduler->scheduleRetry($messageId, $attemptNo, $messageUuid, $decision->getRetryAfter());
+        if (! is_int($runAt) || $runAt <= 0) {
+            $this->messages->markFailedTerminal($messageId, max(1, $attemptNo - 1));
+            $this->events->add(
+                'terminal_failure',
+                ['attempt' => $attemptNo, 'reason' => 'rate_limit_scheduler_unavailable'],
+                $messageId
+            );
+
+            return false;
+        }
+
+        $this->events->add(
+            'rate_limit_deferred',
+            [
+                'attempt'     => $attemptNo,
+                'trigger'     => $triggerType,
+                'window'      => $decision->getWindow(),
+                'limit'       => $decision->getLimit(),
+                'used'        => $decision->getUsed(),
+                'retry_after' => $decision->getRetryAfter(),
+                'run_at'      => gmdate('c', $runAt),
+            ],
+            $messageId
+        );
+
+        return true;
     }
 
     private function persistOutcome(
@@ -159,6 +302,7 @@ final class SendPipeline
             'result' => $outcome->isSuccess() ? 'sent' : 'fail',
             'error_code' => $outcome->isSuccess() ? null : $outcome->getCode(),
             'error_message' => $outcome->isSuccess() ? null : $outcome->getMessage(),
+            'failure_category' => $outcome->isSuccess() ? null : $outcome->getFailureCategory(),
             'provider_message_id' => $outcome->getProviderMessageId(),
         ]);
 
@@ -170,7 +314,23 @@ final class SendPipeline
 
         if ($attemptNo >= self::MAX_RETRIES) {
             $this->messages->markFailedTerminal($messageId, $attemptNo);
-            $this->events->add('terminal_failure', ['attempt' => $attemptNo, 'reason' => $outcome->getCode()], $messageId, $outcome->getProviderId());
+            $this->events->add(
+                'terminal_failure',
+                ['attempt' => $attemptNo, 'reason' => $outcome->getCode(), 'failure_category' => $outcome->getFailureCategory()],
+                $messageId,
+                $outcome->getProviderId()
+            );
+            return;
+        }
+
+        if (! $outcome->shouldRetry()) {
+            $this->messages->markFailedTerminal($messageId, $attemptNo);
+            $this->events->add(
+                'terminal_failure',
+                ['attempt' => $attemptNo, 'reason' => $outcome->getCode(), 'failure_category' => $outcome->getFailureCategory()],
+                $messageId,
+                $outcome->getProviderId()
+            );
             return;
         }
 
@@ -182,7 +342,6 @@ final class SendPipeline
 
         $runAt = $this->retryScheduler->scheduleRetry($messageId, $nextAttempt, $messageUuid);
         if (is_int($runAt) && $runAt > 0) {
-            $this->messages->markRetryScheduled($messageId, $attemptNo, $runAt);
             return;
         }
 
@@ -203,6 +362,29 @@ final class SendPipeline
         $fingerprint = $this->buildFingerprint($mailData);
 
         return isset($this->inflight[$fingerprint]) ? (int) $this->inflight[$fingerprint] : 0;
+    }
+
+    private function shouldQueueInitialSend(array $payload): bool
+    {
+        if (! $this->backgroundSending->get()->isEnabled()) {
+            return false;
+        }
+
+        $meta = isset($payload['meta']) && is_array($payload['meta']) ? $payload['meta'] : [];
+        $source = isset($meta['source']) ? sanitize_key((string) $meta['source']) : '';
+
+        if ($source === 'rest_test_email') {
+            return false;
+        }
+
+        $mode = '';
+        if (isset($payload['onesmtp_send_mode'])) {
+            $mode = sanitize_key((string) $payload['onesmtp_send_mode']);
+        } elseif (isset($meta['onesmtp_send_mode'])) {
+            $mode = sanitize_key((string) $meta['onesmtp_send_mode']);
+        }
+
+        return $mode !== 'sync' && $mode !== 'synchronous';
     }
 
     private function buildFingerprint(array $mailData): string

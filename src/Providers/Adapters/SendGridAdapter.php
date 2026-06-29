@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OneSMTP\Providers\Adapters;
 
+use OneSMTP\Providers\FailureClassifier;
 use OneSMTP\Providers\ProviderAdapterInterface;
 use OneSMTP\Providers\ProviderConfig;
 use OneSMTP\Providers\SendResult;
@@ -29,6 +30,8 @@ final class SendGridAdapter extends AbstractAdapter implements ProviderAdapterIn
 
         $headers = $this->normalizeHeaders($message['headers'] ?? []);
         $from = $this->extractFrom($headers);
+        $replyTo = $this->extractFirstAddress($this->extractReplyTo($headers));
+        $bcc = $this->extractBcc($headers);
         $subject = $this->getSubject($message);
         $body = $this->getBody($message);
 
@@ -50,6 +53,14 @@ final class SendGridAdapter extends AbstractAdapter implements ProviderAdapterIn
                 ],
             ],
         ];
+
+        if ($replyTo !== '') {
+            $payload['reply_to'] = ['email' => $replyTo];
+        }
+
+        if ($bcc !== []) {
+            $payload['personalizations'][0]['bcc'] = array_map(static fn (string $email): array => ['email' => $email], $bcc);
+        }
 
         $response = wp_remote_post(
             'https://api.sendgrid.com/v3/mail/send',
@@ -81,7 +92,13 @@ final class SendGridAdapter extends AbstractAdapter implements ProviderAdapterIn
     private function mapHttpResult($response, string $provider): SendResult
     {
         if (is_wp_error($response)) {
-            return new SendResult(false, $provider . '_network_error', $response->get_error_message());
+            return new SendResult(
+                false,
+                $provider . '_network_error',
+                $response->get_error_message(),
+                null,
+                FailureClassifier::classify($response->get_error_code(), $response->get_error_message())
+            );
         }
 
         $status = (int) wp_remote_retrieve_response_code($response);
@@ -89,7 +106,14 @@ final class SendGridAdapter extends AbstractAdapter implements ProviderAdapterIn
             return new SendResult(true, 'accepted', 'Accepted by ' . $provider . ' API.');
         }
 
-        return new SendResult(false, $provider . '_api_error', (string) wp_remote_retrieve_body($response));
+        $body = (string) wp_remote_retrieve_body($response);
+
+        return new SendResult(
+            false,
+            $provider . '_api_error',
+            $body,
+            null,
+            FailureClassifier::classify($provider . '_api_error', $body, $status)
+        );
     }
 }
-

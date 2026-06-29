@@ -20,15 +20,18 @@ final class Redactor
         $result = [];
 
         foreach ($data as $key => $value) {
+            if ($this->isSensitiveKey((string) $key)) {
+                $result[$key] = self::MASK;
+                continue;
+            }
+
             if (is_array($value)) {
                 $result[$key] = $this->redactArray($value);
                 continue;
             }
 
             if (is_string($value)) {
-                $result[$key] = $this->isSensitiveKey((string) $key)
-                    ? self::MASK
-                    : $this->redactText($value);
+                $result[$key] = $this->redactText($value);
                 continue;
             }
 

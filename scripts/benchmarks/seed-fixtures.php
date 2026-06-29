@@ -7,9 +7,30 @@ $profile = $options['profile'] ?? 'smoke';
 $out = $options['out'] ?? __DIR__ . '/../../artifacts/perf/seed.json';
 
 $profiles = [
-    'smoke' => ['messages' => 1000, 'providers' => 5, 'transient_failure_rate' => 0.05, 'hard_failure_rate' => 0.00],
-    'mvp-baseline' => ['messages' => 10000, 'providers' => 5, 'transient_failure_rate' => 0.15, 'hard_failure_rate' => 0.02],
-    'stress-lite' => ['messages' => 25000, 'providers' => 5, 'transient_failure_rate' => 0.25, 'hard_failure_rate' => 0.05],
+    'smoke' => [
+        'messages' => 1000,
+        'providers' => 5,
+        'transient_failure_rate' => 0.05,
+        'hard_failure_rate' => 0.00,
+        'log_messages' => 20000,
+        'log_attempts' => 100000,
+    ],
+    'mvp-baseline' => [
+        'messages' => 10000,
+        'providers' => 5,
+        'transient_failure_rate' => 0.15,
+        'hard_failure_rate' => 0.02,
+        'log_messages' => 50000,
+        'log_attempts' => 250000,
+    ],
+    'stress-lite' => [
+        'messages' => 25000,
+        'providers' => 5,
+        'transient_failure_rate' => 0.25,
+        'hard_failure_rate' => 0.05,
+        'log_messages' => 100000,
+        'log_attempts' => 500000,
+    ],
 ];
 
 if (!isset($profiles[$profile])) {
@@ -21,7 +42,7 @@ $payload = [
     'profile' => $profile,
     'seeded_at' => gmdate('c'),
     'config' => $profiles[$profile],
-    'note' => 'Skeleton fixture output; real DB seeding is added in implementation phase.',
+    'note' => 'Synthetic fixture metadata only; benchmark stages generate deterministic fake rows without real recipients, bodies, headers, provider secrets, or production logs.',
 ];
 
 $dir = dirname($out);

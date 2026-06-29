@@ -41,9 +41,9 @@ final class SettingsRepository
         return is_array($value) ? $value : [];
     }
 
-    public function save(array $settings): bool
+    public function save(array $settings, string $nonceField = '_wpnonce', string $nonceAction = 'onesmtp_save_settings'): bool
     {
-        $this->adminGuard->assertManageRequest('onesmtp_save_settings', '_wpnonce');
+        $this->adminGuard->assertManageRequest($nonceAction, $nonceField);
 
         $protectedSettings = $this->encryptSensitiveSettings($settings);
         $safeForAudit      = $this->redactor->redactArray($protectedSettings);

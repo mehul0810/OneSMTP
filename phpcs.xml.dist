@@ -13,6 +13,7 @@
   <exclude-pattern>*/build/*</exclude-pattern>
   <exclude-pattern>*/dist/*</exclude-pattern>
   <exclude-pattern>*/coverage/*</exclude-pattern>
+  <exclude-pattern>*/tests/phpstan/*</exclude-pattern>
 
   <rule ref="WordPress-Core"/>
   <rule ref="WordPress-Extra"/>
