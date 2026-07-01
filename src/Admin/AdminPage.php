@@ -19,8 +19,9 @@ final class AdminPage
     private LogAdmin $logs;
     private SettingsAdmin $settings;
     private QueueDiagnosticsAdmin $diagnostics;
+    private AlertHistoryAdmin $alerts;
 
-    public function __construct(?ProviderAdmin $providers = null, ?SetupWizard $setupWizard = null, ?LogAdmin $logs = null, ?SettingsAdmin $settings = null, ?QueueDiagnosticsAdmin $diagnostics = null, ?DashboardAdmin $dashboard = null)
+    public function __construct(?ProviderAdmin $providers = null, ?SetupWizard $setupWizard = null, ?LogAdmin $logs = null, ?SettingsAdmin $settings = null, ?QueueDiagnosticsAdmin $diagnostics = null, ?DashboardAdmin $dashboard = null, ?AlertHistoryAdmin $alerts = null)
     {
         $this->dashboard = $dashboard ?? new DashboardAdmin();
         $this->providers = $providers ?? new ProviderAdmin(new ProviderRepository());
@@ -28,6 +29,7 @@ final class AdminPage
         $this->logs = $logs ?? new LogAdmin(new MessageRepository(), new AttemptRepository(), new ProviderRepository());
         $this->settings = $settings ?? new SettingsAdmin();
         $this->diagnostics = $diagnostics ?? new QueueDiagnosticsAdmin();
+        $this->alerts = $alerts ?? new AlertHistoryAdmin();
     }
 
     public function registerHooks(): void
@@ -38,6 +40,7 @@ final class AdminPage
         add_action('admin_init', [$this->logs, 'handleRequest']);
         add_action('admin_init', [$this->settings, 'handleRequest']);
         add_action('admin_init', [$this->diagnostics, 'handleRequest']);
+        add_action('admin_init', [$this->alerts, 'handleRequest']);
     }
 
     public function registerMenu(): void
@@ -97,6 +100,8 @@ final class AdminPage
                 $this->providers->render();
             } elseif ($section['id'] === 'onesmtp-logs') {
                 $this->logs->render();
+            } elseif ($section['id'] === 'onesmtp-alerts') {
+                $this->alerts->render();
             } elseif ($section['id'] === 'onesmtp-settings') {
                 $this->settings->render();
             } elseif ($section['id'] === 'onesmtp-diagnostics') {
@@ -149,6 +154,12 @@ final class AdminPage
                 'title' => esc_html__('Diagnostics', 'onesmtp'),
                 'description' => esc_html__('Review scheduler availability, queue status, overdue retries, and recovery actions.', 'onesmtp'),
                 'href' => $baseUrl . '#onesmtp-diagnostics',
+            ],
+            [
+                'id' => 'onesmtp-alerts',
+                'title' => esc_html__('Alerts', 'onesmtp'),
+                'description' => esc_html__('Review alert event history and acknowledgement status.', 'onesmtp'),
+                'href' => $baseUrl . '#onesmtp-alerts',
             ],
             [
                 'id' => 'onesmtp-settings',
