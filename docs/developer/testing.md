@@ -67,7 +67,7 @@ tests/
   - Retry scheduler coverage includes both available and unavailable Action Scheduler states.
   - Compatibility matrix coverage uses synthetic `example.test` fixtures only and does not require production recipients, message bodies, provider secrets, or raw external payloads.
   - Integration/E2E placeholders intentionally report `incomplete` until core behavior lands.
-  - Playwright renders a deterministic PHP-generated admin fixture in Chromium and checks the admin shell, primary navigation, setup/test email form state, provider form submission state, logs redaction, and queue diagnostics without real credentials or external sends.
+  - Playwright renders a deterministic PHP-generated admin fixture in Chromium and checks the admin shell, primary navigation, setup/test email form state, provider form submission state, logs redaction, queue diagnostics, alert history rendering, acknowledgement form state, and alert context redaction without real credentials, external sends, private recipients, raw message bodies, full headers, or provider payloads.
 
 ## Pending / Blocked
 

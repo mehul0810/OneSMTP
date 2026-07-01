@@ -114,6 +114,66 @@ $GLOBALS['wpdb']->attemptHistoryByMessage[21] = [
         'created_at' => '2026-06-26 10:01:00',
     ],
 ];
+$GLOBALS['wpdb']->eventRows = [
+    45 => [
+        'id' => 45,
+        'event_type' => 'terminal_failure',
+        'actor_id' => null,
+        'message_id' => 21,
+        'provider_id' => 7,
+        'context_json' => wp_json_encode([
+            'summary' => 'Terminal failure for message #21 after retry boundary.',
+            'reason' => 'max_retries_boundary',
+            'failure_category' => 'provider_timeout',
+            'attempt' => 6,
+            'recipient_count' => 1,
+            'recipient_domains' => ['example.test'],
+            'provider' => [
+                'id' => 7,
+                'name' => 'Browser Smoke SMTP',
+            ],
+            'payload_token' => 'token=fixture-alert-token-never-rendered',
+            'provider_secret' => 'fixture-provider-secret-never-rendered',
+        ]),
+        'created_at' => '2026-06-26 10:05:00',
+    ],
+    44 => [
+        'id' => 44,
+        'event_type' => 'terminal_failure',
+        'actor_id' => null,
+        'message_id' => 20,
+        'provider_id' => 7,
+        'context_json' => wp_json_encode([
+            'summary' => 'Terminal failure already acknowledged for message #20.',
+            'reason' => 'provider_pool_exhausted',
+            'failure_category' => 'configuration',
+            'attempt' => 3,
+            'recipient_count' => 2,
+            'recipient_domains' => ['example.test'],
+            'api_key' => 'fixture-api-key-never-rendered',
+        ]),
+        'created_at' => '2026-06-26 09:45:00',
+    ],
+];
+$GLOBALS['wpdb']->eventAcknowledgementRows = [
+    [
+        'id' => 50,
+        'actor_id' => 42,
+        'context_json' => wp_json_encode([
+            'alert_event_id' => 44,
+            'alert_event_type' => 'terminal_failure',
+            'alert_status' => 'acknowledged',
+            'summary' => 'Acknowledged alert event #44.',
+            'alert_context' => [
+                'reason' => 'provider_pool_exhausted',
+                'recipient_count' => 2,
+                'recipient_domains' => ['example.test'],
+            ],
+            'authorization' => 'Bearer fixture-authorization-never-rendered',
+        ]),
+        'created_at' => '2026-06-26 09:50:00',
+    ],
+];
 
 $_GET = [
     'page' => 'onesmtp',

@@ -36,7 +36,7 @@ test.describe('OneSMTP admin browser smoke', () => {
     await expect(page.getByRole('heading', { name: 'OneSMTP', exact: true })).toBeVisible();
     const primaryNav = page.locator('.nav-tab-wrapper');
 
-    for (const section of ['Dashboard', 'Setup', 'Providers', 'Logs', 'Diagnostics', 'Settings']) {
+    for (const section of ['Dashboard', 'Setup', 'Providers', 'Logs', 'Diagnostics', 'Alerts', 'Settings']) {
       await expect(primaryNav.getByRole('link', { name: section, exact: true })).toHaveAttribute('href', new RegExp(`#onesmtp-${section.toLowerCase()}`));
       await expect(page.getByRole('heading', { name: section, exact: true })).toBeVisible();
     }
@@ -112,6 +112,43 @@ test.describe('OneSMTP admin browser smoke', () => {
     await expect(page.locator('#onesmtp-diagnostic-preview')).not.toContainText('customer body');
     await expect(page.locator('#onesmtp-diagnostic-preview')).not.toContainText('secret-token');
     await expect(page.locator('#onesmtp-diagnostic-preview')).not.toContainText('smtp.local.test');
+  });
+
+  test('renders alert event history with acknowledgement state and redacted context', async ({ page }) => {
+    await captureFormSubmissions(page);
+
+    const alerts = page.locator('#onesmtp-alerts');
+    await expect(alerts).toContainText('Review privacy-safe alert events');
+    await expect(alerts).toContainText('Terminal failure for message #21 after retry boundary.');
+    await expect(alerts).toContainText('Terminal failure already acknowledged for message #20.');
+    await expect(alerts).toContainText('Open');
+    await expect(alerts).toContainText('Acknowledged');
+    await expect(alerts).toContainText('Actor #42');
+    await expect(alerts).toContainText('"recipient_count": 1');
+    await expect(alerts).toContainText('"recipient_domains"');
+    await expect(alerts).toContainText('example.test');
+    await expect(alerts).toContainText('[REDACTED]');
+
+    await expect(alerts).not.toContainText('fixture-alert-token-never-rendered');
+    await expect(alerts).not.toContainText('fixture-provider-secret-never-rendered');
+    await expect(alerts).not.toContainText('fixture-api-key-never-rendered');
+    await expect(alerts).not.toContainText('fixture-authorization-never-rendered');
+    await expect(page.locator('body')).not.toContainText('recipient@example.test');
+    await expect(page.locator('body')).not.toContainText('Internal smoke body');
+    await expect(page.locator('body')).not.toContainText('/var/www/private/invoice.pdf');
+
+    const acknowledgeForm = alerts
+      .locator('form')
+      .filter({ has: page.locator('input[name="onesmtp_alert_history_action"][value="acknowledge"]') });
+    await expect(acknowledgeForm).toHaveCount(1);
+    await expect(acknowledgeForm.locator('input[name="onesmtp_alert_event_id"]')).toHaveValue('45');
+
+    await acknowledgeForm.getByRole('button', { name: 'Acknowledge' }).click();
+    await expect.poll(() => latestSubmission(page)).toMatchObject({
+      onesmtp_alert_history_action: 'acknowledge',
+      onesmtp_alert_event_id: '45',
+      onesmtp_alert_history_nonce: 'test-nonce',
+    });
   });
 });
 
