@@ -101,7 +101,7 @@ final class AdminAuditLogger
             $sanitized = [];
 
             foreach ($value as $itemKey => $item) {
-                $sanitized[$itemKey] = $this->sanitizeValue($item, is_string($itemKey) ? $itemKey : null);
+                $sanitized[ $itemKey ] = $this->sanitizeValue($item, is_string($itemKey) ? $itemKey : null);
             }
 
             return $sanitized;

@@ -150,7 +150,7 @@ final class SettingsAdminTest extends TestCase
         self::assertStringContainsString('onesmtp_settings_status=rate_limits_saved', (string) $GLOBALS['onesmtp_test_redirect']['location']);
         self::assertSame('audit_settings_changed', $GLOBALS['wpdb']->inserts[0]['data']['event_type']);
 
-        $context = json_decode((string) $GLOBALS['wpdb']->inserts[0]['data']['context_json'], true);
+        $context = json_decode( (string) $GLOBALS['wpdb']->inserts[0]['data']['context_json'], true );
 
         self::assertSame('rate_limits', $context['object_key'] ?? null);
         self::assertSame(5, $context['per_minute'] ?? null);
