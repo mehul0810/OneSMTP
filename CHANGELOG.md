@@ -6,6 +6,10 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [Unreleased]
 
+### Added
+
+- Internal admin alert event history with privacy-safe context previews and nonce-protected acknowledgement tracking.
+
 ### Changed
 
 - Added an enforceable changed-PHP-files PHPCS gate for pull requests while full-tree WPCS cleanup remains advisory.

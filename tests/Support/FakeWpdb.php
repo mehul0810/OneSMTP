@@ -75,6 +75,12 @@ final class FakeWpdb
     /** @var array<string,array<int,array<string,mixed>>> */
     public array $dashboardProviderFailoverRowsBySince = [];
 
+    /** @var array<int,array<string,mixed>> */
+    public array $eventRows = [];
+
+    /** @var array<int,array<string,mixed>> */
+    public array $eventAcknowledgementRows = [];
+
     /** @var array<string,mixed>|null */
     public ?array $queueDiagnosticRow = null;
 
@@ -228,6 +234,16 @@ final class FakeWpdb
             return $this->providerRowsById[$providerId] ?? null;
         }
 
+        if (
+            str_contains($query, $this->prefix . 'onesmtp_events')
+            && str_contains($query, 'WHERE id = %d')
+            && str_contains($query, 'event_type = %s')
+        ) {
+            $eventId = isset($args[0]) ? (int) $args[0] : 0;
+
+            return $this->eventRows[$eventId] ?? null;
+        }
+
         return null;
     }
 
@@ -257,6 +273,22 @@ final class FakeWpdb
             $since = isset($args[1]) ? (string) $args[1] : '';
 
             return $this->dashboardProviderFailoverRowsBySince[$since] ?? [];
+        }
+
+        if (
+            str_contains($query, $this->prefix . 'onesmtp_events')
+            && ($args[0] ?? '') === 'audit_alert_acknowledged'
+            && str_contains($query, 'ORDER BY id DESC')
+        ) {
+            return $this->eventAcknowledgementRows;
+        }
+
+        if (
+            str_contains($query, $this->prefix . 'onesmtp_events')
+            && str_contains($query, "event_type IN")
+            && str_contains($query, 'ORDER BY id DESC')
+        ) {
+            return array_values($this->eventRows);
         }
 
         if (str_contains($sql, $this->prefix . 'onesmtp_providers') && ! str_contains($sql, 'JOIN')) {
