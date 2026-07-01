@@ -85,6 +85,7 @@ final class DeliverabilitySmokeTest extends TestCase
 
         self::assertStringContainsString('onesmtp_setup_status=provider_saved', (string) $GLOBALS['onesmtp_test_redirect']['location']);
         self::assertSame('setup_provider_saved', $GLOBALS['wpdb']->inserts[1]['data']['event_type']);
+        self::assertSame('audit_provider_changed', $GLOBALS['wpdb']->inserts[2]['data']['event_type']);
 
         $adapter = new AdminSmokeAdapter(new SendResult(true, 'accepted', 'Accepted by provider.'));
         $delivery = new ProviderDeliveryManager(new ProviderAdapterRegistry(['smtp' => $adapter]));
@@ -97,7 +98,7 @@ final class DeliverabilitySmokeTest extends TestCase
 
         self::assertSame(['recipient@example.test'], $adapter->lastMessage['to'] ?? []);
         self::assertStringContainsString('onesmtp_setup_status=test_sent', (string) $GLOBALS['onesmtp_test_redirect']['location']);
-        self::assertSame('setup_test_email', $GLOBALS['wpdb']->inserts[2]['data']['event_type']);
+        self::assertSame('setup_test_email', $GLOBALS['wpdb']->inserts[3]['data']['event_type']);
 
         $_GET = ['onesmtp_setup_status' => 'test_sent'];
         $_POST = [];

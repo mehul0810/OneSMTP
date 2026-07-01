@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OneSMTP\Admin;
 
+use OneSMTP\Audit\AdminAuditLogger;
 use OneSMTP\Core\Capabilities;
 use OneSMTP\Providers\ProviderDeliveryManager;
 use OneSMTP\Providers\ProviderTypes;
@@ -18,15 +19,18 @@ final class SetupWizard
     private ProviderRepository $providers;
     private ProviderDeliveryManager $deliveryManager;
     private EventRepository $events;
+    private AdminAuditLogger $auditLogger;
 
     public function __construct(
         ?ProviderRepository $providers = null,
         ?ProviderDeliveryManager $deliveryManager = null,
-        ?EventRepository $events = null
+        ?EventRepository $events = null,
+        ?AdminAuditLogger $auditLogger = null
     ) {
         $this->providers       = $providers ?? new ProviderRepository();
         $this->deliveryManager = $deliveryManager ?? new ProviderDeliveryManager();
         $this->events          = $events ?? new EventRepository();
+        $this->auditLogger     = $auditLogger ?? new AdminAuditLogger();
     }
 
     public function handleRequest(): void
@@ -51,9 +55,18 @@ final class SetupWizard
         check_admin_referer(self::ACTION_NAME, self::NONCE_NAME);
 
         if ($action === 'save_provider') {
-            $providerId = $this->providers->save($this->normalizePostedProvider());
+            $provider = $this->normalizePostedProvider();
+            $providerId = $this->providers->save($provider);
             if ($providerId > 0) {
                 $this->events->add('setup_provider_saved', ['source' => 'setup_wizard'], null, $providerId);
+                $this->auditLogger->logProviderChange('created', $providerId, [
+                    'source' => 'setup_wizard',
+                    'provider_name' => (string) ($provider['name'] ?? ''),
+                    'adapter_type' => (string) ($provider['adapter_type'] ?? ''),
+                    'is_active' => ! empty($provider['is_active']),
+                    'safe_config_fields' => $this->safeConfigFieldNames($provider),
+                    'credential_fields_updated' => $this->sensitiveConfigFieldNames($provider),
+                ]);
             }
 
             $this->redirect($providerId > 0 ? 'provider_saved' : 'failed');
@@ -258,6 +271,55 @@ final class SetupWizard
         }
         echo '</select>';
         echo '</td></tr>';
+    }
+
+    /**
+     * @param array<string,mixed> $provider
+     * @return array<int,string>
+     */
+    private function safeConfigFieldNames(array $provider): array
+    {
+        $config = isset($provider['config']) && is_array($provider['config']) ? $provider['config'] : [];
+        $fields = [];
+
+        foreach ($config as $field => $value) {
+            if (! is_scalar($value) || $value === '' || $this->isSensitiveConfigField((string) $field)) {
+                continue;
+            }
+
+            $fields[] = sanitize_key((string) $field);
+        }
+
+        sort($fields);
+
+        return array_values(array_unique($fields));
+    }
+
+    /**
+     * @param array<string,mixed> $provider
+     * @return array<int,string>
+     */
+    private function sensitiveConfigFieldNames(array $provider): array
+    {
+        $config = isset($provider['config']) && is_array($provider['config']) ? $provider['config'] : [];
+        $fields = [];
+
+        foreach ($config as $field => $value) {
+            if (! is_scalar($value) || $value === '' || ! $this->isSensitiveConfigField((string) $field)) {
+                continue;
+            }
+
+            $fields[] = sanitize_key((string) $field);
+        }
+
+        sort($fields);
+
+        return array_values(array_unique($fields));
+    }
+
+    private function isSensitiveConfigField(string $field): bool
+    {
+        return (bool) preg_match('/pass|secret|token|api(?:_|-)?key/i', $field);
     }
 
     /**

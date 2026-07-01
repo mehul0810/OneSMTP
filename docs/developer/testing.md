@@ -87,7 +87,7 @@ tests/
 
 ## CI Layering (Target)
 
-1. `lint` (WPCS): hard fail on errors.
+1. `lint` (changed-file WPCS subset): hard fail on actionable errors.
 2. `test` (PHPUnit unit suite as required gate).
 3. `analyze` (PHPStan).
 4. E2E smoke (non-blocking initially, required when stable).

@@ -718,6 +718,12 @@ final class LogAdminTest extends TestCase
         self::assertSame([99, 7], $called);
         self::assertStringContainsString('onesmtp_resend_status=resent', (string) $GLOBALS['onesmtp_test_redirect']['location']);
         self::assertStringContainsString('onesmtp_message_id=99', (string) $GLOBALS['onesmtp_test_redirect']['location']);
+        self::assertSame('audit_manual_resend', $GLOBALS['wpdb']->inserts[0]['data']['event_type']);
+
+        $context = json_decode((string) $GLOBALS['wpdb']->inserts[0]['data']['context_json'], true);
+
+        self::assertSame('resent', $context['status'] ?? null);
+        self::assertTrue($context['provider_override'] ?? false);
     }
 
     public function test_bulk_resend_selected_failed_messages_invokes_pipeline_and_skips_non_failed(): void

@@ -148,6 +148,14 @@ final class SettingsAdminTest extends TestCase
         self::assertSame(60, $settings['rate_limits']['per_hour']);
         self::assertSame(700, $settings['rate_limits']['per_day']);
         self::assertStringContainsString('onesmtp_settings_status=rate_limits_saved', (string) $GLOBALS['onesmtp_test_redirect']['location']);
+        self::assertSame('audit_settings_changed', $GLOBALS['wpdb']->inserts[0]['data']['event_type']);
+
+        $context = json_decode( (string) $GLOBALS['wpdb']->inserts[0]['data']['context_json'], true );
+
+        self::assertSame('rate_limits', $context['object_key'] ?? null);
+        self::assertSame(5, $context['per_minute'] ?? null);
+        self::assertSame(60, $context['per_hour'] ?? null);
+        self::assertSame(700, $context['per_day'] ?? null);
     }
 
     public function test_handle_request_saves_background_sending_mode(): void
@@ -282,6 +290,15 @@ final class SettingsAdminTest extends TestCase
         self::assertSame('https://hooks.example.test/onesmtp', $settings['failure_alerts']['webhook_url']);
         self::assertSame(1800, $settings['failure_alerts']['throttle_seconds']);
         self::assertStringContainsString('onesmtp_settings_status=failure_alerts_saved', (string) $GLOBALS['onesmtp_test_redirect']['location']);
+
+        $audit = end($GLOBALS['wpdb']->inserts);
+        self::assertSame('audit_settings_changed', $audit['data']['event_type']);
+        $json = (string) $audit['data']['context_json'];
+        self::assertStringContainsString('"email_recipient_count":2', $json);
+        self::assertStringContainsString('"webhook_enabled":true', $json);
+        self::assertStringContainsString('"throttle_seconds":1800', $json);
+        self::assertStringNotContainsString('ops@example.test', $json);
+        self::assertStringNotContainsString('hooks.example.test', $json);
     }
 
     public function test_invalid_failure_alert_webhook_is_rejected_without_saving(): void

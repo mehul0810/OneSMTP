@@ -6,6 +6,7 @@ namespace OneSMTP\Tests\Unit\Admin;
 
 use OneSMTP\Admin\MailConflictNotice;
 use OneSMTP\Conflict\MailConflictDetectorInterface;
+use OneSMTP\Tests\Support\FakeWpdb;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
@@ -19,6 +20,7 @@ final class MailConflictNoticeTest extends TestCase
         $GLOBALS['onesmtp_test_current_user_can'] = true;
         $GLOBALS['onesmtp_test_transients'] = [];
         $GLOBALS['onesmtp_test_redirect'] = null;
+        $GLOBALS['wpdb'] = new FakeWpdb();
     }
 
     public function test_register_hooks_adds_notice_and_dismiss_handler(): void
@@ -99,6 +101,28 @@ final class MailConflictNoticeTest extends TestCase
         $this->expectExceptionMessage('You do not have permission');
 
         $notice->dismiss();
+    }
+
+    public function test_dismiss_sets_transient_redirects_and_logs_acknowledgement(): void
+    {
+        $notice = new MailConflictNotice($this->detector([
+            'plugins' => ['WP Mail SMTP'],
+            'hooks' => ['phpmailer_init' => 2],
+        ]));
+
+        try {
+            $notice->dismiss();
+            self::fail('Expected redirect exit in test runtime.');
+        } catch (RuntimeException $e) {
+            self::assertSame('Exit called', $e->getMessage());
+        }
+
+        self::assertSame(1, get_transient('onesmtp_mail_conflict_notice_dismissed_1'));
+        self::assertSame('audit_alert_acknowledged', $GLOBALS['wpdb']->inserts[0]['data']['event_type']);
+        $json = (string) $GLOBALS['wpdb']->inserts[0]['data']['context_json'];
+        self::assertStringContainsString('"plugin_count":1', $json);
+        self::assertStringContainsString('"hook_count":1', $json);
+        self::assertStringContainsString('admin.php?page=onesmtp', (string) $GLOBALS['onesmtp_test_redirect']['location']);
     }
 
     /**

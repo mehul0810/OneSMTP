@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OneSMTP\Admin;
 
+use OneSMTP\Audit\AdminAuditLogger;
 use OneSMTP\Conflict\MailConflictDetectorInterface;
 use OneSMTP\Core\Capabilities;
 
@@ -12,10 +13,12 @@ final class MailConflictNotice
     private const DISMISS_TRANSIENT = 'onesmtp_mail_conflict_notice_dismissed_';
 
     private MailConflictDetectorInterface $detector;
+    private AdminAuditLogger $auditLogger;
 
-    public function __construct(MailConflictDetectorInterface $detector)
+    public function __construct(MailConflictDetectorInterface $detector, ?AdminAuditLogger $auditLogger = null)
     {
         $this->detector = $detector;
+        $this->auditLogger = $auditLogger ?? new AdminAuditLogger();
     }
 
     public function registerHooks(): void
@@ -76,7 +79,14 @@ final class MailConflictNotice
         }
 
         check_admin_referer('onesmtp_dismiss_mail_conflict_notice');
+        $conflicts = $this->detector->detect();
         set_transient($this->dismissTransientKey(), 1, DAY_IN_SECONDS * 7);
+        $this->auditLogger->logAlertAcknowledgement('mail_conflict_notice', [
+            'source' => 'mail_conflict_notice',
+            'plugin_count' => count($conflicts['plugins'] ?? []),
+            'hook_count' => count($conflicts['hooks'] ?? []),
+            'remind_after_days' => 7,
+        ]);
         wp_safe_redirect(admin_url('admin.php?page=onesmtp'));
         exit;
     }
