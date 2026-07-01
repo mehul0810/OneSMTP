@@ -300,6 +300,39 @@ final class ProviderAdminTest extends TestCase
         self::assertSame(1, $GLOBALS['wpdb']->updates[0]['data']['weight']);
     }
 
+    public function test_save_writes_audit_event_without_raw_secret_values(): void
+    {
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = [
+            'onesmtp_provider_action' => 'save',
+            'onesmtp_provider_nonce' => 'test-nonce',
+            'name' => 'Primary SMTP',
+            'adapter_type' => 'smtp',
+            'priority' => '10',
+            'weight' => '1',
+            'is_active' => '1',
+            'config' => [
+                'host' => 'smtp.example.test',
+                'password' => 'secret-password',
+                'api_key' => 'secret-api-key',
+            ],
+        ];
+
+        try {
+            (new ProviderAdmin(new ProviderRepository()))->handleRequest();
+        } catch (RuntimeException $e) {
+            self::assertSame('OneSMTP provider admin redirected.', $e->getMessage());
+        }
+
+        $audit = end($GLOBALS['wpdb']->inserts);
+        self::assertSame('audit_provider_changed', $audit['data']['event_type']);
+        $json = (string) $audit['data']['context_json'];
+        self::assertStringContainsString('"safe_config_fields":["host"]', $json);
+        self::assertStringContainsString('"credential_fields_updated":["api_key","password"]', $json);
+        self::assertStringNotContainsString('secret-password', $json);
+        self::assertStringNotContainsString('secret-api-key', $json);
+    }
+
     public function test_update_preserves_unavailable_secret_when_secret_field_is_blank(): void
     {
         $storedPassword = $this->undecryptableSecretValue();

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OneSMTP\Admin;
 
+use OneSMTP\Audit\AdminAuditLogger;
 use OneSMTP\Core\Capabilities;
 use OneSMTP\Logging\AttachmentLogSanitizer;
 use OneSMTP\Repository\AttemptRepository;
@@ -31,6 +32,7 @@ final class LogAdmin
     private AttemptRepository $attempts;
     private ProviderRepository $providers;
     private Redactor $redactor;
+    private AdminAuditLogger $auditLogger;
     /** @var callable(int,?int):bool|null */
     private $resendHandler;
 
@@ -39,13 +41,15 @@ final class LogAdmin
         AttemptRepository $attempts,
         ProviderRepository $providers,
         ?Redactor $redactor = null,
-        ?callable $resendHandler = null
+        ?callable $resendHandler = null,
+        ?AdminAuditLogger $auditLogger = null
     ) {
         $this->messages = $messages;
         $this->attempts = $attempts;
         $this->providers = $providers;
         $this->redactor = $redactor ?? new Redactor();
         $this->resendHandler = $resendHandler;
+        $this->auditLogger = $auditLogger ?? new AdminAuditLogger();
     }
 
     public function handleRequest(): void
@@ -97,16 +101,27 @@ final class LogAdmin
 
         $messageId = isset($_POST[self::DETAIL_PARAM]) ? absint(wp_unslash((string) $_POST[self::DETAIL_PARAM])) : 0;
         if ($messageId <= 0 || ! is_array($this->messages->find($messageId))) {
+            $this->auditLogger->logManualResendAttempt($messageId, null, 'missing_message', ['source' => 'log_admin']);
             $this->redirect('missing', $messageId);
         }
 
         $providerId = isset($_POST['provider_id']) ? absint(wp_unslash((string) $_POST['provider_id'])) : 0;
         if ($providerId > 0 && ! $this->isEligibleProvider($providerId)) {
+            $this->auditLogger->logManualResendAttempt($messageId, $providerId, 'ineligible_provider', ['source' => 'log_admin']);
             $this->redirect('ineligible_provider', $messageId);
         }
 
         $handler = $this->resendHandler;
         $sent = is_callable($handler) && (bool) $handler($messageId, $providerId > 0 ? $providerId : null);
+        $this->auditLogger->logManualResendAttempt(
+            $messageId,
+            $providerId > 0 ? $providerId : null,
+            $sent ? 'resent' : 'failed',
+            [
+                'source' => 'log_admin',
+                'provider_override' => $providerId > 0,
+            ]
+        );
 
         $this->redirect($sent ? 'resent' : 'failed', $messageId);
     }
@@ -135,11 +150,19 @@ final class LogAdmin
         foreach ($messageIds as $messageId) {
             $message = $this->messages->find($messageId);
             if (! is_array($message) || (string) ($message['status'] ?? '') !== 'failed') {
+                $this->auditLogger->logManualResendAttempt($messageId, null, 'skipped_non_failed', [
+                    'source' => 'log_admin',
+                    'mode' => 'bulk',
+                ]);
                 $failed++;
                 continue;
             }
 
             $sent = is_callable($handler) && (bool) $handler($messageId, null);
+            $this->auditLogger->logManualResendAttempt($messageId, null, $sent ? 'resent' : 'failed', [
+                'source' => 'log_admin',
+                'mode' => 'bulk',
+            ]);
             if ($sent) {
                 $resent++;
             } else {

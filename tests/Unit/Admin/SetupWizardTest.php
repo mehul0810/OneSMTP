@@ -127,10 +127,11 @@ final class SetupWizardTest extends TestCase
             self::assertSame('OneSMTP setup wizard redirected.', $e->getMessage());
         }
 
-        self::assertCount(2, $GLOBALS['wpdb']->inserts);
+        self::assertCount(3, $GLOBALS['wpdb']->inserts);
 
         $providerInsert = $GLOBALS['wpdb']->inserts[0];
         $eventInsert = $GLOBALS['wpdb']->inserts[1];
+        $auditInsert = $GLOBALS['wpdb']->inserts[2];
         $config = json_decode((string) $providerInsert['data']['config_json'], true);
         $vault = new SecretVault();
 
@@ -143,6 +144,9 @@ final class SetupWizardTest extends TestCase
         self::assertSame('secret-api-key', $vault->decrypt((string) $config['api_key']));
         self::assertSame('secret-password', $vault->decrypt((string) $config['password']));
         self::assertSame('setup_provider_saved', $eventInsert['data']['event_type']);
+        self::assertSame('audit_provider_changed', $auditInsert['data']['event_type']);
+        self::assertStringNotContainsString('secret-api-key', (string) $auditInsert['data']['context_json']);
+        self::assertStringNotContainsString('secret-password', (string) $auditInsert['data']['context_json']);
         self::assertStringContainsString('onesmtp_setup_status=provider_saved', (string) $GLOBALS['onesmtp_test_redirect']['location']);
     }
 

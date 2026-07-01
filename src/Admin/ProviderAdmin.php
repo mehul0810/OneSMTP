@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OneSMTP\Admin;
 
+use OneSMTP\Audit\AdminAuditLogger;
 use OneSMTP\Core\Capabilities;
 use OneSMTP\Dns\DomainAuthenticationChecker;
 use OneSMTP\Providers\ProviderTypes;
@@ -18,12 +19,14 @@ final class ProviderAdmin
     private ProviderRepository $repository;
     private DomainAuthenticationChecker $dnsAuthentication;
     private SenderIdentityRepository $senderIdentity;
+    private AdminAuditLogger $auditLogger;
 
-    public function __construct(ProviderRepository $repository, ?DomainAuthenticationChecker $dnsAuthentication = null, ?SenderIdentityRepository $senderIdentity = null)
+    public function __construct(ProviderRepository $repository, ?DomainAuthenticationChecker $dnsAuthentication = null, ?SenderIdentityRepository $senderIdentity = null, ?AdminAuditLogger $auditLogger = null)
     {
         $this->repository = $repository;
         $this->dnsAuthentication = $dnsAuthentication ?? new DomainAuthenticationChecker();
         $this->senderIdentity = $senderIdentity ?? new SenderIdentityRepository();
+        $this->auditLogger = $auditLogger ?? new AdminAuditLogger();
     }
 
     public function handleRequest(): void
@@ -48,13 +51,32 @@ final class ProviderAdmin
         check_admin_referer(self::ACTION_NAME, self::NONCE_NAME);
 
         if ($action === 'save') {
-            $providerId = $this->repository->save($this->normalizePostedProvider());
+            $provider = $this->normalizePostedProvider();
+            $providerId = $this->repository->save($provider);
+            if ($providerId > 0) {
+                $safeProvider = $this->repository->findSafe($providerId) ?? [];
+                $this->auditLogger->logProviderChange(
+                    ! empty($provider['id']) ? 'updated' : 'created',
+                    $providerId,
+                    [
+                        'source' => 'providers_admin',
+                        'provider_name' => (string) ($safeProvider['name'] ?? $provider['name'] ?? ''),
+                        'adapter_type' => (string) ($safeProvider['adapter_type'] ?? $provider['adapter_type'] ?? ''),
+                        'is_active' => ! empty($safeProvider['is_active'] ?? $provider['is_active'] ?? false),
+                        'safe_config_fields' => $this->safeConfigFieldNames($provider),
+                        'credential_fields_updated' => $this->sensitiveConfigFieldNames($provider),
+                    ]
+                );
+            }
             $this->redirect($providerId > 0 ? 'saved' : 'failed');
         }
 
         if ($action === 'delete') {
             $providerId = isset($_POST['provider_id']) ? absint(wp_unslash((string) $_POST['provider_id'])) : 0;
             $deleted = $providerId > 0 && $this->repository->delete($providerId);
+            if ($deleted) {
+                $this->auditLogger->logProviderChange('deleted', $providerId, ['source' => 'providers_admin']);
+            }
             $this->redirect($deleted ? 'deleted' : 'failed');
         }
 
@@ -64,6 +86,16 @@ final class ProviderAdmin
             if (is_array($provider)) {
                 $provider['is_active'] = empty($provider['is_active']) ? 1 : 0;
                 $this->repository->save($provider);
+                $this->auditLogger->logProviderChange(
+                    ! empty($provider['is_active']) ? 'activated' : 'deactivated',
+                    $providerId,
+                    [
+                        'source' => 'providers_admin',
+                        'provider_name' => (string) ($provider['name'] ?? ''),
+                        'adapter_type' => (string) ($provider['adapter_type'] ?? ''),
+                        'is_active' => ! empty($provider['is_active']),
+                    ]
+                );
                 $this->redirect('saved');
             }
 
@@ -233,6 +265,55 @@ final class ProviderAdmin
             'from_name' => __('From name', 'onesmtp'),
             'dkim_selector' => __('DKIM selector', 'onesmtp'),
         ];
+    }
+
+    /**
+     * @param array<string,mixed> $provider
+     * @return array<int,string>
+     */
+    private function safeConfigFieldNames(array $provider): array
+    {
+        $config = isset($provider['config']) && is_array($provider['config']) ? $provider['config'] : [];
+        $fields = [];
+
+        foreach ($config as $field => $value) {
+            if (! is_scalar($value) || $value === '' || $this->isSensitiveConfigField((string) $field)) {
+                continue;
+            }
+
+            $fields[] = sanitize_key((string) $field);
+        }
+
+        sort($fields);
+
+        return array_values(array_unique($fields));
+    }
+
+    /**
+     * @param array<string,mixed> $provider
+     * @return array<int,string>
+     */
+    private function sensitiveConfigFieldNames(array $provider): array
+    {
+        $config = isset($provider['config']) && is_array($provider['config']) ? $provider['config'] : [];
+        $fields = [];
+
+        foreach ($config as $field => $value) {
+            if (! is_scalar($value) || $value === '' || ! $this->isSensitiveConfigField((string) $field)) {
+                continue;
+            }
+
+            $fields[] = sanitize_key((string) $field);
+        }
+
+        sort($fields);
+
+        return array_values(array_unique($fields));
+    }
+
+    private function isSensitiveConfigField(string $field): bool
+    {
+        return (bool) preg_match('/pass|secret|token|api(?:_|-)?key|client_id/i', $field);
     }
 
     /**

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace OneSMTP\Admin;
 
 use InvalidArgumentException;
+use OneSMTP\Audit\AdminAuditLogger;
 use OneSMTP\Alerts\FailureAlertSettings;
 use OneSMTP\Alerts\FailureAlertSettingsRepository;
 use OneSMTP\Core\Capabilities;
@@ -38,7 +39,8 @@ final class SettingsAdmin
         private ?BackgroundSendingSettingsRepository $backgroundSending = null,
         private ?SettingsTransferService $transfers = null,
         private ?AttachmentLoggingSettingsRepository $attachmentLogging = null,
-        private ?WeeklySummarySettingsRepository $weeklySummary = null
+        private ?WeeklySummarySettingsRepository $weeklySummary = null,
+        private ?AdminAuditLogger $auditLogger = null
     ) {
         $this->senderIdentity = $senderIdentity ?? new SenderIdentityRepository();
         $this->rateLimits = $rateLimits ?? new RateLimitSettingsRepository();
@@ -47,6 +49,7 @@ final class SettingsAdmin
         $this->transfers = $transfers ?? new SettingsTransferService();
         $this->attachmentLogging = $attachmentLogging ?? new AttachmentLoggingSettingsRepository();
         $this->weeklySummary = $weeklySummary ?? new WeeklySummarySettingsRepository();
+        $this->auditLogger = $auditLogger ?? new AdminAuditLogger();
     }
 
     public function handleRequest(): void
@@ -74,48 +77,79 @@ final class SettingsAdmin
             }
 
             if ($action === 'save_rate_limits') {
-                $this->rateLimits->save(RateLimitSettings::fromArray([
+                $limits = RateLimitSettings::fromArray([
                     'per_minute' => isset($_POST['rate_limit_per_minute']) ? wp_unslash((string) $_POST['rate_limit_per_minute']) : 0,
                     'per_hour' => isset($_POST['rate_limit_per_hour']) ? wp_unslash((string) $_POST['rate_limit_per_hour']) : 0,
                     'per_day' => isset($_POST['rate_limit_per_day']) ? wp_unslash((string) $_POST['rate_limit_per_day']) : 0,
-                ]));
+                ]);
+                $this->rateLimits->save($limits);
+                $this->auditLogger->logSettingsChange('rate_limits', array_merge(
+                    $limits->toArray(),
+                    ['source' => 'settings_admin']
+                ));
                 $this->redirect('rate_limits_saved');
                 return;
             }
 
             if ($action === 'save_failure_alerts') {
-                $this->failureAlerts->save(FailureAlertSettings::fromArray([
+                $alerts = FailureAlertSettings::fromArray([
                     'email_enabled' => isset($_POST['failure_alert_email_enabled']),
                     'email_recipients' => isset($_POST['failure_alert_email_recipients']) ? wp_unslash((string) $_POST['failure_alert_email_recipients']) : '',
                     'webhook_enabled' => isset($_POST['failure_alert_webhook_enabled']),
                     'webhook_url' => isset($_POST['failure_alert_webhook_url']) ? wp_unslash((string) $_POST['failure_alert_webhook_url']) : '',
                     'throttle_seconds' => isset($_POST['failure_alert_throttle_seconds']) ? wp_unslash((string) $_POST['failure_alert_throttle_seconds']) : 900,
-                ]));
+                ]);
+                $this->failureAlerts->save($alerts);
+                $alertValues = $alerts->toArray();
+                $this->auditLogger->logSettingsChange('failure_alerts', [
+                    'source' => 'settings_admin',
+                    'email_enabled' => ! empty($alertValues['email_enabled']),
+                    'email_recipient_count' => count((array) ($alertValues['email_recipients'] ?? [])),
+                    'webhook_enabled' => ! empty($alertValues['webhook_enabled']),
+                    'throttle_seconds' => (int) ($alertValues['throttle_seconds'] ?? 0),
+                ]);
                 $this->redirect('failure_alerts_saved');
                 return;
             }
 
             if ($action === 'save_background_sending') {
-                $this->backgroundSending->save(BackgroundSendingSettings::fromArray([
+                $background = BackgroundSendingSettings::fromArray([
                     'enabled' => isset($_POST['background_sending_enabled']),
-                ]));
+                ]);
+                $this->backgroundSending->save($background);
+                $this->auditLogger->logSettingsChange('background_sending', [
+                    'source' => 'settings_admin',
+                    'enabled' => $background->toArray()['enabled'] ?? false,
+                ]);
                 $this->redirect('background_sending_saved');
                 return;
             }
 
             if ($action === 'save_attachment_logging') {
-                $this->attachmentLogging->save(AttachmentLoggingSettings::fromArray([
+                $attachmentLogging = AttachmentLoggingSettings::fromArray([
                     'enabled' => isset($_POST['attachment_logging_enabled']),
-                ]));
+                ]);
+                $this->attachmentLogging->save($attachmentLogging);
+                $this->auditLogger->logSettingsChange('attachment_logging', [
+                    'source' => 'settings_admin',
+                    'enabled' => $attachmentLogging->toArray()['enabled'] ?? false,
+                ]);
                 $this->redirect('attachment_logging_saved');
                 return;
             }
 
             if ($action === 'save_weekly_summary') {
-                $this->weeklySummary->save(WeeklySummarySettings::fromArray([
+                $summary = WeeklySummarySettings::fromArray([
                     'enabled' => isset($_POST['weekly_summary_enabled']),
                     'email_recipients' => isset($_POST['weekly_summary_email_recipients']) ? wp_unslash((string) $_POST['weekly_summary_email_recipients']) : '',
-                ]));
+                ]);
+                $this->weeklySummary->save($summary);
+                $summaryValues = $summary->toArray();
+                $this->auditLogger->logSettingsChange('weekly_summary', [
+                    'source' => 'settings_admin',
+                    'enabled' => ! empty($summaryValues['enabled']),
+                    'recipient_count' => count((array) ($summaryValues['email_recipients'] ?? [])),
+                ]);
                 $this->redirect('weekly_summary_saved');
                 return;
             }
@@ -136,6 +170,16 @@ final class SettingsAdmin
             ]);
 
             $this->senderIdentity->save($identity);
+            $values = $identity->toArray();
+            $this->auditLogger->logSettingsChange('sender_identity', [
+                'source' => 'settings_admin',
+                'reply_to_count' => count((array) ($values['reply_to'] ?? [])),
+                'bcc_count' => count((array) ($values['bcc'] ?? [])),
+                'force_from_email' => ! empty($values['force_from_email']),
+                'force_from_name' => ! empty($values['force_from_name']),
+                'force_reply_to' => ! empty($values['force_reply_to']),
+                'force_bcc' => ! empty($values['force_bcc']),
+            ]);
             $this->redirect('saved');
         } catch (InvalidArgumentException $e) {
             $this->redirect('invalid', $e->getMessage());
@@ -393,6 +437,7 @@ final class SettingsAdmin
 
         $json = isset($_POST['onesmtp_settings_import_json']) ? wp_unslash((string) $_POST['onesmtp_settings_import_json']) : '';
         $summary = $this->transfers->importJson($json, self::IMPORT_NONCE_NAME);
+        $this->auditLogger->logSettingsChange('import', array_merge($summary, ['source' => 'settings_admin']));
         $message = sprintf(
             /* translators: 1: imported settings group count, 2: imported provider count, 3: excluded field count. */
             __('Imported %1$d settings groups and %2$d providers. Excluded %3$d unsafe fields.', 'onesmtp'),

@@ -15,6 +15,9 @@ final class FakeWpdb
     /** @var array<int,array<string,mixed>> */
     public array $updates = [];
 
+    /** @var array<int,array<string,mixed>> */
+    public array $deletions = [];
+
     /** @var array<int,string> */
     public array $queries = [];
 
@@ -110,6 +113,17 @@ final class FakeWpdb
             'data' => $data,
             'where' => $where,
             'format' => $format,
+            'where_format' => $whereFormat,
+        ];
+
+        return 1;
+    }
+
+    public function delete(string $table, array $where, array $whereFormat): int
+    {
+        $this->deletions[] = [
+            'table' => $table,
+            'where' => $where,
             'where_format' => $whereFormat,
         ];
 
