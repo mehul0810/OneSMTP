@@ -102,6 +102,48 @@ final class DefaultDispatchPolicyTest extends TestCase
         ]));
     }
 
+    public function test_routing_rule_match_selects_provider_before_default_dispatch(): void
+    {
+        $policy = new DefaultDispatchPolicy();
+
+        self::assertSame(202, $policy->chooseNextProvider(77, 1, [
+            'providers' => [
+                ['id' => 101, 'priority' => 1, 'weight' => 1, 'is_active' => 1],
+                ['id' => 202, 'priority' => 2, 'weight' => 1, 'is_active' => 1],
+            ],
+            'routing_rules' => [
+                [
+                    'provider_id' => 202,
+                    'conditions' => ['source_type' => 'commerce'],
+                ],
+            ],
+            'routing_context' => [
+                'source_type' => 'commerce',
+            ],
+        ]));
+    }
+
+    public function test_routing_rule_no_match_keeps_existing_default_dispatch(): void
+    {
+        $policy = new DefaultDispatchPolicy();
+
+        self::assertSame(101, $policy->chooseNextProvider(0, 1, [
+            'providers' => [
+                ['id' => 101, 'priority' => 1, 'weight' => 1, 'is_active' => 1],
+                ['id' => 202, 'priority' => 2, 'weight' => 1, 'is_active' => 1],
+            ],
+            'routing_rules' => [
+                [
+                    'provider_id' => 202,
+                    'conditions' => ['source_type' => 'membership'],
+                ],
+            ],
+            'routing_context' => [
+                'source_type' => 'commerce',
+            ],
+        ]));
+    }
+
     public function test_initial_selection_observes_provider_weight(): void
     {
         $policy = new DefaultDispatchPolicy();
