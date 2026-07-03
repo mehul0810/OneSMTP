@@ -9,6 +9,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 ### Added
 
 - Internal admin alert event history with privacy-safe context previews and nonce-protected acknowledgement tracking.
+- Internal smart-routing evaluator core for deterministic in-memory rule evaluation before default dispatch fallback.
 
 ### Changed
 

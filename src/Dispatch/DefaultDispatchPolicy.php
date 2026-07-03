@@ -8,6 +8,13 @@ final class DefaultDispatchPolicy implements DispatchPolicyInterface
 {
     private const MAX_ATTEMPTS = 6;
 
+    private RoutingRuleEvaluator $routingRules;
+
+    public function __construct(?RoutingRuleEvaluator $routingRules = null)
+    {
+        $this->routingRules = $routingRules ?? new RoutingRuleEvaluator();
+    }
+
     public function chooseNextProvider(int $messageId, int $attemptNumber, array $context): ?int
     {
         if ($attemptNumber > self::MAX_ATTEMPTS) {
@@ -27,6 +34,16 @@ final class DefaultDispatchPolicy implements DispatchPolicyInterface
         $forcedProviderId = isset($context['forced_provider_id']) ? (int) $context['forced_provider_id'] : 0;
         if ($forcedProviderId > 0 && $this->providerExists($weightedPool, $forcedProviderId)) {
             return $forcedProviderId;
+        }
+
+        $routingProviderId = $this->routingRules->evaluate(
+            is_array($context['routing_rules'] ?? null) ? $context['routing_rules'] : [],
+            is_array($context['routing_context'] ?? null) ? $context['routing_context'] : [],
+            $providers
+        );
+
+        if ($routingProviderId !== null && $this->providerExists($weightedPool, $routingProviderId)) {
+            return $routingProviderId;
         }
 
         $lastProviderId = isset($context['last_provider_id']) ? (int) $context['last_provider_id'] : 0;
