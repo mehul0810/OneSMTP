@@ -12,6 +12,8 @@ use OneSMTP\Repository\ProviderRepository;
 final class AdminPage
 {
     private const MENU_SLUG = 'onesmtp';
+    private const ADMIN_STYLE_HANDLE = 'onesmtp-admin';
+    private const ADMIN_STYLE_PATH = 'assets/admin.css';
 
     private DashboardAdmin $dashboard;
     private ProviderAdmin $providers;
@@ -35,12 +37,43 @@ final class AdminPage
     public function registerHooks(): void
     {
         add_action('admin_menu', [$this, 'registerMenu']);
+        add_action('admin_enqueue_scripts', [$this, 'enqueueAssets']);
         add_action('admin_init', [$this->setupWizard, 'handleRequest']);
         add_action('admin_init', [$this->providers, 'handleRequest']);
         add_action('admin_init', [$this->logs, 'handleRequest']);
         add_action('admin_init', [$this->settings, 'handleRequest']);
         add_action('admin_init', [$this->diagnostics, 'handleRequest']);
         add_action('admin_init', [$this->alerts, 'handleRequest']);
+    }
+
+    public function enqueueAssets(string $hookSuffix): void
+    {
+        $page = isset($_GET['page']) ? sanitize_key(wp_unslash((string) $_GET['page'])) : '';
+        if ($page !== self::MENU_SLUG || $hookSuffix !== 'toplevel_page_' . self::MENU_SLUG) {
+            return;
+        }
+
+        if (! function_exists('wp_enqueue_style')) {
+            return;
+        }
+
+        $pluginPath = defined('ONESMTP_PATH') ? (string) constant('ONESMTP_PATH') : '';
+        $pluginUrl = defined('ONESMTP_URL') ? (string) constant('ONESMTP_URL') : '';
+        if ($pluginPath === '' || $pluginUrl === '') {
+            return;
+        }
+
+        $path = rtrim($pluginPath, '/\\') . '/' . self::ADMIN_STYLE_PATH;
+        if (! file_exists($path)) {
+            return;
+        }
+
+        wp_enqueue_style(
+            self::ADMIN_STYLE_HANDLE,
+            rtrim($pluginUrl, '/\\') . '/' . self::ADMIN_STYLE_PATH,
+            [],
+            (string) filemtime($path)
+        );
     }
 
     public function registerMenu(): void
@@ -78,7 +111,14 @@ final class AdminPage
         $sections = $this->sections();
 
         echo '<div class="wrap onesmtp-admin">';
-        echo '<h1>' . esc_html__('OneSMTP', 'onesmtp') . '</h1>';
+        echo '<header class="onesmtp-admin-header">';
+        echo '<div class="onesmtp-admin-heading">';
+        echo '<h1 class="wp-heading-inline">' . esc_html__('OneSMTP', 'onesmtp') . '</h1>';
+        echo '<p class="onesmtp-admin-intro">' . esc_html__('Manage WordPress mail delivery, provider setup, diagnostics, and delivery safeguards from one admin workspace built around native WordPress patterns.', 'onesmtp') . '</p>';
+        echo '</div>';
+        echo '</header>';
+        echo '<hr class="wp-header-end">';
+        echo '<div class="onesmtp-admin-nav">';
         echo '<nav class="nav-tab-wrapper" aria-label="' . esc_attr__('OneSMTP sections', 'onesmtp') . '">';
 
         foreach ($sections as $section) {
@@ -86,31 +126,11 @@ final class AdminPage
         }
 
         echo '</nav>';
+        echo '</div>';
         echo '<div class="onesmtp-admin-shell">';
 
         foreach ($sections as $section) {
-            echo '<section id="' . esc_attr($section['id']) . '" class="onesmtp-admin-section">';
-            echo '<h2>' . esc_html($section['title']) . '</h2>';
-
-            if ($section['id'] === 'onesmtp-dashboard') {
-                $this->dashboard->render();
-            } elseif ($section['id'] === 'onesmtp-setup') {
-                $this->setupWizard->render();
-            } elseif ($section['id'] === 'onesmtp-providers') {
-                $this->providers->render();
-            } elseif ($section['id'] === 'onesmtp-logs') {
-                $this->logs->render();
-            } elseif ($section['id'] === 'onesmtp-alerts') {
-                $this->alerts->render();
-            } elseif ($section['id'] === 'onesmtp-settings') {
-                $this->settings->render();
-            } elseif ($section['id'] === 'onesmtp-diagnostics') {
-                $this->diagnostics->render();
-            } else {
-                echo '<p>' . esc_html($section['description']) . '</p>';
-            }
-
-            echo '</section>';
+            $this->renderSection($section);
         }
 
         echo '</div>';
@@ -164,9 +184,47 @@ final class AdminPage
             [
                 'id' => 'onesmtp-settings',
                 'title' => esc_html__('Settings', 'onesmtp'),
-                'description' => esc_html__('Plugin settings will appear here once the settings form is ready.', 'onesmtp'),
+                'description' => esc_html__('Configure sender defaults, delivery safeguards, alert routing, reporting, and safe settings transfer controls.', 'onesmtp'),
                 'href' => $baseUrl . '#onesmtp-settings',
             ],
         ];
+    }
+
+    /**
+     * @param array{id:string,title:string,description:string,href:string} $section
+     */
+    private function renderSection(array $section): void
+    {
+        $headingId = $section['id'] . '-heading';
+
+        echo '<section id="' . esc_attr($section['id']) . '" class="onesmtp-admin-section" aria-labelledby="' . esc_attr($headingId) . '">';
+        echo '<header class="onesmtp-admin-section-header">';
+        echo '<div class="onesmtp-admin-section-heading">';
+        echo '<h2 id="' . esc_attr($headingId) . '">' . esc_html($section['title']) . '</h2>';
+        echo '<p class="onesmtp-admin-section-description">' . esc_html($section['description']) . '</p>';
+        echo '</div>';
+        echo '</header>';
+        echo '<div class="onesmtp-admin-section-body">';
+
+        if ($section['id'] === 'onesmtp-dashboard') {
+            $this->dashboard->render();
+        } elseif ($section['id'] === 'onesmtp-setup') {
+            $this->setupWizard->render();
+        } elseif ($section['id'] === 'onesmtp-providers') {
+            $this->providers->render();
+        } elseif ($section['id'] === 'onesmtp-logs') {
+            $this->logs->render();
+        } elseif ($section['id'] === 'onesmtp-alerts') {
+            $this->alerts->render();
+        } elseif ($section['id'] === 'onesmtp-settings') {
+            $this->settings->render();
+        } elseif ($section['id'] === 'onesmtp-diagnostics') {
+            $this->diagnostics->render();
+        } else {
+            echo '<p>' . esc_html($section['description']) . '</p>';
+        }
+
+        echo '</div>';
+        echo '</section>';
     }
 }

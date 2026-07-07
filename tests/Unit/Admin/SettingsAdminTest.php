@@ -69,6 +69,8 @@ final class SettingsAdminTest extends TestCase
         self::assertStringContainsString('sender@example.test', $output);
         self::assertStringContainsString('Sender alert(1)', $output);
         self::assertStringNotContainsString('<script>', $output);
+        self::assertStringContainsString('onesmtp-settings-grid', $output);
+        self::assertStringContainsString('onesmtp-settings-panel postbox', $output);
         self::assertStringContainsString('reply@example.test', $output);
         self::assertStringContainsString('audit@example.test', $output);
         self::assertStringContainsString('Save sender identity', $output);

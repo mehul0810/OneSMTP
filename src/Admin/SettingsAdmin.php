@@ -191,141 +191,177 @@ final class SettingsAdmin
         $status = isset($_GET['onesmtp_settings_status']) ? sanitize_text_field(wp_unslash((string) $_GET['onesmtp_settings_status'])) : '';
         $message = isset($_GET['onesmtp_settings_message']) ? sanitize_text_field(wp_unslash((string) $_GET['onesmtp_settings_message'])) : '';
 
-        if ($status === 'saved') {
-            echo '<div class="notice notice-success inline"><p>' . esc_html__('Sender identity settings saved.', 'onesmtp') . '</p></div>';
-        } elseif ($status === 'rate_limits_saved') {
-            echo '<div class="notice notice-success inline"><p>' . esc_html__('Delivery rate limit settings saved.', 'onesmtp') . '</p></div>';
-        } elseif ($status === 'failure_alerts_saved') {
-            echo '<div class="notice notice-success inline"><p>' . esc_html__('Failure alert settings saved.', 'onesmtp') . '</p></div>';
-        } elseif ($status === 'background_sending_saved') {
-            echo '<div class="notice notice-success inline"><p>' . esc_html__('Background sending settings saved.', 'onesmtp') . '</p></div>';
-        } elseif ($status === 'attachment_logging_saved') {
-            echo '<div class="notice notice-success inline"><p>' . esc_html__('Attachment logging settings saved.', 'onesmtp') . '</p></div>';
-        } elseif ($status === 'weekly_summary_saved') {
-            echo '<div class="notice notice-success inline"><p>' . esc_html__('Weekly delivery summary settings saved.', 'onesmtp') . '</p></div>';
-        } elseif ($status === 'imported') {
-            echo '<div class="notice notice-success inline"><p>' . esc_html($message !== '' ? $message : __('OneSMTP settings imported. Secrets and recipient fields were excluded.', 'onesmtp')) . '</p></div>';
-        } elseif ($status === 'invalid') {
-            echo '<div class="notice notice-error inline"><p>' . esc_html($message !== '' ? $message : __('OneSMTP settings could not be saved.', 'onesmtp')) . '</p></div>';
-        }
-
         $identity = $this->senderIdentity->get();
         $values = $identity->toArray();
 
-        echo '<p>' . esc_html__('Configure default sender headers for outgoing WordPress mail. Existing headers are preserved unless the matching force option is enabled.', 'onesmtp') . '</p>';
-        echo '<form method="post" action="' . esc_url(admin_url('admin.php?page=onesmtp#onesmtp-settings')) . '">';
-        echo '<input type="hidden" name="onesmtp_settings_action" value="save_sender_identity">';
-        wp_nonce_field(self::ACTION_NAME, self::NONCE_NAME);
-        echo '<table class="form-table" role="presentation"><tbody>';
-        $this->renderInput('from_email', __('From Email', 'onesmtp'), $values['from_email'], 'email');
-        $this->renderInput('from_name', __('From Name', 'onesmtp'), $values['from_name']);
-        $this->renderTextarea('reply_to', __('Reply-To', 'onesmtp'), implode("\n", $values['reply_to']));
-        $this->renderTextarea('bcc', __('BCC', 'onesmtp'), implode("\n", $values['bcc']));
-        echo '</tbody></table>';
-        echo '<fieldset><legend>' . esc_html__('Force settings', 'onesmtp') . '</legend>';
-        $this->renderCheckbox('force_from_email', __('Force From Email when a message already has a From header.', 'onesmtp'), (bool) $values['force_from_email']);
-        $this->renderCheckbox('force_from_name', __('Force From Name when a message already has a From header.', 'onesmtp'), (bool) $values['force_from_name']);
-        $this->renderCheckbox('force_reply_to', __('Force Reply-To when a message already has Reply-To.', 'onesmtp'), (bool) $values['force_reply_to']);
-        $this->renderCheckbox('force_bcc', __('Force BCC when a message already has BCC.', 'onesmtp'), (bool) $values['force_bcc']);
-        echo '</fieldset>';
-        submit_button(__('Save sender identity', 'onesmtp'));
-        echo '</form>';
-
         $limits = $this->rateLimits->get()->toArray();
-        echo '<h3>' . esc_html__('Delivery rate limits', 'onesmtp') . '</h3>';
-        echo '<p>' . esc_html__('Set optional site-wide delivery caps. When a cap is exhausted, OneSMTP defers queued mail until capacity is available. Use 0 to disable a limit.', 'onesmtp') . '</p>';
-        echo '<form method="post" action="' . esc_url(admin_url('admin.php?page=onesmtp#onesmtp-settings')) . '">';
-        echo '<input type="hidden" name="onesmtp_settings_action" value="save_rate_limits">';
-        wp_nonce_field(self::ACTION_NAME, self::NONCE_NAME);
-        echo '<table class="form-table" role="presentation"><tbody>';
-        $this->renderNumberInput('rate_limit_per_minute', __('Per-minute limit', 'onesmtp'), (int) ($limits['per_minute'] ?? 0));
-        $this->renderNumberInput('rate_limit_per_hour', __('Hourly limit', 'onesmtp'), (int) ($limits['per_hour'] ?? 0));
-        $this->renderNumberInput('rate_limit_per_day', __('Daily limit', 'onesmtp'), (int) ($limits['per_day'] ?? 0));
-        echo '</tbody></table>';
-        submit_button(__('Save delivery rate limits', 'onesmtp'));
-        echo '</form>';
 
         $backgroundSending = $this->backgroundSending->get();
-        echo '<h3>' . esc_html__('Background sending', 'onesmtp') . '</h3>';
-        echo '<p>' . esc_html__('Queue normal WordPress mail for asynchronous delivery so user-facing requests are not held by provider latency. Provider test emails and manual resends continue to run synchronously.', 'onesmtp') . '</p>';
-        echo '<form method="post" action="' . esc_url(admin_url('admin.php?page=onesmtp#onesmtp-settings')) . '">';
-        echo '<input type="hidden" name="onesmtp_settings_action" value="save_background_sending">';
-        wp_nonce_field(self::ACTION_NAME, self::NONCE_NAME);
-        echo '<fieldset>';
-        $this->renderCheckbox('background_sending_enabled', __('Enable background sending for normal mail.', 'onesmtp'), $backgroundSending->isEnabled());
-        echo '</fieldset>';
-        submit_button(__('Save background sending', 'onesmtp'));
-        echo '</form>';
 
         $attachmentLogging = $this->attachmentLogging->get();
-        echo '<h3>' . esc_html__('Attachment logging', 'onesmtp') . '</h3>';
-        if (! $attachmentLogging->isEnabled()) {
-            echo '<div class="notice notice-info inline"><p>' . esc_html__('Attachment logging is off. OneSMTP removes raw attachment paths from stored log payloads by default.', 'onesmtp') . '</p></div>';
-        }
-        echo '<p>' . esc_html__('When enabled, OneSMTP stores attachment metadata only: count, safe filename, extension, and file size when available. File contents and raw server paths are not copied into logs.', 'onesmtp') . '</p>';
-        echo '<p class="description">' . esc_html(
-            sprintf(
-                /* translators: %d: log retention days. */
-                __('Attachment metadata is deleted with the parent email log according to the current %d-day log retention policy. Messages with file attachments may not preserve attachments for background retries or manual resend unless the source can provide them again.', 'onesmtp'),
-                RetentionPolicy::getLogRetentionDays()
-            )
-        ) . '</p>';
-        echo '<form method="post" action="' . esc_url(admin_url('admin.php?page=onesmtp#onesmtp-settings')) . '">';
-        echo '<input type="hidden" name="onesmtp_settings_action" value="save_attachment_logging">';
-        wp_nonce_field(self::ACTION_NAME, self::NONCE_NAME);
-        echo '<fieldset>';
-        $this->renderCheckbox('attachment_logging_enabled', __('Enable privacy-safe attachment metadata in email logs.', 'onesmtp'), $attachmentLogging->isEnabled());
-        echo '</fieldset>';
-        submit_button(__('Save attachment logging', 'onesmtp'));
-        echo '</form>';
 
         $alerts = $this->failureAlerts->get();
         $alertValues = $alerts->toArray();
-        echo '<h3>' . esc_html__('Failure alerts', 'onesmtp') . '</h3>';
-        if (! $alerts->hasEnabledChannel()) {
-            echo '<div class="notice notice-info inline"><p>' . esc_html__('Failure alerts are disabled until an email recipient or HTTPS webhook is enabled.', 'onesmtp') . '</p></div>';
-        }
-        echo '<p>' . esc_html__('Send privacy-safe alerts for terminal delivery failures. Alert payloads include IDs, hashes, status, provider summary, reason, and category only.', 'onesmtp') . '</p>';
-        echo '<form method="post" action="' . esc_url(admin_url('admin.php?page=onesmtp#onesmtp-settings')) . '">';
-        echo '<input type="hidden" name="onesmtp_settings_action" value="save_failure_alerts">';
-        wp_nonce_field(self::ACTION_NAME, self::NONCE_NAME);
-        echo '<table class="form-table" role="presentation"><tbody>';
-        echo '<tr><th scope="row">' . esc_html__('Admin email alerts', 'onesmtp') . '</th><td>';
-        $this->renderCheckbox('failure_alert_email_enabled', __('Enable admin email alerts.', 'onesmtp'), ! empty($alertValues['email_enabled']));
-        echo '</td></tr>';
-        $this->renderTextarea('failure_alert_email_recipients', __('Alert recipients', 'onesmtp'), implode("\n", (array) ($alertValues['email_recipients'] ?? [])));
-        echo '<tr><th scope="row">' . esc_html__('Webhook alerts', 'onesmtp') . '</th><td>';
-        $this->renderCheckbox('failure_alert_webhook_enabled', __('Enable HTTPS webhook alerts.', 'onesmtp'), ! empty($alertValues['webhook_enabled']));
-        echo '</td></tr>';
-        $this->renderInput('failure_alert_webhook_url', __('Webhook URL', 'onesmtp'), (string) ($alertValues['webhook_url'] ?? ''), 'url', 'large-text code', 2048);
-        echo '<tr><th scope="row"></th><td>';
-        echo '<p class="description">' . esc_html__('Use an HTTPS endpoint. Raw recipients, headers, message bodies, provider credentials, and stored payload JSON are never sent.', 'onesmtp') . '</p>';
-        echo '</td></tr>';
-        $this->renderNumberInput('failure_alert_throttle_seconds', __('Throttle window in seconds', 'onesmtp'), (int) ($alertValues['throttle_seconds'] ?? 900));
-        echo '</tbody></table>';
-        submit_button(__('Save failure alerts', 'onesmtp'));
-        echo '</form>';
 
         $weeklySummary = $this->weeklySummary->get();
         $weeklyValues = $weeklySummary->toArray();
-        echo '<h3>' . esc_html__('Weekly delivery summary', 'onesmtp') . '</h3>';
-        if (! $weeklySummary->isEnabled()) {
-            echo '<div class="notice notice-info inline"><p>' . esc_html__('Weekly delivery summaries are disabled until the summary email is enabled and at least one recipient is configured.', 'onesmtp') . '</p></div>';
-        }
-        echo '<p>' . esc_html__('Send a weekly privacy-safe delivery health summary with aggregate sent, failed, retried, pending, and failover counts. Message bodies, raw recipients, headers, secrets, attachment paths, and diagnostic payload JSON are never included.', 'onesmtp') . '</p>';
-        echo '<form method="post" action="' . esc_url(admin_url('admin.php?page=onesmtp#onesmtp-settings')) . '">';
-        echo '<input type="hidden" name="onesmtp_settings_action" value="save_weekly_summary">';
-        wp_nonce_field(self::ACTION_NAME, self::NONCE_NAME);
-        echo '<table class="form-table" role="presentation"><tbody>';
-        echo '<tr><th scope="row">' . esc_html__('Summary email', 'onesmtp') . '</th><td>';
-        $this->renderCheckbox('weekly_summary_enabled', __('Enable weekly delivery summary email.', 'onesmtp'), ! empty($weeklyValues['enabled']));
-        echo '</td></tr>';
-        $this->renderTextarea('weekly_summary_email_recipients', __('Summary recipients', 'onesmtp'), implode("\n", (array) ($weeklyValues['email_recipients'] ?? [])));
-        echo '</tbody></table>';
-        submit_button(__('Save weekly delivery summary', 'onesmtp'));
-        echo '</form>';
+        echo '<div class="onesmtp-settings-shell">';
+        $this->renderStatusNotice($status, $message);
+        echo '<div class="onesmtp-settings-grid">';
 
-        $this->renderImportExport();
+        $this->renderPanel(
+            __('Sender identity', 'onesmtp'),
+            __('Configure default sender headers for outgoing WordPress mail. Existing headers are preserved unless the matching force option is enabled.', 'onesmtp'),
+            true,
+            function () use ($values): void {
+                echo '<form class="onesmtp-settings-form" method="post" action="' . esc_url(admin_url('admin.php?page=onesmtp#onesmtp-settings')) . '">';
+                echo '<input type="hidden" name="onesmtp_settings_action" value="save_sender_identity">';
+                wp_nonce_field(self::ACTION_NAME, self::NONCE_NAME);
+                echo '<table class="form-table" role="presentation"><tbody>';
+                $this->renderInput('from_email', __('From Email', 'onesmtp'), $values['from_email'], 'email');
+                $this->renderInput('from_name', __('From Name', 'onesmtp'), $values['from_name']);
+                $this->renderTextarea('reply_to', __('Reply-To', 'onesmtp'), implode("\n", $values['reply_to']));
+                $this->renderTextarea('bcc', __('BCC', 'onesmtp'), implode("\n", $values['bcc']));
+                echo '</tbody></table>';
+                echo '<fieldset class="onesmtp-settings-fieldset"><legend>' . esc_html__('Force settings', 'onesmtp') . '</legend>';
+                $this->renderCheckbox('force_from_email', __('Force From Email when a message already has a From header.', 'onesmtp'), (bool) $values['force_from_email']);
+                $this->renderCheckbox('force_from_name', __('Force From Name when a message already has a From header.', 'onesmtp'), (bool) $values['force_from_name']);
+                $this->renderCheckbox('force_reply_to', __('Force Reply-To when a message already has Reply-To.', 'onesmtp'), (bool) $values['force_reply_to']);
+                $this->renderCheckbox('force_bcc', __('Force BCC when a message already has BCC.', 'onesmtp'), (bool) $values['force_bcc']);
+                echo '</fieldset>';
+                $this->renderActionFooter(__('Save sender identity', 'onesmtp'));
+                echo '</form>';
+            }
+        );
+
+        $this->renderPanel(
+            __('Delivery rate limits', 'onesmtp'),
+            __('Set optional site-wide delivery caps. When a cap is exhausted, OneSMTP defers queued mail until capacity is available. Use 0 to disable a limit.', 'onesmtp'),
+            false,
+            function () use ($limits): void {
+                echo '<form class="onesmtp-settings-form" method="post" action="' . esc_url(admin_url('admin.php?page=onesmtp#onesmtp-settings')) . '">';
+                echo '<input type="hidden" name="onesmtp_settings_action" value="save_rate_limits">';
+                wp_nonce_field(self::ACTION_NAME, self::NONCE_NAME);
+                echo '<table class="form-table" role="presentation"><tbody>';
+                $this->renderNumberInput('rate_limit_per_minute', __('Per-minute limit', 'onesmtp'), (int) ($limits['per_minute'] ?? 0));
+                $this->renderNumberInput('rate_limit_per_hour', __('Hourly limit', 'onesmtp'), (int) ($limits['per_hour'] ?? 0));
+                $this->renderNumberInput('rate_limit_per_day', __('Daily limit', 'onesmtp'), (int) ($limits['per_day'] ?? 0));
+                echo '</tbody></table>';
+                $this->renderActionFooter(__('Save delivery rate limits', 'onesmtp'));
+                echo '</form>';
+            }
+        );
+
+        $this->renderPanel(
+            __('Background sending', 'onesmtp'),
+            __('Queue normal WordPress mail for asynchronous delivery so user-facing requests are not held by provider latency. Provider test emails and manual resends continue to run synchronously.', 'onesmtp'),
+            false,
+            function () use ($backgroundSending): void {
+                echo '<form class="onesmtp-settings-form" method="post" action="' . esc_url(admin_url('admin.php?page=onesmtp#onesmtp-settings')) . '">';
+                echo '<input type="hidden" name="onesmtp_settings_action" value="save_background_sending">';
+                wp_nonce_field(self::ACTION_NAME, self::NONCE_NAME);
+                echo '<fieldset class="onesmtp-settings-fieldset">';
+                $this->renderCheckbox('background_sending_enabled', __('Enable background sending for normal mail.', 'onesmtp'), $backgroundSending->isEnabled());
+                echo '</fieldset>';
+                $this->renderActionFooter(__('Save background sending', 'onesmtp'));
+                echo '</form>';
+            }
+        );
+
+        $this->renderPanel(
+            __('Attachment logging', 'onesmtp'),
+            __('When enabled, OneSMTP stores attachment metadata only: count, safe filename, extension, and file size when available. File contents and raw server paths are not copied into logs.', 'onesmtp'),
+            false,
+            function () use ($attachmentLogging): void {
+                if (! $attachmentLogging->isEnabled()) {
+                    $this->renderInlineNotice('info', __('Attachment logging is off. OneSMTP removes raw attachment paths from stored log payloads by default.', 'onesmtp'));
+                }
+
+                echo '<p class="description">';
+                echo esc_html(
+                    sprintf(
+                        /* translators: %d: log retention days. */
+                        __('Attachment metadata is deleted with the parent email log according to the current %d-day log retention policy. Messages with file attachments may not preserve attachments for background retries or manual resend unless the source can provide them again.', 'onesmtp'),
+                        RetentionPolicy::getLogRetentionDays()
+                    )
+                );
+                echo '</p>';
+                echo '<form class="onesmtp-settings-form" method="post" action="' . esc_url(admin_url('admin.php?page=onesmtp#onesmtp-settings')) . '">';
+                echo '<input type="hidden" name="onesmtp_settings_action" value="save_attachment_logging">';
+                wp_nonce_field(self::ACTION_NAME, self::NONCE_NAME);
+                echo '<fieldset class="onesmtp-settings-fieldset">';
+                $this->renderCheckbox('attachment_logging_enabled', __('Enable privacy-safe attachment metadata in email logs.', 'onesmtp'), $attachmentLogging->isEnabled());
+                echo '</fieldset>';
+                $this->renderActionFooter(__('Save attachment logging', 'onesmtp'));
+                echo '</form>';
+            }
+        );
+
+        $this->renderPanel(
+            __('Failure alerts', 'onesmtp'),
+            __('Send privacy-safe alerts for terminal delivery failures. Alert payloads include IDs, hashes, status, provider summary, reason, and category only.', 'onesmtp'),
+            true,
+            function () use ($alerts, $alertValues): void {
+                if (! $alerts->hasEnabledChannel()) {
+                    $this->renderInlineNotice('info', __('Failure alerts are disabled until an email recipient or HTTPS webhook is enabled.', 'onesmtp'));
+                }
+
+                echo '<form class="onesmtp-settings-form" method="post" action="' . esc_url(admin_url('admin.php?page=onesmtp#onesmtp-settings')) . '">';
+                echo '<input type="hidden" name="onesmtp_settings_action" value="save_failure_alerts">';
+                wp_nonce_field(self::ACTION_NAME, self::NONCE_NAME);
+                echo '<table class="form-table" role="presentation"><tbody>';
+                echo '<tr><th scope="row">' . esc_html__('Admin email alerts', 'onesmtp') . '</th><td>';
+                $this->renderCheckbox('failure_alert_email_enabled', __('Enable admin email alerts.', 'onesmtp'), ! empty($alertValues['email_enabled']));
+                echo '</td></tr>';
+                $this->renderTextarea('failure_alert_email_recipients', __('Alert recipients', 'onesmtp'), implode("\n", (array) ($alertValues['email_recipients'] ?? [])));
+                echo '<tr><th scope="row">' . esc_html__('Webhook alerts', 'onesmtp') . '</th><td>';
+                $this->renderCheckbox('failure_alert_webhook_enabled', __('Enable HTTPS webhook alerts.', 'onesmtp'), ! empty($alertValues['webhook_enabled']));
+                echo '</td></tr>';
+                $this->renderInput('failure_alert_webhook_url', __('Webhook URL', 'onesmtp'), (string) ($alertValues['webhook_url'] ?? ''), 'url', 'large-text code', 2048);
+                echo '<tr><th scope="row"></th><td>';
+                echo '<p class="description">' . esc_html__('Use an HTTPS endpoint. Raw recipients, headers, message bodies, provider credentials, and stored payload JSON are never sent.', 'onesmtp') . '</p>';
+                echo '</td></tr>';
+                $this->renderNumberInput('failure_alert_throttle_seconds', __('Throttle window in seconds', 'onesmtp'), (int) ($alertValues['throttle_seconds'] ?? 900));
+                echo '</tbody></table>';
+                $this->renderActionFooter(__('Save failure alerts', 'onesmtp'));
+                echo '</form>';
+            }
+        );
+
+        $this->renderPanel(
+            __('Weekly delivery summary', 'onesmtp'),
+            __('Send a weekly privacy-safe delivery health summary with aggregate sent, failed, retried, pending, and failover counts. Message bodies, raw recipients, headers, secrets, attachment paths, and diagnostic payload JSON are never included.', 'onesmtp'),
+            false,
+            function () use ($weeklySummary, $weeklyValues): void {
+                if (! $weeklySummary->isEnabled()) {
+                    $this->renderInlineNotice('info', __('Weekly delivery summaries are disabled until the summary email is enabled and at least one recipient is configured.', 'onesmtp'));
+                }
+
+                echo '<form class="onesmtp-settings-form" method="post" action="' . esc_url(admin_url('admin.php?page=onesmtp#onesmtp-settings')) . '">';
+                echo '<input type="hidden" name="onesmtp_settings_action" value="save_weekly_summary">';
+                wp_nonce_field(self::ACTION_NAME, self::NONCE_NAME);
+                echo '<table class="form-table" role="presentation"><tbody>';
+                echo '<tr><th scope="row">' . esc_html__('Summary email', 'onesmtp') . '</th><td>';
+                $this->renderCheckbox('weekly_summary_enabled', __('Enable weekly delivery summary email.', 'onesmtp'), ! empty($weeklyValues['enabled']));
+                echo '</td></tr>';
+                $this->renderTextarea('weekly_summary_email_recipients', __('Summary recipients', 'onesmtp'), implode("\n", (array) ($weeklyValues['email_recipients'] ?? [])));
+                echo '</tbody></table>';
+                $this->renderActionFooter(__('Save weekly delivery summary', 'onesmtp'));
+                echo '</form>';
+            }
+        );
+
+        $this->renderPanel(
+            __('Settings import/export', 'onesmtp'),
+            __('Move safe OneSMTP configuration between environments without exposing secrets, credentials, raw recipients, headers, or payload data.', 'onesmtp'),
+            true,
+            function (): void {
+                $this->renderImportExport();
+            }
+        );
+
+        echo '</div>';
+        echo '</div>';
     }
 
     private function renderInput(string $name, string $label, mixed $value, string $type = 'text', string $class = 'regular-text', int $maxlength = 0): void
@@ -345,7 +381,7 @@ final class SettingsAdmin
 
     private function renderCheckbox(string $name, string $label, bool $checked): void
     {
-        echo '<p><label><input type="checkbox" name="' . esc_attr($name) . '" value="1"' . ($checked ? ' checked="checked"' : '') . '> ' . esc_html($label) . '</label></p>';
+        echo '<p class="onesmtp-setting-checkbox"><label><input type="checkbox" name="' . esc_attr($name) . '" value="1"' . ($checked ? ' checked="checked"' : '') . '> ' . esc_html($label) . '</label></p>';
     }
 
     private function renderNumberInput(string $name, string $label, int $value): void
@@ -366,18 +402,90 @@ final class SettingsAdmin
             admin_url('admin.php#onesmtp-settings')
         );
 
-        echo '<h3>' . esc_html__('Settings import/export', 'onesmtp') . '</h3>';
         echo '<p>' . esc_html__('Download a privacy-safe JSON settings file for migration or backup. Provider secrets, credentials, tokens, passwords, API keys, webhook URLs, raw recipients, message bodies, raw headers, and payload JSON are excluded by default.', 'onesmtp') . '</p>';
-        echo '<p><a class="button button-secondary" href="' . esc_url($downloadUrl) . '">' . esc_html__('Download safe settings export', 'onesmtp') . '</a></p>';
+        echo '<div class="onesmtp-settings-actions onesmtp-settings-actions--static">';
+        echo '<a class="button button-secondary" href="' . esc_url($downloadUrl) . '">' . esc_html__('Download safe settings export', 'onesmtp') . '</a>';
+        echo '</div>';
 
-        echo '<form method="post" action="' . esc_url(admin_url('admin.php?page=onesmtp#onesmtp-settings')) . '">';
+        echo '<form class="onesmtp-settings-form onesmtp-settings-import" method="post" action="' . esc_url(admin_url('admin.php?page=onesmtp#onesmtp-settings')) . '">';
         echo '<input type="hidden" name="onesmtp_settings_action" value="' . esc_attr(self::IMPORT_ACTION) . '">';
         wp_nonce_field(self::IMPORT_ACTION, self::IMPORT_NONCE_NAME);
         echo '<p><label for="onesmtp-settings-import-json">' . esc_html__('Import safe settings JSON', 'onesmtp') . '</label></p>';
         echo '<textarea id="onesmtp-settings-import-json" class="large-text code" rows="10" name="onesmtp_settings_import_json" spellcheck="false"></textarea>';
         echo '<p class="description">' . esc_html__('Only supported non-secret settings are imported. Secret, credential, webhook URL, raw recipient, message body, raw header, and payload fields are ignored.', 'onesmtp') . '</p>';
-        submit_button(__('Import safe settings', 'onesmtp'), 'secondary');
+        $this->renderActionFooter(__('Import safe settings', 'onesmtp'), 'secondary');
         echo '</form>';
+    }
+
+    private function renderStatusNotice(string $status, string $message): void
+    {
+        $noticeClass = '';
+        $noticeText = '';
+
+        if ($status === 'saved') {
+            $noticeClass = 'success';
+            $noticeText = __('Sender identity settings saved.', 'onesmtp');
+        } elseif ($status === 'rate_limits_saved') {
+            $noticeClass = 'success';
+            $noticeText = __('Delivery rate limit settings saved.', 'onesmtp');
+        } elseif ($status === 'failure_alerts_saved') {
+            $noticeClass = 'success';
+            $noticeText = __('Failure alert settings saved.', 'onesmtp');
+        } elseif ($status === 'background_sending_saved') {
+            $noticeClass = 'success';
+            $noticeText = __('Background sending settings saved.', 'onesmtp');
+        } elseif ($status === 'attachment_logging_saved') {
+            $noticeClass = 'success';
+            $noticeText = __('Attachment logging settings saved.', 'onesmtp');
+        } elseif ($status === 'weekly_summary_saved') {
+            $noticeClass = 'success';
+            $noticeText = __('Weekly delivery summary settings saved.', 'onesmtp');
+        } elseif ($status === 'imported') {
+            $noticeClass = 'success';
+            $noticeText = $message !== '' ? $message : __('OneSMTP settings imported. Secrets and recipient fields were excluded.', 'onesmtp');
+        } elseif ($status === 'invalid') {
+            $noticeClass = 'error';
+            $noticeText = $message !== '' ? $message : __('OneSMTP settings could not be saved.', 'onesmtp');
+        }
+
+        if ($noticeClass === '' || $noticeText === '') {
+            return;
+        }
+
+        echo '<div class="onesmtp-settings-notices">';
+        $this->renderInlineNotice($noticeClass, $noticeText);
+        echo '</div>';
+    }
+
+    /**
+     * @param callable():void $content
+     */
+    private function renderPanel(string $title, string $description, bool $fullWidth, callable $content): void
+    {
+        $classes = 'onesmtp-settings-panel postbox';
+        if ($fullWidth) {
+            $classes .= ' onesmtp-settings-panel--full';
+        }
+
+        echo '<section class="' . esc_attr($classes) . '">';
+        echo '<div class="postbox-header"><h3 class="hndle">' . esc_html($title) . '</h3></div>';
+        echo '<div class="inside">';
+        echo '<p class="description onesmtp-settings-panel-description">' . esc_html($description) . '</p>';
+        $content();
+        echo '</div>';
+        echo '</section>';
+    }
+
+    private function renderInlineNotice(string $type, string $message): void
+    {
+        echo '<div class="notice notice-' . esc_attr($type) . ' inline"><p>' . esc_html($message) . '</p></div>';
+    }
+
+    private function renderActionFooter(string $label, string $type = 'primary'): void
+    {
+        echo '<div class="onesmtp-settings-actions">';
+        submit_button($label, $type, 'submit', false);
+        echo '</div>';
     }
 
     private function handleExport(): void

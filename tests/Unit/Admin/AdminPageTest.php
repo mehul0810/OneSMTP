@@ -67,6 +67,8 @@ final class AdminPageTest extends TestCase
         $output = (string) ob_get_clean();
 
         self::assertStringContainsString('nav-tab-wrapper', $output);
+        self::assertStringContainsString('wp-heading-inline', $output);
+        self::assertStringContainsString('onesmtp-admin-section-header', $output);
         self::assertStringContainsString('id="onesmtp-setup"', $output);
         self::assertStringContainsString('id="onesmtp-providers"', $output);
         self::assertStringContainsString('id="onesmtp-logs"', $output);
