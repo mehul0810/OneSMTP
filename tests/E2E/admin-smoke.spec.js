@@ -36,14 +36,20 @@ test.describe('OneSMTP admin browser smoke', () => {
     await expect(page.getByRole('heading', { name: 'OneSMTP', exact: true })).toBeVisible();
     const primaryNav = page.locator('.nav-tab-wrapper');
 
-    for (const section of ['Dashboard', 'Setup', 'Providers', 'Logs', 'Diagnostics', 'Alerts', 'Settings']) {
-      await expect(primaryNav.getByRole('link', { name: section, exact: true })).toHaveAttribute('href', new RegExp(`#onesmtp-${section.toLowerCase()}`));
-      await expect(page.getByRole('heading', { name: section, exact: true })).toBeVisible();
+    for (const section of [
+      { label: 'General / Setup', href: '#onesmtp-general' },
+      { label: 'Providers', href: '#onesmtp-providers' },
+      { label: 'Email Control / Routing', href: '#onesmtp-routing' },
+      { label: 'Email Logs', href: '#onesmtp-logs' },
+      { label: 'Tools', href: '#onesmtp-tools' },
+    ]) {
+      await expect(primaryNav.getByRole('link', { name: section.label, exact: true })).toHaveAttribute('href', new RegExp(`${section.href}$`));
+      await expect(page.getByRole('heading', { name: section.label, exact: true })).toBeVisible();
     }
 
-    await primaryNav.getByRole('link', { name: 'Setup', exact: true }).click();
-    await expect(page).toHaveURL(/#onesmtp-setup$/);
-    await expect(page.locator('#onesmtp-setup')).toContainText('Test email');
+    await primaryNav.getByRole('link', { name: 'General / Setup', exact: true }).click();
+    await expect(page).toHaveURL(/#onesmtp-general$/);
+    await expect(page.locator('#onesmtp-general')).toContainText('Test email');
   });
 
   test('submits provider settings with safe local fixture values', async ({ page }) => {
@@ -76,11 +82,11 @@ test.describe('OneSMTP admin browser smoke', () => {
   test('exercises setup wizard and test email form state without external sends', async ({ page }) => {
     await captureFormSubmissions(page);
 
-    await expect(page.locator('#onesmtp-setup')).toContainText('Complete');
-    await expect(page.locator('#onesmtp-setup')).toContainText('Send test email');
+    await expect(page.locator('#onesmtp-general')).toContainText('Complete');
+    await expect(page.locator('#onesmtp-general')).toContainText('Send test email');
 
     const setupTestForm = page
-      .locator('#onesmtp-setup form')
+      .locator('#onesmtp-general form')
       .filter({ has: page.locator('input[name="onesmtp_setup_action"][value="send_test"]') });
 
     await setupTestForm.locator('select[name="provider_id"]').selectOption('7');
@@ -105,10 +111,10 @@ test.describe('OneSMTP admin browser smoke', () => {
     await expect(page.locator('#onesmtp-logs')).not.toContainText('Internal smoke body');
     await expect(page.locator('#onesmtp-logs')).not.toContainText('/var/www/private/invoice.pdf');
 
-    await expect(page.locator('#onesmtp-diagnostics')).toContainText('Scheduler availability');
-    await expect(page.locator('#onesmtp-diagnostics')).toContainText('Unavailable');
-    await expect(page.locator('#onesmtp-diagnostics')).toContainText('Overdue retries');
-    await expect(page.locator('#onesmtp-diagnostics')).toContainText('Action Scheduler');
+    await expect(page.locator('#onesmtp-tools')).toContainText('Scheduler availability');
+    await expect(page.locator('#onesmtp-tools')).toContainText('Unavailable');
+    await expect(page.locator('#onesmtp-tools')).toContainText('Overdue retries');
+    await expect(page.locator('#onesmtp-tools')).toContainText('Action Scheduler');
     await expect(page.locator('#onesmtp-diagnostic-preview')).not.toContainText('customer body');
     await expect(page.locator('#onesmtp-diagnostic-preview')).not.toContainText('secret-token');
     await expect(page.locator('#onesmtp-diagnostic-preview')).not.toContainText('smtp.local.test');
@@ -117,7 +123,7 @@ test.describe('OneSMTP admin browser smoke', () => {
   test('renders alert event history with acknowledgement state and redacted context', async ({ page }) => {
     await captureFormSubmissions(page);
 
-    const alerts = page.locator('#onesmtp-alerts');
+    const alerts = page.locator('#onesmtp-tools');
     await expect(alerts).toContainText('Review privacy-safe alert events');
     await expect(alerts).toContainText('Terminal failure for message #21 after retry boundary.');
     await expect(alerts).toContainText('Terminal failure already acknowledged for message #20.');
