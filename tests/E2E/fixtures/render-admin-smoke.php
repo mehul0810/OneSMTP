@@ -207,14 +207,19 @@ $body = (string) ob_get_clean();
 echo '<!doctype html><html lang="en"><head><meta charset="utf-8">';
 echo '<title>OneSMTP Admin Smoke Fixture</title>';
 echo '<style>';
-echo 'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:24px}';
-echo '.nav-tab-wrapper{display:flex;gap:12px;position:sticky;top:0;background:#fff;padding:8px 0}';
+echo 'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:24px;background:#f0f0f1;color:#1d2327}';
+echo '.wrap{margin:0}';
+echo '.postbox{background:#fff;border:1px solid #c3c4c7;box-shadow:0 1px 1px rgba(0,0,0,.04)}';
 echo '.nav-tab{color:#135e96}.widefat{border-collapse:collapse;width:100%;margin:12px 0}';
 echo '.widefat th,.widefat td{border:1px solid #ccd0d4;padding:8px;text-align:left;vertical-align:top}';
 echo '.notice{border-left:4px solid #72aee6;padding:8px 12px;margin:12px 0}';
 echo '.notice-warning{border-left-color:#dba617}.notice-success{border-left-color:#00a32a}';
 echo '.notice-info{border-left-color:#72aee6}.notice-error{border-left-color:#d63638}';
 echo '.regular-text{min-width:22rem}.large-text{width:100%}.button{cursor:pointer}';
+$adminStyles = $repoRoot . '/assets/admin.css';
+if (file_exists($adminStyles)) {
+    echo file_get_contents($adminStyles);
+}
 echo '</style>';
 echo '</head><body>';
 echo $body;

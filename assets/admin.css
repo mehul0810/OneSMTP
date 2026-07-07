@@ -1,0 +1,201 @@
+.onesmtp-admin {
+    max-width: 1280px;
+}
+
+.onesmtp-admin-header {
+    margin: 18px 0 12px;
+}
+
+.onesmtp-admin-heading {
+    max-width: 72rem;
+}
+
+.onesmtp-admin-intro {
+    margin: 10px 0 0;
+    color: #50575e;
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.onesmtp-admin-nav {
+    margin: 20px 0 24px;
+}
+
+.onesmtp-admin-nav .nav-tab-wrapper {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    border-bottom: 1px solid #dcdcde;
+    padding-top: 0;
+}
+
+.onesmtp-admin-shell {
+    display: grid;
+    gap: 32px;
+}
+
+.onesmtp-admin-section {
+    scroll-margin-top: 32px;
+}
+
+.onesmtp-admin-section-header {
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #dcdcde;
+}
+
+.onesmtp-admin-section-heading h2 {
+    margin: 0 0 6px;
+}
+
+.onesmtp-admin-section-description {
+    margin: 0;
+    max-width: 72ch;
+    color: #50575e;
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.onesmtp-admin-section-body > .notice.inline:first-child {
+    margin-top: 0;
+}
+
+.onesmtp-settings-shell {
+    display: grid;
+    gap: 20px;
+}
+
+.onesmtp-settings-notices {
+    display: grid;
+    gap: 12px;
+}
+
+.onesmtp-settings-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 16px;
+    align-items: start;
+}
+
+.onesmtp-settings-panel {
+    margin: 0;
+}
+
+.onesmtp-settings-panel--full {
+    grid-column: 1 / -1;
+}
+
+.onesmtp-settings-panel .postbox-header {
+    border-bottom: 1px solid #dcdcde;
+    padding: 0 16px;
+}
+
+.onesmtp-settings-panel .hndle {
+    padding: 14px 0;
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+.onesmtp-settings-panel .inside {
+    margin: 0;
+    padding: 16px;
+}
+
+.onesmtp-settings-panel-description {
+    margin: 0 0 16px;
+    max-width: 72ch;
+    color: #50575e;
+}
+
+.onesmtp-settings-panel .notice.inline {
+    margin: 0 0 16px;
+}
+
+.onesmtp-settings-panel .form-table {
+    margin-top: 0;
+}
+
+.onesmtp-settings-panel .form-table th {
+    width: 220px;
+    padding-left: 0;
+}
+
+.onesmtp-settings-panel .form-table td {
+    padding-right: 0;
+}
+
+.onesmtp-settings-fieldset {
+    margin: 16px 0 0;
+    padding: 0;
+    border: 0;
+}
+
+.onesmtp-settings-fieldset legend {
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+
+.onesmtp-setting-checkbox {
+    margin: 0 0 12px;
+}
+
+.onesmtp-setting-checkbox:last-child {
+    margin-bottom: 0;
+}
+
+.onesmtp-settings-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid #f0f0f1;
+}
+
+.onesmtp-settings-actions--static {
+    margin-top: 0;
+    padding-top: 0;
+    border-top: 0;
+}
+
+.onesmtp-settings-actions .submit {
+    margin: 0;
+    padding: 0;
+}
+
+.onesmtp-settings-actions .button {
+    margin: 0;
+}
+
+.onesmtp-settings-import textarea {
+    min-height: 220px;
+}
+
+@media (max-width: 960px) {
+    .onesmtp-settings-panel .form-table th,
+    .onesmtp-settings-panel .form-table td {
+        display: block;
+        width: 100%;
+        padding-right: 0;
+    }
+
+    .onesmtp-settings-panel .form-table th {
+        padding-bottom: 0;
+    }
+
+    .onesmtp-settings-panel .regular-text,
+    .onesmtp-settings-panel .small-text {
+        width: 100%;
+        max-width: none;
+    }
+}
+
+@media (max-width: 782px) {
+    .onesmtp-admin-nav .nav-tab-wrapper {
+        gap: 0;
+    }
+
+    .onesmtp-settings-grid {
+        grid-template-columns: 1fr;
+    }
+}
