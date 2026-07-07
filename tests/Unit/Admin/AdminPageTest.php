@@ -67,17 +67,24 @@ final class AdminPageTest extends TestCase
         $output = (string) ob_get_clean();
 
         self::assertStringContainsString('nav-tab-wrapper', $output);
-        self::assertStringContainsString('wp-heading-inline', $output);
+        self::assertStringContainsString('onesmtp-admin-hero', $output);
+        self::assertStringContainsString('onesmtp-admin-hero-rail', $output);
         self::assertStringContainsString('onesmtp-admin-section-header', $output);
+        self::assertStringContainsString('id="onesmtp-general"', $output);
         self::assertStringContainsString('id="onesmtp-setup"', $output);
         self::assertStringContainsString('id="onesmtp-providers"', $output);
-        self::assertStringContainsString('id="onesmtp-logs"', $output);
-        self::assertStringContainsString('id="onesmtp-diagnostics"', $output);
+        self::assertStringContainsString('id="onesmtp-routing"', $output);
         self::assertStringContainsString('id="onesmtp-settings"', $output);
-        self::assertStringContainsString('Use this guided setup', $output);
-        self::assertStringContainsString('Create and manage the delivery providers', $output);
-        self::assertStringContainsString('Add or update provider', $output);
-        self::assertStringContainsString('Scheduler availability', $output);
+        self::assertStringContainsString('id="onesmtp-logs"', $output);
+        self::assertStringContainsString('id="onesmtp-tools"', $output);
+        self::assertStringContainsString('id="onesmtp-diagnostics"', $output);
+        self::assertStringContainsString('id="onesmtp-alerts"', $output);
+        self::assertStringContainsString('Reliable email delivery for WordPress.', $output);
+        self::assertStringContainsString('A premium, enterprise-ready admin workspace', $output);
+        self::assertStringContainsString('General / Setup', $output);
+        self::assertStringContainsString('Email Control / Routing', $output);
+        self::assertStringContainsString('Email Logs', $output);
+        self::assertStringContainsString('Tools', $output);
     }
 
     public function test_render_blocks_users_without_manage_capability(): void

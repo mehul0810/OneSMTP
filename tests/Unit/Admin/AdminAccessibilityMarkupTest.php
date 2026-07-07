@@ -70,12 +70,15 @@ final class AdminAccessibilityMarkupTest extends TestCase
         $html = $this->capture(static fn (): null => (new AdminPage())->render());
 
         self::assertStringContainsString('<nav class="nav-tab-wrapper" aria-label="OneSMTP sections">', $html);
-        self::assertStringContainsString('href="https://example.org/wp-admin/admin.php?page=onesmtp#onesmtp-dashboard"', $html);
-        self::assertStringContainsString('href="https://example.org/wp-admin/admin.php?page=onesmtp#onesmtp-setup"', $html);
+        self::assertStringContainsString('href="https://example.org/wp-admin/admin.php?page=onesmtp#onesmtp-general"', $html);
         self::assertStringContainsString('href="https://example.org/wp-admin/admin.php?page=onesmtp#onesmtp-providers"', $html);
+        self::assertStringContainsString('href="https://example.org/wp-admin/admin.php?page=onesmtp#onesmtp-routing"', $html);
         self::assertStringContainsString('href="https://example.org/wp-admin/admin.php?page=onesmtp#onesmtp-logs"', $html);
-        self::assertStringContainsString('href="https://example.org/wp-admin/admin.php?page=onesmtp#onesmtp-diagnostics"', $html);
-        self::assertStringContainsString('href="https://example.org/wp-admin/admin.php?page=onesmtp#onesmtp-settings"', $html);
+        self::assertStringContainsString('href="https://example.org/wp-admin/admin.php?page=onesmtp#onesmtp-tools"', $html);
+        self::assertStringContainsString('id="onesmtp-setup"', $html);
+        self::assertStringContainsString('id="onesmtp-settings"', $html);
+        self::assertStringContainsString('id="onesmtp-diagnostics"', $html);
+        self::assertStringContainsString('id="onesmtp-alerts"', $html);
     }
 
     public function test_provider_controls_have_table_semantics_contextual_actions_and_long_content_wrapping(): void
