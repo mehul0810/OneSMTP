@@ -70,6 +70,8 @@ final class AdminAccessibilityMarkupTest extends TestCase
         $html = $this->capture(static fn (): null => (new AdminPage())->render());
 
         self::assertStringContainsString('<nav class="nav-tab-wrapper" aria-label="OneSMTP sections">', $html);
+        self::assertStringContainsString('data-onesmtp-workspace-link="onesmtp-general"', $html);
+        self::assertStringContainsString('aria-current="page"', $html);
         self::assertStringContainsString('href="https://example.org/wp-admin/admin.php?page=onesmtp#onesmtp-general"', $html);
         self::assertStringContainsString('href="https://example.org/wp-admin/admin.php?page=onesmtp#onesmtp-providers"', $html);
         self::assertStringContainsString('href="https://example.org/wp-admin/admin.php?page=onesmtp#onesmtp-routing"', $html);
@@ -79,6 +81,8 @@ final class AdminAccessibilityMarkupTest extends TestCase
         self::assertStringContainsString('id="onesmtp-settings"', $html);
         self::assertStringContainsString('id="onesmtp-diagnostics"', $html);
         self::assertStringContainsString('id="onesmtp-alerts"', $html);
+        self::assertStringContainsString('aria-label="General / Setup workspace context"', $html);
+        self::assertStringContainsString('id="onesmtp-general-heading" tabindex="-1"', $html);
     }
 
     public function test_provider_controls_have_table_semantics_contextual_actions_and_long_content_wrapping(): void

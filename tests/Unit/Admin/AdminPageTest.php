@@ -67,9 +67,13 @@ final class AdminPageTest extends TestCase
         $output = (string) ob_get_clean();
 
         self::assertStringContainsString('nav-tab-wrapper', $output);
-        self::assertStringContainsString('onesmtp-admin-hero', $output);
-        self::assertStringContainsString('onesmtp-admin-hero-rail', $output);
+        self::assertStringContainsString('data-onesmtp-workspaces', $output);
+        self::assertStringContainsString('onesmtp-admin-header', $output);
+        self::assertStringContainsString('onesmtp-context-rail', $output);
         self::assertStringContainsString('onesmtp-admin-section-header', $output);
+        self::assertStringContainsString('data-onesmtp-workspace-link="onesmtp-general"', $output);
+        self::assertStringContainsString('nav-tab nav-tab-active', $output);
+        self::assertStringContainsString('aria-current="page"', $output);
         self::assertStringContainsString('id="onesmtp-general"', $output);
         self::assertStringContainsString('id="onesmtp-setup"', $output);
         self::assertStringContainsString('id="onesmtp-providers"', $output);
@@ -80,7 +84,8 @@ final class AdminPageTest extends TestCase
         self::assertStringContainsString('id="onesmtp-diagnostics"', $output);
         self::assertStringContainsString('id="onesmtp-alerts"', $output);
         self::assertStringContainsString('Reliable email delivery for WordPress.', $output);
-        self::assertStringContainsString('A premium, enterprise-ready admin workspace', $output);
+        self::assertStringContainsString('Setup needed', $output);
+        self::assertStringContainsString('General / Setup workspace context', $output);
         self::assertStringContainsString('General / Setup', $output);
         self::assertStringContainsString('Email Control / Routing', $output);
         self::assertStringContainsString('Email Logs', $output);
