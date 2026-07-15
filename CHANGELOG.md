@@ -14,6 +14,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 ### Changed
 
 - Added an enforceable changed-PHP-files PHPCS gate for pull requests while full-tree WPCS cleanup remains advisory.
+- Refined the admin shell into progressive hash-linked workspaces with active navigation, contextual status rails, and responsive form and table constraints.
 
 ## [0.2.0] - 2026-06-26
 

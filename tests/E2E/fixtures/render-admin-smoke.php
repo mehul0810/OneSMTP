@@ -223,4 +223,10 @@ if (file_exists($adminStyles)) {
 echo '</style>';
 echo '</head><body>';
 echo $body;
+echo '<script>';
+$adminScript = $repoRoot . '/assets/admin.js';
+if (file_exists($adminScript)) {
+    echo file_get_contents($adminScript); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped, WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Local fixture asset.
+}
+echo '</script>';
 echo '</body></html>';
