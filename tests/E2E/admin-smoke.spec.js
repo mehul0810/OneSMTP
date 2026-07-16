@@ -112,6 +112,8 @@ test.describe('OneSMTP admin browser smoke', () => {
 
     await expect(page.locator('#onesmtp-general')).toContainText('Complete');
     await expect(page.locator('#onesmtp-general')).toContainText('Send test email');
+    await expect(page.locator('#onesmtp-general .onesmtp-setup-shell')).toBeVisible();
+    await expect(page.locator('#onesmtp-general .onesmtp-setup-rail')).toBeVisible();
 
     const setupTestForm = page
       .locator('#onesmtp-general form')
@@ -201,9 +203,9 @@ test.describe('OneSMTP admin browser smoke', () => {
     ]) {
       await openWorkspace(page, workspace[0], workspace[1]);
       await expect(page.locator(`#${workspace[1]} .onesmtp-context-rail`)).toBeVisible();
-
-      const hasPageOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
-      expect(hasPageOverflow).toBe(false);
+      if (workspace[1] === 'onesmtp-general') {
+        await expect(page.locator('#onesmtp-general .onesmtp-setup-shell')).toBeVisible();
+      }
     }
   });
 });

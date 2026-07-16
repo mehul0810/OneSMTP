@@ -48,6 +48,9 @@ final class SetupWizardTest extends TestCase
         $wizard->render();
         $output = (string) ob_get_clean();
 
+        self::assertStringContainsString('onesmtp-setup-shell', $output);
+        self::assertStringContainsString('onesmtp-setup-rail', $output);
+        self::assertStringContainsString('Current state', $output);
         self::assertStringContainsString('Needs setup', $output);
         self::assertStringContainsString('Save first provider', $output);
         self::assertStringContainsString('Add and activate a provider before sending a setup test email.', $output);
@@ -62,6 +65,8 @@ final class SetupWizardTest extends TestCase
         $wizard->render();
         $output = (string) ob_get_clean();
 
+        self::assertStringContainsString('onesmtp-setup-panel postbox', $output);
+        self::assertStringContainsString('Setup guidance', $output);
         self::assertStringContainsString('Provider capability matrix', $output);
         self::assertStringContainsString('API delivery', $output);
         self::assertStringContainsString('Provider message ID', $output);
