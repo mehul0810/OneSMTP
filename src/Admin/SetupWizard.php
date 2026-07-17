@@ -139,7 +139,7 @@ final class SetupWizard
 
         echo '<ol class="onesmtp-setup-summary-list">';
         echo '<li>' . esc_html__('Sender identity and first provider', 'onesmtp') . ': <strong>' . esc_html($hasProvider ? __('Complete', 'onesmtp') : __('Needs setup', 'onesmtp')) . '</strong></li>';
-        echo '<li>' . esc_html__('Backup provider prompt', 'onesmtp') . ': <strong>' . esc_html(count($providers) > 1 ? __('Complete', 'onesmtp') : __('Recommended next', 'onesmtp')) . '</strong></li>';
+        echo '<li>' . esc_html__('Backup provider prompt', 'onesmtp') . ': <strong>' . esc_html($this->activeProviderCount($providers) > 1 ? __('Complete', 'onesmtp') : __('Recommended next', 'onesmtp')) . '</strong></li>';
         echo '<li>' . esc_html__('Test email verification', 'onesmtp') . ': <strong>' . esc_html($this->latestStatus() === 'test_sent' ? __('Complete', 'onesmtp') : __('Pending', 'onesmtp')) . '</strong></li>';
         echo '<li>' . esc_html__('Setup log confirmation', 'onesmtp') . ': <strong>' . esc_html($hasProvider ? __('Recording setup events', 'onesmtp') : __('Pending provider save', 'onesmtp')) . '</strong></li>';
         echo '</ol>';
@@ -226,7 +226,7 @@ final class SetupWizard
             return;
         }
 
-        if (count($providers) < 2) {
+        if ($this->activeProviderCount($providers) < 2) {
             echo '<p>' . esc_html__('A backup provider is recommended for failover. You can add one now or return later from Providers.', 'onesmtp') . '</p>';
         }
 
@@ -397,13 +397,23 @@ final class SetupWizard
      */
     private function hasActiveProvider(array $providers): bool
     {
+        return $this->activeProviderCount($providers) > 0;
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $providers Providers.
+     */
+    private function activeProviderCount(array $providers): int
+    {
+        $count = 0;
+
         foreach ($providers as $provider) {
             if (! empty($provider['is_active'])) {
-                return true;
+                $count++;
             }
         }
 
-        return false;
+        return $count;
     }
 
     private function renderNotice(): void
@@ -471,7 +481,7 @@ final class SetupWizard
      */
     private function setupStateSummary(array $providers): string
     {
-        $providerCount = count($providers);
+        $providerCount = $this->activeProviderCount($providers);
         $providerLabel = $providerCount === 1
             ? __('1 active provider', 'onesmtp')
             : sprintf(

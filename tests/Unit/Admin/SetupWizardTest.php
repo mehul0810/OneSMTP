@@ -57,6 +57,25 @@ final class SetupWizardTest extends TestCase
         self::assertStringNotContainsString('plain-password', $output);
     }
 
+    public function test_render_reports_only_active_providers_when_inactive_entries_exist(): void
+    {
+        $GLOBALS['wpdb']->activeProviders = [
+            ['id' => 7, 'name' => 'Primary SMTP', 'adapter_type' => 'smtp', 'is_active' => 1, 'priority' => 1, 'weight' => 1],
+            ['id' => 8, 'name' => 'Inactive SMTP', 'adapter_type' => 'smtp', 'is_active' => 0, 'priority' => 2, 'weight' => 1],
+        ];
+
+        $wizard = new SetupWizard(new ProviderRepository());
+
+        ob_start();
+        $wizard->render();
+        $output = (string) ob_get_clean();
+
+        self::assertStringContainsString('1 active provider and the test email step is still pending.', $output);
+        self::assertStringContainsString('Backup provider prompt', $output);
+        self::assertStringContainsString('Recommended next', $output);
+        self::assertStringContainsString('A backup provider is recommended for failover.', $output);
+    }
+
     public function test_render_includes_provider_capability_matrix_from_metadata(): void
     {
         $wizard = new SetupWizard(new ProviderRepository());

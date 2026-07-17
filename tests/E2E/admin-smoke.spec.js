@@ -206,6 +206,11 @@ test.describe('OneSMTP admin browser smoke', () => {
       if (workspace[1] === 'onesmtp-general') {
         await expect(page.locator('#onesmtp-general .onesmtp-setup-shell')).toBeVisible();
       }
+
+      const hasPageOverflow = await page.evaluate(
+        () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1
+      );
+      expect(hasPageOverflow).toBe(false);
     }
   });
 });
