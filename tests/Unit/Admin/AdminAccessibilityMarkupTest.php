@@ -187,6 +187,9 @@ final class AdminAccessibilityMarkupTest extends TestCase
 
         self::assertStringContainsString('<label for="onesmtp-setup-from_email">Sender email</label>', $html);
         self::assertStringContainsString('<label for="onesmtp-setup-adapter_type">Provider type</label>', $html);
+        self::assertStringContainsString('onesmtp-setup-shell', $html);
+        self::assertStringContainsString('onesmtp-setup-rail', $html);
+        self::assertStringContainsString('onesmtp-setup-panel postbox', $html);
         self::assertStringContainsString('<label for="from_email">From Email</label>', $html);
         self::assertStringContainsString('<legend>Force settings</legend>', $html);
         self::assertStringContainsString('<label><input type="checkbox" name="failure_alert_email_enabled"', $html);

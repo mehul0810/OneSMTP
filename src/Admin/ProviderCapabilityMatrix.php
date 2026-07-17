@@ -22,6 +22,7 @@ final class ProviderCapabilityMatrix
             return;
         }
 
+        echo '<div class="onesmtp-table-scroll">';
         echo '<table class="widefat striped">';
         echo '<thead><tr>';
         echo '<th scope="col">' . esc_html__('Provider', 'onesmtp') . '</th>';
@@ -50,5 +51,6 @@ final class ProviderCapabilityMatrix
         }
 
         echo '</tbody></table>';
+        echo '</div>';
     }
 }

@@ -250,6 +250,83 @@
     gap: 20px;
 }
 
+.onesmtp-setup-shell {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(280px, 320px);
+    gap: 24px;
+    align-items: start;
+}
+
+.onesmtp-setup-main {
+    display: grid;
+    gap: 20px;
+    min-width: 0;
+}
+
+.onesmtp-setup-notices {
+    display: grid;
+    gap: 12px;
+}
+
+.onesmtp-setup-panel {
+    margin: 0;
+    min-width: 0;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.onesmtp-setup-panel--full {
+    grid-column: 1 / -1;
+}
+
+.onesmtp-setup-panel .postbox-header {
+    border-bottom: 1px solid #dcdcde;
+    padding: 0 16px;
+}
+
+.onesmtp-setup-panel .hndle {
+    padding: 14px 0;
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+.onesmtp-setup-panel .inside {
+    margin: 0;
+    padding: 16px;
+}
+
+.onesmtp-setup-panel-description {
+    margin: 0 0 16px;
+    max-width: 72ch;
+    color: #50575e;
+}
+
+.onesmtp-setup-panel .notice.inline {
+    margin: 0 0 16px;
+}
+
+.onesmtp-setup-summary-list {
+    margin: 0;
+    padding-inline-start: 20px;
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+}
+
+.onesmtp-setup-summary-list li strong {
+    color: #1d2327;
+}
+
+.onesmtp-setup-rail {
+    display: grid;
+    gap: 12px;
+    min-width: 0;
+}
+
+.onesmtp-table-scroll {
+    max-width: 100%;
+}
+
 .onesmtp-settings-notices {
     display: grid;
     gap: 12px;
@@ -408,6 +485,14 @@
         max-width: 100%;
         box-sizing: border-box;
     }
+
+    .onesmtp-setup-shell {
+        grid-template-columns: 1fr;
+    }
+
+    .onesmtp-setup-rail {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
 }
 
 @media (max-width: 782px) {
@@ -435,10 +520,20 @@
         grid-template-columns: 1fr;
     }
 
+    .onesmtp-setup-rail {
+        grid-template-columns: 1fr;
+    }
+
     .onesmtp-admin-section .widefat {
         display: block;
         width: 100%;
         max-width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    .onesmtp-table-scroll {
+        display: block;
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
     }
