@@ -11,6 +11,7 @@ use OneSMTP\Providers\ProviderAdapterRegistry;
 use OneSMTP\Providers\ProviderConfig;
 use OneSMTP\Providers\SendResult;
 use OneSMTP\Repository\ProviderRepository;
+use OneSMTP\Settings\SenderIdentityRepository;
 use OneSMTP\Tests\Support\FakeWpdb;
 use PHPUnit\Framework\TestCase;
 use WP_Error;
@@ -23,6 +24,7 @@ final class RestControllerTest extends TestCase
         parent::setUp();
 
         $GLOBALS['onesmtp_test_rest_routes'] = [];
+        $GLOBALS['onesmtp_test_options'] = [];
         unset($GLOBALS['onesmtp_test_current_user_caps'], $GLOBALS['onesmtp_test_current_user_can']);
     }
 
@@ -33,7 +35,7 @@ final class RestControllerTest extends TestCase
         $controller->registerRoutes();
 
         $routes = $GLOBALS['onesmtp_test_rest_routes'];
-        self::assertCount(6, $routes);
+        self::assertCount(7, $routes);
 
         $providerWriteRoute = $routes[0]['args'][1];
         self::assertArrayHasKey('args', $providerWriteRoute);
@@ -55,6 +57,11 @@ final class RestControllerTest extends TestCase
         $resendRoute = $routes[5]['args'][0];
         self::assertArrayHasKey('id', $resendRoute['args']);
         self::assertArrayHasKey('provider_id', $resendRoute['args']);
+
+        $senderIdentityRoute = $routes[6]['args'][1];
+        self::assertSame([RestController::class, 'canManage'], $senderIdentityRoute['permission_callback']);
+        self::assertArrayHasKey('from_email', $senderIdentityRoute['args']);
+        self::assertArrayHasKey('from_name', $senderIdentityRoute['args']);
     }
 
     /**
@@ -154,6 +161,18 @@ final class RestControllerTest extends TestCase
                 0,
                 [RestController::class, 'canResend'],
                 Capabilities::RESEND_EMAILS,
+            ],
+            'sender identity read' => [
+                '/settings/sender-identity',
+                0,
+                [RestController::class, 'canManage'],
+                Capabilities::MANAGE_PLUGIN,
+            ],
+            'sender identity write' => [
+                '/settings/sender-identity',
+                1,
+                [RestController::class, 'canManage'],
+                Capabilities::MANAGE_PLUGIN,
             ],
         ];
     }
@@ -379,6 +398,57 @@ final class RestControllerTest extends TestCase
         self::assertFalse($missingAdapter->data['ok']);
         self::assertSame('adapter_missing', $missingAdapter->data['code']);
         self::assertSame('unknown', $missingAdapter->data['test']['adapter_type']);
+    }
+
+    public function test_sender_identity_can_be_read_and_saved_without_exposing_other_settings(): void
+    {
+        $GLOBALS['onesmtp_test_options']['onesmtp_settings'] = [
+            'value' => [
+                'sender_identity' => [
+                    'from_email' => 'old@example.test',
+                    'from_name' => 'Old Sender',
+                    'reply_to' => ['reply@example.test'],
+                ],
+                'rate_limits' => ['per_minute' => 20],
+            ],
+            'autoload' => false,
+        ];
+
+        $controller = $this->controllerWithoutConstructor();
+        $this->setControllerProperty($controller, 'senderIdentity', new SenderIdentityRepository());
+
+        $current = $controller->getSenderIdentity();
+        self::assertSame('old@example.test', $current->data['identity']['from_email']);
+
+        $saved = $controller->saveSenderIdentity(new WP_REST_Request([], [
+            'from_email' => 'new@example.test',
+            'from_name' => 'New Sender',
+        ]));
+
+        self::assertSame(200, $saved->status);
+        self::assertSame('new@example.test', $saved->data['identity']['from_email']);
+        self::assertSame('New Sender', $saved->data['identity']['from_name']);
+        self::assertSame(['reply@example.test'], $saved->data['identity']['reply_to']);
+        self::assertSame(['per_minute' => 20], $GLOBALS['onesmtp_test_options']['onesmtp_settings']['value']['rate_limits']);
+    }
+
+    public function test_sender_identity_rejects_unknown_fields_and_invalid_email(): void
+    {
+        $controller = $this->controllerWithoutConstructor();
+        $this->setControllerProperty($controller, 'senderIdentity', new SenderIdentityRepository());
+
+        $unknown = $controller->saveSenderIdentity(new WP_REST_Request([], [
+            'from_email' => 'sender@example.test',
+            'unexpected' => 'value',
+        ]));
+        self::assertInstanceOf(WP_Error::class, $unknown);
+        self::assertSame('invalid_sender_identity_fields', $unknown->get_error_code());
+
+        $invalid = $controller->saveSenderIdentity(new WP_REST_Request([], [
+            'from_email' => 'not-an-email',
+        ]));
+        self::assertInstanceOf(WP_Error::class, $invalid);
+        self::assertSame('invalid_sender_identity', $invalid->get_error_code());
     }
 
     private function controllerWithoutConstructor(): RestController

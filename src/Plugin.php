@@ -28,6 +28,7 @@ use OneSMTP\Repository\MetricsRepository;
 use OneSMTP\Repository\MessageRepository;
 use OneSMTP\Repository\ProviderRepository;
 use OneSMTP\Settings\BackgroundSendingSettingsRepository;
+use OneSMTP\Settings\SenderIdentityRepository;
 use OneSMTP\Summary\WeeklySummaryMailer;
 
 final class Plugin
@@ -89,7 +90,7 @@ final class Plugin
         add_action(
             'rest_api_init',
             static function () use ($providers, $messages, $attempts, $sendPipeline): void {
-                $controller = new RestController($providers, $messages, $attempts, $sendPipeline);
+                $controller = new RestController($providers, $messages, $attempts, $sendPipeline, null, new SenderIdentityRepository());
                 $controller->registerRoutes();
             }
         );

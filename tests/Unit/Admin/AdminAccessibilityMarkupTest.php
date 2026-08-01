@@ -80,6 +80,9 @@ final class AdminAccessibilityMarkupTest extends TestCase
         self::assertStringContainsString('href="https://example.org/wp-admin/options-general.php?page=onesmtp&amp;tab=onesmtp-analytics#onesmtp-analytics"', $html);
         self::assertStringContainsString('id="onesmtp-overview-heading" tabindex="-1"', $html);
         self::assertStringContainsString('id="onesmtp-delivery" class="onesmtp-setup-shell"', $html);
+        self::assertStringContainsString('data-onesmtp-component="sender-identity-drawer"', $html);
+        self::assertStringContainsString('data-onesmtp-drawer-trigger="sender-identity"', $html);
+        self::assertStringContainsString('id="onesmtp-sender-identity-fallback"', $html);
     }
 
     public function test_provider_controls_have_table_semantics_contextual_actions_and_long_content_wrapping(): void

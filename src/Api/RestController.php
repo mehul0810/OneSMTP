@@ -12,6 +12,9 @@ use OneSMTP\Providers\ProviderTypes;
 use OneSMTP\Repository\AttemptRepository;
 use OneSMTP\Repository\MessageRepository;
 use OneSMTP\Repository\ProviderRepository;
+use OneSMTP\Settings\SenderIdentity;
+use OneSMTP\Settings\SenderIdentityRepository;
+use InvalidArgumentException;
 use WP_Error;
 use WP_REST_Request;
 use WP_REST_Response;
@@ -25,13 +28,15 @@ final class RestController
     private SendPipeline $pipeline;
     private ProviderAdapterRegistry $registry;
     private ProviderDeliveryManager $deliveryManager;
+    private SenderIdentityRepository $senderIdentity;
 
     public function __construct(
         ProviderRepository $providers,
         MessageRepository $messages,
         AttemptRepository $attempts,
         SendPipeline $pipeline,
-        ?ProviderAdapterRegistry $registry = null
+        ?ProviderAdapterRegistry $registry = null,
+        ?SenderIdentityRepository $senderIdentity = null
     ) {
         $this->providers = $providers;
         $this->messages = $messages;
@@ -39,6 +44,7 @@ final class RestController
         $this->pipeline = $pipeline;
         $this->registry = $registry ?? new ProviderAdapterRegistry();
         $this->deliveryManager = new ProviderDeliveryManager($this->registry);
+        $this->senderIdentity = $senderIdentity ?? new SenderIdentityRepository();
     }
 
     public function registerRoutes(): void
@@ -147,6 +153,24 @@ final class RestController
                             ],
                         ]
                     ),
+                ],
+            ]
+        );
+
+        register_rest_route(
+            'onesmtp/v1',
+            '/settings/sender-identity',
+            [
+                [
+                    'methods' => WP_REST_Server::READABLE,
+                    'callback' => [$this, 'getSenderIdentity'],
+                    'permission_callback' => [self::class, 'canManage'],
+                ],
+                [
+                    'methods' => WP_REST_Server::CREATABLE,
+                    'callback' => [$this, 'saveSenderIdentity'],
+                    'permission_callback' => [self::class, 'canManage'],
+                    'args' => self::senderIdentityRequestArgs(),
                 ],
             ]
         );
@@ -266,6 +290,52 @@ final class RestController
         return new WP_REST_Response(['resent' => true, 'message_id' => $messageId, 'provider_id' => $providerId], 200);
     }
 
+    public function getSenderIdentity(): WP_REST_Response
+    {
+        return new WP_REST_Response(['identity' => $this->senderIdentity->get()->toArray()]);
+    }
+
+    public function saveSenderIdentity(WP_REST_Request $request): WP_REST_Response|WP_Error
+    {
+        $payload = $request->get_json_params();
+        if (! is_array($payload)) {
+            return new WP_Error('invalid_payload', 'Request body must be JSON.', ['status' => 400]);
+        }
+
+        $allowed = array_keys(self::senderIdentityRequestArgs());
+        $unknown = array_values(array_diff(array_keys($payload), $allowed));
+        if ($unknown !== []) {
+            return new WP_Error(
+                'invalid_sender_identity_fields',
+                'Sender identity payload contains unsupported fields.',
+                ['status' => 400, 'fields' => $unknown]
+            );
+        }
+
+        $current = $this->senderIdentity->get()->toArray();
+        $normalized = $current;
+
+        if (array_key_exists('from_email', $payload)) {
+            $normalized['from_email'] = sanitize_email((string) $payload['from_email']);
+        }
+
+        if (array_key_exists('from_name', $payload)) {
+            $normalized['from_name'] = sanitize_text_field((string) $payload['from_name']);
+        }
+
+        try {
+            $identity = SenderIdentity::fromArray($normalized);
+        } catch (InvalidArgumentException $exception) {
+            return new WP_Error('invalid_sender_identity', $exception->getMessage(), ['status' => 400]);
+        }
+
+        if (! $this->senderIdentity->save($identity)) {
+            return new WP_Error('sender_identity_save_failed', 'Unable to save sender identity.', ['status' => 422]);
+        }
+
+        return new WP_REST_Response(['identity' => $identity->toArray()], 200);
+    }
+
     public static function validatePositiveId(mixed $value): bool
     {
         return is_numeric($value) && (int) $value > 0;
@@ -371,6 +441,22 @@ final class RestController
                 'type' => 'string',
                 'required' => false,
                 'sanitize_callback' => 'sanitize_textarea_field',
+            ],
+        ];
+    }
+
+    private static function senderIdentityRequestArgs(): array
+    {
+        return [
+            'from_email' => [
+                'type' => 'string',
+                'required' => false,
+                'sanitize_callback' => 'sanitize_email',
+            ],
+            'from_name' => [
+                'type' => 'string',
+                'required' => false,
+                'sanitize_callback' => 'sanitize_text_field',
             ],
         ];
     }

@@ -675,6 +675,13 @@ if (! function_exists('admin_url')) {
     }
 }
 
+if (! function_exists('rest_url')) {
+    function rest_url(string $path = ''): string
+    {
+        return 'https://example.org/wp-json/' . ltrim($path, '/');
+    }
+}
+
 if (! function_exists('add_query_arg')) {
     function add_query_arg(array|string $key, mixed $value = null, string|false $url = false): string
     {

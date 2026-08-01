@@ -17,11 +17,12 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",
+    "@wordpress/api-fetch": "^7.52.0",
     "@wordpress/components": "^30.0.0",
+    "@wordpress/dataviews": "^4.9.1",
     "@wordpress/element": "^6.0.0",
     "@wordpress/i18n": "^6.0.0",
     "@wordpress/icons": "^10.0.0",
-    "@wordpress/dataviews": "^4.9.1",
     "@wordpress/scripts": "^30.0.0"
   }
 }

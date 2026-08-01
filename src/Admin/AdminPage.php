@@ -120,7 +120,7 @@ final class AdminPage
             wp_enqueue_script(
                 'onesmtp-components',
                 rtrim($pluginUrl, '/\\') . '/' . self::COMPONENT_SCRIPT_PATH,
-                ['wp-components', 'wp-element', 'wp-i18n'],
+                ['wp-api-fetch', 'wp-components', 'wp-element', 'wp-i18n'],
                 (string) filemtime($componentPath),
                 true
             );

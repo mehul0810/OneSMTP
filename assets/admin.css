@@ -1405,3 +1405,40 @@
 .onesmtp-inline-form-grid p { margin:0; }
 .onesmtp-inline-form-grid label { display:block; margin-bottom:6px; font-weight:600; }
 .onesmtp-inline-form-grid input { width:100%; box-sizing:border-box; }
+
+.onesmtp-drawer .components-modal__frame {
+    width: min(480px, calc(100vw - 32px));
+    max-width: none;
+    height: 100%;
+    max-height: none;
+    margin: 0 0 0 auto;
+    border-radius: 0;
+}
+
+.onesmtp-drawer-description {
+    margin-top: 0;
+    color: var(--aculect-admin-muted);
+}
+
+.onesmtp-drawer .components-notice {
+    margin: 16px 0;
+}
+
+.onesmtp-drawer-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid var(--aculect-admin-border);
+}
+
+.onesmtp-drawer-actions .components-spinner {
+    margin: 0 6px 0 0;
+}
+
+@media (max-width: 480px) {
+    .onesmtp-drawer .components-modal__frame {
+        width: 100%;
+    }
+}

@@ -94,6 +94,7 @@ final class SetupWizard
         echo '</div>';
 
         $this->renderOverviewSetupCard($providers);
+        $this->renderSenderIdentityMount();
         if (! $this->isSenderIdentityReady()) {
             $this->renderSenderIdentityInlineForm();
         }
@@ -141,9 +142,11 @@ final class SetupWizard
         }
         echo '</ol>';
         echo '<div class="onesmtp-overview-setup-actions"><span class="screen-reader-text">' . esc_html__('Save first provider. Add and activate a provider before sending a setup test email.', 'onesmtp') . '</span>';
-        $ctaUrl = $firstIncomplete === 0 ? '#onesmtp-sender-identity' : admin_url('options-general.php?page=onesmtp&tab=onesmtp-providers#onesmtp-providers');
+        $ctaTarget = $firstIncomplete === 0 ? 'onesmtp-sender-identity-fallback' : 'onesmtp-sender-identity';
+        $ctaUrl = $firstIncomplete === 0 ? '#' . $ctaTarget : admin_url('options-general.php?page=onesmtp&tab=onesmtp-providers#onesmtp-providers');
         $ctaLabel = $firstIncomplete === 0 ? __('Set up sender identity', 'onesmtp') : ($firstIncomplete === 1 ? __('Connect a provider', 'onesmtp') : __('Send a test email', 'onesmtp'));
-        echo '<a class="button button-primary" data-onesmtp-reveal="onesmtp-sender-identity" href="' . esc_url($ctaUrl) . '">' . esc_html($ctaLabel) . '</a>';
+        $trigger = $firstIncomplete === 0 ? ' data-onesmtp-drawer-trigger="sender-identity"' : '';
+        echo '<a class="button button-primary" data-onesmtp-reveal="' . esc_attr($ctaTarget) . '"' . $trigger . ' href="' . esc_url($ctaUrl) . '">' . esc_html($ctaLabel) . '</a>';
         echo '<a class="onesmtp-overview-secondary-action" href="' . esc_url(admin_url('options-general.php?page=onesmtp&tab=onesmtp-providers#onesmtp-providers')) . '">' . esc_html__('View providers', 'onesmtp') . '</a>';
         echo '</div>';
         echo '</section>';
@@ -152,15 +155,26 @@ final class SetupWizard
     private function renderSenderIdentityInlineForm(): void
     {
         $values = $this->senderIdentity->get()->toArray();
-        echo '<details id="onesmtp-sender-identity" class="onesmtp-overview-inline-form"><summary>' . esc_html__('Sender identity', 'onesmtp') . '</summary>';
+        echo '<details id="onesmtp-sender-identity-fallback" class="onesmtp-overview-inline-form"><summary>' . esc_html__('Sender identity', 'onesmtp') . '</summary>';
         echo '<p class="description">' . esc_html__('Choose the name and email address OneSMTP should use when sending WordPress email.', 'onesmtp') . '</p>';
-        echo '<form method="post" action="' . esc_url(admin_url('options-general.php?page=onesmtp&tab=onesmtp-overview#onesmtp-sender-identity')) . '">';
+        echo '<form method="post" action="' . esc_url(admin_url('options-general.php?page=onesmtp&tab=onesmtp-overview#onesmtp-sender-identity-fallback')) . '">';
         echo '<input type="hidden" name="onesmtp_settings_action" value="save_sender_identity"><input type="hidden" name="onesmtp_return_tab" value="onesmtp-overview">';
         wp_nonce_field('onesmtp_save_settings', 'onesmtp_settings_nonce');
         echo '<div class="onesmtp-inline-form-grid">';
         echo '<p><label for="onesmtp-inline-from-email">' . esc_html__('From email', 'onesmtp') . '</label><input id="onesmtp-inline-from-email" class="regular-text" type="email" name="from_email" value="' . esc_attr((string) ($values['from_email'] ?? get_option('admin_email'))) . '" required></p>';
         echo '<p><label for="onesmtp-inline-from-name">' . esc_html__('From name', 'onesmtp') . '</label><input id="onesmtp-inline-from-name" class="regular-text" type="text" name="from_name" value="' . esc_attr((string) ($values['from_name'] ?? get_bloginfo('name'))) . '" required></p>';
         echo '</div><p class="submit"><button type="submit" class="button button-primary">' . esc_html__('Save sender identity', 'onesmtp') . '</button></p></form></details>';
+    }
+
+    private function renderSenderIdentityMount(): void
+    {
+        $config = [
+            'identity' => $this->senderIdentity->get()->toArray(),
+            'endpoint' => rest_url('onesmtp/v1/settings/sender-identity'),
+            'nonce' => wp_create_nonce('wp_rest'),
+        ];
+
+        echo '<div id="onesmtp-sender-identity" data-onesmtp-component="sender-identity-drawer" data-onesmtp-sender-identity-config="' . esc_attr((string) wp_json_encode($config)) . '"></div>';
     }
 
     private function isSenderIdentityReady(): bool
