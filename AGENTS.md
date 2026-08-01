@@ -9,9 +9,9 @@ Guidance for AI coding agents working in the OneSMTP plugin repository.
   - PHPUnit, PHPCS/WPCS, PHPStan
   - Minimal Node-based build tooling for packaging and future assets
 - Current remote branch layout:
-  - `main` is production release space only
+  - `main` is the production release space
   - `develop` is the development integration branch
-  - `release/0.1.0` is the active milestone stabilization branch
+  - `release/0.3.0` is the currently verified milestone stabilization branch
   - Re-verify live Git and GitHub state before assuming any future `release/*` branch exists
 
 ## Branch And PR Workflow
@@ -23,8 +23,8 @@ Guidance for AI coding agents working in the OneSMTP plugin repository.
   - issue work: `issue/<issue-number>-<short-slug>`
   - docs/workflow updates: `docs/<short-slug>`
 - Never rely on GitHub's default PR base. Set the base branch explicitly when opening every PR.
-- Target 0.1.0 milestone work to `release/0.1.0`.
-- Target every milestone-assigned issue or PR to its specific `release/<milestone-number>` branch.
+- Target milestone work to the currently verified `release/<version>` branch for that milestone.
+- The current verified target is `release/0.3.0`; re-check live Git and GitHub state before using it for future work.
 - Use `develop` only for unmilestoned development integration or as the verified source for creating a missing milestone branch when repo policy supports it.
 - Do not open implementation PRs against `main`.
 - When a new milestone stabilization branch is needed, name it `release/<milestone-number>` and create it from the verified development base before opening milestone work.
@@ -54,6 +54,15 @@ Guidance for AI coding agents working in the OneSMTP plugin repository.
   - `.github/workflows/release.yml`
 - CI and performance smoke should run for pull requests and for pushes to `main`, `develop`, and `release/**`.
 - If a touched area cannot be validated locally, call out the gap clearly in the PR body.
+
+## Documentation Contracts
+
+- `DESIGN.md` is the source of truth for admin IA, Aculect visual tokens, UI tone, and accessibility expectations.
+- `docs/developer/design-system.md` is the source of truth for WordPress Design System and `@wordpress/*` package adoption.
+- `TESTING.md` is the source of truth for validation gates and evidence requirements.
+- `RELEASE.md` is the source of truth for candidate proof, package verification, tagging, rollback, and post-release sync.
+- `SECURITY.md` is the source of truth for vulnerability reporting and security baseline expectations.
+- Update `docs/admin/` for user workflows, `docs/developer/` for extension and architecture behavior, and `docs/policies/` for repository process.
 
 ## Docs And Changelog Rules
 - Workflow, branch-policy, release, or maintainer-process learnings belong in `AGENTS.md` and closely related docs, not only in chat memory.

@@ -134,7 +134,7 @@ final class AlertHistoryAdmin
 
     private function renderAcknowledgeForm(int $eventId): void
     {
-        echo '<form method="post" action="' . esc_url(admin_url('admin.php?page=onesmtp#onesmtp-alerts')) . '">';
+        echo '<form method="post" action="' . esc_url(admin_url('options-general.php?page=onesmtp#onesmtp-alerts')) . '">';
         echo '<input type="hidden" name="' . esc_attr(self::ACTION_NAME) . '" value="' . esc_attr(self::ACKNOWLEDGE_ACTION) . '">';
         echo '<input type="hidden" name="' . esc_attr(self::EVENT_ID_NAME) . '" value="' . esc_attr( (string) $eventId) . '">';
         wp_nonce_field($this->nonceAction($eventId), self::NONCE_NAME);
@@ -163,7 +163,7 @@ final class AlertHistoryAdmin
         wp_safe_redirect(
             add_query_arg(
                 ['onesmtp_alert_history_status' => $status],
-                admin_url('admin.php?page=onesmtp#onesmtp-alerts')
+                admin_url('options-general.php?page=onesmtp#onesmtp-alerts')
             )
         );
 

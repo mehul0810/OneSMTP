@@ -33,6 +33,7 @@ final class LogAdmin
     private ProviderRepository $providers;
     private Redactor $redactor;
     private AdminAuditLogger $auditLogger;
+    private AdminRequest $request;
     /** @var callable(int,?int):bool|null */
     private $resendHandler;
 
@@ -42,7 +43,8 @@ final class LogAdmin
         ProviderRepository $providers,
         ?Redactor $redactor = null,
         ?callable $resendHandler = null,
-        ?AdminAuditLogger $auditLogger = null
+        ?AdminAuditLogger $auditLogger = null,
+        ?AdminRequest $request = null
     ) {
         $this->messages = $messages;
         $this->attempts = $attempts;
@@ -50,14 +52,15 @@ final class LogAdmin
         $this->redactor = $redactor ?? new Redactor();
         $this->resendHandler = $resendHandler;
         $this->auditLogger = $auditLogger ?? new AdminAuditLogger();
+        $this->request = $request ?? new AdminRequest();
     }
 
     public function handleRequest(): void
     {
-        $requestMethod = (string) ($_SERVER['REQUEST_METHOD'] ?? '');
+        $requestMethod = $this->request->method();
 
         if ($requestMethod === 'GET') {
-            $action = isset($_GET[self::ACTION_NAME]) ? sanitize_key(wp_unslash((string) $_GET[self::ACTION_NAME])) : '';
+            $action = $this->request->getAction(self::ACTION_NAME);
             if ($action === self::EXPORT_ACTION) {
                 $this->handleCsvExport();
             }
@@ -69,7 +72,7 @@ final class LogAdmin
             return;
         }
 
-        $action = isset($_POST[self::ACTION_NAME]) ? sanitize_key(wp_unslash((string) $_POST[self::ACTION_NAME])) : '';
+        $action = $this->request->postAction(self::ACTION_NAME);
         if ($action === 'resend') {
             $this->handleResend();
 
@@ -284,6 +287,9 @@ final class LogAdmin
             echo '</p>';
         }
 
+        $this->renderDataViews($messages);
+
+        echo '<details class="onesmtp-legacy-list"><summary>' . esc_html__('Detailed log table and bulk actions', 'onesmtp') . '</summary>';
         echo '<table class="widefat striped">';
         echo '<thead><tr>';
         if ($canBulkResend) {
@@ -304,7 +310,7 @@ final class LogAdmin
             $messageId = (int) ($message['id'] ?? 0);
             $detailUrl = add_query_arg(
                 [self::DETAIL_PARAM => $messageId],
-                admin_url('admin.php?page=onesmtp#onesmtp-logs')
+                admin_url('options-general.php?page=onesmtp#onesmtp-logs')
             );
 
             echo '<tr>';
@@ -338,11 +344,39 @@ final class LogAdmin
             echo '</tr>';
         }
 
-        echo '</tbody></table>';
+        echo '</tbody></table></details>';
         if ($canBulkResend) {
             echo '</form>';
         }
         $this->renderPagination($filters, $page, $perPage, $total);
+    }
+
+    /** @param array<int,array<string,mixed>> $messages */
+    private function renderDataViews(array $messages): void
+    {
+        $data = [];
+        foreach ($messages as $message) {
+            $payload = $this->payloadFor($message);
+            $data[] = [
+                'id' => (int) ($message['id'] ?? 0),
+                'message' => '#' . (int) ($message['id'] ?? 0),
+                'status' => $this->formatStatus((string) ($message['status'] ?? '')),
+                'provider' => $this->formatProvider((int) ($message['selected_provider_id'] ?? 0)),
+                'attempts' => (int) ($message['attempt_count'] ?? $message['current_attempt'] ?? 0) . ' / ' . (int) ($message['max_attempts'] ?? 0),
+                'recipients' => $this->formatRecipientSummary($payload),
+                'created' => (string) ($message['created_at'] ?? ''),
+            ];
+        }
+        $payload = ['data' => $data, 'fields' => [
+            ['id' => 'message', 'type' => 'text', 'label' => __('Message', 'onesmtp'), 'enableHiding' => false],
+            ['id' => 'status', 'type' => 'text', 'label' => __('Status', 'onesmtp')],
+            ['id' => 'provider', 'type' => 'text', 'label' => __('Provider', 'onesmtp')],
+            ['id' => 'attempts', 'type' => 'text', 'label' => __('Attempts', 'onesmtp')],
+            ['id' => 'recipients', 'type' => 'text', 'label' => __('Recipients', 'onesmtp')],
+            ['id' => 'created', 'type' => 'text', 'label' => __('Created', 'onesmtp')],
+        ]];
+        echo '<div class="onesmtp-dataviews-mount" data-onesmtp-dataviews="delivery-messages"></div>';
+        echo '<script type="application/json" data-onesmtp-dataviews-config="delivery-messages">' . wp_json_encode($payload, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) . '</script>';
     }
 
     /**
@@ -1261,7 +1295,7 @@ final class LogAdmin
                 self::DETAIL_PARAM => $messageId,
                 'onesmtp_resend_status' => $status,
             ],
-            admin_url('admin.php?page=onesmtp#onesmtp-logs')
+            admin_url('options-general.php?page=onesmtp#onesmtp-logs')
         );
 
         wp_safe_redirect($url);
@@ -1280,7 +1314,7 @@ final class LogAdmin
                 'onesmtp_bulk_resent' => max(0, $resent),
                 'onesmtp_bulk_failed' => max(0, $failed),
             ],
-            admin_url('admin.php?page=onesmtp#onesmtp-logs')
+            admin_url('options-general.php?page=onesmtp#onesmtp-logs')
         );
 
         wp_safe_redirect($url);
@@ -1298,7 +1332,7 @@ final class LogAdmin
                 self::DETAIL_PARAM => $messageId,
                 'onesmtp_forward_status' => $status,
             ],
-            admin_url('admin.php?page=onesmtp#onesmtp-logs')
+            admin_url('options-general.php?page=onesmtp#onesmtp-logs')
         );
 
         wp_safe_redirect($url);

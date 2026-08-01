@@ -23,6 +23,7 @@ final class AdminPageTest extends TestCase
         $GLOBALS['onesmtp_test_current_user_can'] = true;
         $GLOBALS['wpdb'] = new FakeWpdb();
         unset($GLOBALS['onesmtp_test_wp_die']);
+        unset($_GET['tab']);
     }
 
     public function test_register_hooks_adds_admin_menu_callback(): void
@@ -52,10 +53,9 @@ final class AdminPageTest extends TestCase
 
         $page->registerMenu();
 
-        self::assertSame(Capabilities::MANAGE_PLUGIN, $GLOBALS['onesmtp_test_admin_menu_pages'][0]['capability']);
-        self::assertSame('onesmtp', $GLOBALS['onesmtp_test_admin_menu_pages'][0]['menu_slug']);
         self::assertSame(Capabilities::MANAGE_PLUGIN, $GLOBALS['onesmtp_test_admin_submenu_pages'][0]['capability']);
-        self::assertSame('onesmtp', $GLOBALS['onesmtp_test_admin_submenu_pages'][0]['parent_slug']);
+        self::assertSame('options-general.php', $GLOBALS['onesmtp_test_admin_submenu_pages'][0]['parent_slug']);
+        self::assertSame('onesmtp', $GLOBALS['onesmtp_test_admin_submenu_pages'][0]['menu_slug']);
     }
 
     public function test_render_outputs_stable_admin_sections_for_managers(): void
@@ -69,27 +69,33 @@ final class AdminPageTest extends TestCase
         self::assertStringContainsString('nav-tab-wrapper', $output);
         self::assertStringContainsString('data-onesmtp-workspaces', $output);
         self::assertStringContainsString('onesmtp-admin-header', $output);
-        self::assertStringContainsString('onesmtp-context-rail', $output);
-        self::assertStringContainsString('onesmtp-admin-section-header', $output);
-        self::assertStringContainsString('data-onesmtp-workspace-link="onesmtp-general"', $output);
+        self::assertStringContainsString('onesmtp-overview-side-card', $output);
+        self::assertStringContainsString('data-onesmtp-workspace-link="onesmtp-overview"', $output);
         self::assertStringContainsString('nav-tab nav-tab-active', $output);
         self::assertStringContainsString('aria-current="page"', $output);
-        self::assertStringContainsString('id="onesmtp-general"', $output);
-        self::assertStringContainsString('id="onesmtp-setup"', $output);
-        self::assertStringContainsString('id="onesmtp-providers"', $output);
-        self::assertStringContainsString('id="onesmtp-routing"', $output);
-        self::assertStringContainsString('id="onesmtp-settings"', $output);
-        self::assertStringContainsString('id="onesmtp-logs"', $output);
-        self::assertStringContainsString('id="onesmtp-tools"', $output);
-        self::assertStringContainsString('id="onesmtp-diagnostics"', $output);
-        self::assertStringContainsString('id="onesmtp-alerts"', $output);
+        self::assertStringContainsString('id="onesmtp-overview"', $output);
+        self::assertStringContainsString('Welcome to OneSMTP', $output);
         self::assertStringContainsString('Reliable email delivery for WordPress.', $output);
         self::assertStringContainsString('Setup needed', $output);
-        self::assertStringContainsString('General / Setup workspace context', $output);
-        self::assertStringContainsString('General / Setup', $output);
-        self::assertStringContainsString('Email Control / Routing', $output);
-        self::assertStringContainsString('Email Logs', $output);
-        self::assertStringContainsString('Tools', $output);
+        self::assertStringContainsString('Overview', $output);
+        self::assertStringContainsString('Routing', $output);
+        self::assertStringContainsString('Delivery', $output);
+        self::assertStringContainsString('Analytics', $output);
+        self::assertStringContainsString('Settings', $output);
+    }
+
+    public function test_render_resolves_requested_tab_server_side(): void
+    {
+        $_GET['tab'] = 'onesmtp-analytics';
+        $page = new AdminPage();
+
+        ob_start();
+        $page->render();
+        $output = (string) ob_get_clean();
+
+        self::assertStringContainsString('id="onesmtp-analytics"', $output);
+        self::assertStringContainsString('id="onesmtp-overview"', $output);
+        self::assertStringContainsString('class="nav-tab nav-tab-active" data-onesmtp-workspace-link="onesmtp-analytics"', $output);
     }
 
     public function test_render_blocks_users_without_manage_capability(): void

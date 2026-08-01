@@ -87,7 +87,7 @@ final class MailConflictNotice
             'hook_count' => count($conflicts['hooks'] ?? []),
             'remind_after_days' => 7,
         ]);
-        wp_safe_redirect(admin_url('admin.php?page=onesmtp'));
+        wp_safe_redirect(admin_url('options-general.php?page=onesmtp'));
         exit;
     }
 

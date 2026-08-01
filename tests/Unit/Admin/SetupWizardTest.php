@@ -9,7 +9,6 @@ use OneSMTP\Providers\ProviderAdapterInterface;
 use OneSMTP\Providers\ProviderAdapterRegistry;
 use OneSMTP\Providers\ProviderConfig;
 use OneSMTP\Providers\ProviderDeliveryManager;
-use OneSMTP\Providers\ProviderTypes;
 use OneSMTP\Providers\SendResult;
 use OneSMTP\Repository\EventRepository;
 use OneSMTP\Repository\ProviderRepository;
@@ -50,10 +49,9 @@ final class SetupWizardTest extends TestCase
 
         self::assertStringContainsString('onesmtp-setup-shell', $output);
         self::assertStringContainsString('onesmtp-setup-rail', $output);
-        self::assertStringContainsString('Current state', $output);
-        self::assertStringContainsString('Needs setup', $output);
-        self::assertStringContainsString('Save first provider', $output);
-        self::assertStringContainsString('Add and activate a provider before sending a setup test email.', $output);
+        self::assertStringContainsString('Delivery status', $output);
+        self::assertStringContainsString('No active provider', $output);
+        self::assertStringContainsString('View providers', $output);
         self::assertStringNotContainsString('plain-password', $output);
     }
 
@@ -70,13 +68,13 @@ final class SetupWizardTest extends TestCase
         $wizard->render();
         $output = (string) ob_get_clean();
 
-        self::assertStringContainsString('1 active provider and the test email step is still pending.', $output);
-        self::assertStringContainsString('Backup provider prompt', $output);
-        self::assertStringContainsString('Recommended next', $output);
+        self::assertStringContainsString('1 active provider(s)', $output);
+        self::assertStringContainsString('backup provider', $output);
+        self::assertStringContainsString('is-pending', $output);
         self::assertStringContainsString('A backup provider is recommended for failover.', $output);
     }
 
-    public function test_render_includes_provider_capability_matrix_from_metadata(): void
+    public function test_render_keeps_provider_configuration_in_the_providers_workspace(): void
     {
         $wizard = new SetupWizard(new ProviderRepository());
 
@@ -84,16 +82,11 @@ final class SetupWizardTest extends TestCase
         $wizard->render();
         $output = (string) ob_get_clean();
 
-        self::assertStringContainsString('onesmtp-setup-panel postbox', $output);
+        self::assertStringContainsString('onesmtp-overview-setup-card', $output);
         self::assertStringContainsString('Setup guidance', $output);
-        self::assertStringContainsString('Provider capability matrix', $output);
-        self::assertStringContainsString('API delivery', $output);
-        self::assertStringContainsString('Provider message ID', $output);
-
-        foreach (ProviderTypes::metadata() as $type => $provider) {
-            self::assertStringContainsString('<code>' . $type . '</code>', $output);
-            self::assertStringContainsString($provider['label'], $output);
-        }
+        self::assertStringContainsString('Connect a provider', $output);
+        self::assertStringContainsString('Set up sender identity', $output);
+        self::assertStringNotContainsString('Provider capability matrix', $output);
     }
 
     public function test_render_marks_unavailable_capabilities_without_blocking_setup(): void
@@ -104,9 +97,8 @@ final class SetupWizardTest extends TestCase
         $wizard->render();
         $output = (string) ob_get_clean();
 
-        self::assertStringContainsString('Unavailable', $output);
-        self::assertStringContainsString('Unavailable capabilities do not block setup.', $output);
-        self::assertStringContainsString('Save first provider', $output);
+        self::assertStringContainsString('Set up sender identity', $output);
+        self::assertStringNotContainsString('Unavailable capabilities do not block setup.', $output);
         self::assertStringNotContainsString('secret-api-key', $output);
         self::assertStringNotContainsString('secret-password', $output);
     }

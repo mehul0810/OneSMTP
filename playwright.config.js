@@ -9,7 +9,7 @@ module.exports = defineConfig({
     timeout: 5000,
   },
   use: {
-    baseURL: 'https://example.org/wp-admin/admin.php?page=onesmtp',
+    baseURL: 'https://example.org/wp-admin/options-general.php?page=onesmtp',
     browserName: 'chromium',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',

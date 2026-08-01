@@ -15,6 +15,8 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 - Added an enforceable changed-PHP-files PHPCS gate for pull requests while full-tree WPCS cleanup remains advisory.
 - Refined the admin shell into progressive hash-linked workspaces with active navigation, contextual status rails, and responsive form and table constraints.
+- Reorganized the admin IA into Overview, Providers, Routing, Delivery, Analytics, and Settings, and documented the Aculect ecosystem design tokens and release/testing/security contracts.
+- Adopted the WordPress Design System Figma reference and official `@wordpress/*` packages as the standard for future interactive admin surfaces.
 
 ## [0.2.0] - 2026-06-26
 

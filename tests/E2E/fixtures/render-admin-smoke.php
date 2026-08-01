@@ -25,7 +25,7 @@ require_once $repoRoot . '/tests/Support/FakeWpdb.php';
 require_once $repoRoot . '/tests/bootstrap.php';
 
 $GLOBALS['wpdb'] = new FakeWpdb();
-$GLOBALS['pagenow'] = 'admin.php';
+$GLOBALS['pagenow'] = 'options-general.php';
 $GLOBALS['onesmtp_test_current_user_caps'] = [
     Capabilities::MANAGE_PLUGIN => true,
     Capabilities::VIEW_LOGS => true,

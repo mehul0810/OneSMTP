@@ -1,6 +1,40 @@
 # OneSMTP Design Contract
 
-This document defines the product design contract for OneSMTP 0.1.0. It is a contributor guide for admin UI, setup, provider settings, logs, docs, and launch assets. It is not a full brand system or a promise of unshipped features.
+This document defines the product design contract for OneSMTP. It is a contributor guide for the Aculect ecosystem admin UI, setup, provider settings, routing, delivery, analytics, docs, and launch assets. It is not a full brand system or a promise of unshipped features.
+
+## Aculect Ecosystem Brand
+
+OneSMTP is an Aculect ecosystem plugin. Its admin UI should feel like a focused member of the same product family while retaining native WordPress admin behavior.
+
+Use these shared tokens as the starting contract:
+
+| Token | Value | Use |
+| --- | --- | --- |
+| Primary | `#1d4ed8` | Links, active tabs, primary emphasis, focus rings |
+| Ink | `#1d2327` | Primary text and headings |
+| Muted | `#646970` | Descriptions and secondary text |
+| Surface | `#ffffff` | Panels and form surfaces |
+| Surface alternate | `#f6f7f7` | Secondary panels and quiet backgrounds |
+| Border | `#dcdcde` | Dividers, panel borders, and table boundaries |
+| Success | `#008a20` | Positive status when paired with text or an icon |
+
+Use WordPress semantic status colors for warning and error states. Do not introduce a new accent palette without documenting the decision here. Color must never be the only status signal.
+
+The current admin information architecture is:
+
+`Overview` · `Providers` · `Routing` · `Delivery` · `Analytics` · `Settings`
+
+## WordPress Design System
+
+The [WordPress Design System](https://www.figma.com/community/file/1436359662053949167/wordpress-design-system) is the visual and interaction reference for OneSMTP. Use WordPress core admin patterns and the available `@wordpress/*` packages before inventing custom equivalents.
+
+- Prefer `@wordpress/components` for interactive controls, `@wordpress/element` for React rendering, `@wordpress/i18n` for translated strings, `@wordpress/icons` for icons, and `@wordpress/dataviews` for sortable, filterable admin listings when a JavaScript surface is introduced.
+- Use Heroicons outline paths for OneSMTP-specific product icons, rendered accessibly through the shared PHP helper.
+- Use `@wordpress/data` only when shared client state is needed; keep simple forms and server-rendered screens simple.
+- Do not add a second component library or icon package without an architecture decision recorded in `docs/developer/design-system.md`.
+- Keep the current PHP-rendered admin compatible with WordPress core. Adopt components incrementally at clear interaction boundaries instead of forcing a wholesale rewrite.
+- Match WordPress spacing, typography, focus, notice, table, form, and responsive behavior before applying Aculect brand tokens.
+- A Figma-driven visual change requires the exact frame/node context and a screenshot before implementation, followed by rendered QA at desktop and narrow admin widths.
 
 ## Product Posture
 
@@ -90,7 +124,7 @@ Launch assets should show the real product state and avoid screenshots or copy t
 
 ## Current And Future Boundaries
 
-For 0.1.0, design work should support the free MVP foundation: provider setup, failover behavior, retries, logs, resend, and docs. Future paid, hosted, analytics, or advanced automation concepts must remain clearly marked as future work until product scope is approved.
+Design work should support the current release milestone: provider setup, failover behavior, retries, delivery logs, resend, analytics, and docs. Cost intelligence, hosted functionality, pricing, and advanced automation must remain clearly marked as unavailable until implemented and approved.
 
 ## Non-Goals
 
@@ -102,7 +136,7 @@ For 0.1.0, design work should support the free MVP foundation: provider setup, f
 
 ## Review Checklist
 
-- The screen or asset matches implemented 0.1.0 behavior.
+- The screen or asset matches implemented behavior for the target release.
 - Primary status, next action, and recovery path are visible.
 - Provider credentials and sensitive email data are protected.
 - Keyboard, focus, text, and color accessibility were checked.

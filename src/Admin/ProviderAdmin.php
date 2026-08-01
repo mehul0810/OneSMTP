@@ -20,22 +20,24 @@ final class ProviderAdmin
     private DomainAuthenticationChecker $dnsAuthentication;
     private SenderIdentityRepository $senderIdentity;
     private AdminAuditLogger $auditLogger;
+    private AdminRequest $request;
 
-    public function __construct(ProviderRepository $repository, ?DomainAuthenticationChecker $dnsAuthentication = null, ?SenderIdentityRepository $senderIdentity = null, ?AdminAuditLogger $auditLogger = null)
+    public function __construct(ProviderRepository $repository, ?DomainAuthenticationChecker $dnsAuthentication = null, ?SenderIdentityRepository $senderIdentity = null, ?AdminAuditLogger $auditLogger = null, ?AdminRequest $request = null)
     {
         $this->repository = $repository;
         $this->dnsAuthentication = $dnsAuthentication ?? new DomainAuthenticationChecker();
         $this->senderIdentity = $senderIdentity ?? new SenderIdentityRepository();
         $this->auditLogger = $auditLogger ?? new AdminAuditLogger();
+        $this->request = $request ?? new AdminRequest();
     }
 
     public function handleRequest(): void
     {
-        if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+        if ($this->request->method() !== 'POST') {
             return;
         }
 
-        $action = isset($_POST[self::ACTION_NAME]) ? sanitize_key(wp_unslash((string) $_POST[self::ACTION_NAME])) : '';
+        $action = $this->request->postAction(self::ACTION_NAME);
         if ($action === '') {
             return;
         }
@@ -108,11 +110,72 @@ final class ProviderAdmin
         $providers = $this->repository->getAllSafe();
 
         $this->renderNotice();
-        echo '<p>' . esc_html__('Create and manage the delivery providers OneSMTP can use for failover and rotation.', 'onesmtp') . '</p>';
+        echo '<p>' . esc_html__('Connect and manage the services that send your WordPress email.', 'onesmtp') . '</p>';
+        if ($providers === []) {
+            $this->renderEmptyConfiguredProviders();
+            $this->renderAvailableProviders();
+        } else {
+            $this->renderProviderDataViews($providers);
+        }
+        echo '<details class="onesmtp-provider-advanced"><summary>' . esc_html__('Compare provider capabilities', 'onesmtp') . '</summary>';
+        echo '<p class="description">' . esc_html__('Review delivery features before choosing a primary or backup provider.', 'onesmtp') . '</p>';
         (new ProviderCapabilityMatrix())->render();
+        echo '</details>';
+        echo '<details class="onesmtp-provider-advanced"><summary>' . esc_html__('Provider actions', 'onesmtp') . '</summary>';
         $this->renderProviderTable($providers);
+        echo '</details>';
+        echo '<details class="onesmtp-provider-advanced"><summary>' . esc_html__('Review domain authentication', 'onesmtp') . '</summary>';
         $this->renderDnsAuthentication($providers);
+        echo '</details>';
+        echo '<details id="onesmtp-provider-form" class="onesmtp-provider-form"><summary>' . esc_html__('Add provider', 'onesmtp') . '</summary>';
         $this->renderForm();
+        echo '</details>';
+    }
+
+    private function renderEmptyConfiguredProviders(): void
+    {
+        echo '<section class="onesmtp-provider-empty"><h3>' . esc_html__('Configured providers', 'onesmtp') . '</h3><div class="onesmtp-empty-state">' . Heroicons::render('squares') . '<strong>' . esc_html__('No providers connected', 'onesmtp') . '</strong><p>' . esc_html__('Add a provider to start sending email through a reliable service.', 'onesmtp') . '</p><a class="button button-primary" href="#onesmtp-provider-form">' . esc_html__('Add your first provider', 'onesmtp') . '</a></div></section>';
+    }
+
+    private function renderAvailableProviders(): void
+    {
+        echo '<section class="onesmtp-provider-available"><h3>' . esc_html__('Available providers', 'onesmtp') . '</h3><div class="onesmtp-provider-list">';
+        foreach (ProviderTypes::metadata() as $type => $metadata) {
+            echo '<div class="onesmtp-provider-list-item"><span class="onesmtp-provider-list-icon" aria-hidden="true">' . Heroicons::render('envelope') . '</span><strong>' . esc_html((string) $metadata['label']) . '</strong><span>' . esc_html((string) $metadata['description']) . '</span><a data-onesmtp-provider-type="' . esc_attr((string) $type) . '" href="#onesmtp-provider-form">' . esc_html__('Connect', 'onesmtp') . '</a></div>';
+        }
+        echo '</div></section>';
+    }
+
+    /** @param array<int,array<string,mixed>> $providers */
+    private function renderProviderDataViews(array $providers): void
+    {
+        $data = [];
+        foreach ($providers as $provider) {
+            $data[] = [
+                'id' => (int) ($provider['id'] ?? 0),
+                'name' => (string) ($provider['name'] ?? ''),
+                'type' => (string) ($provider['adapter_type'] ?? ''),
+                'priority' => (int) ($provider['priority'] ?? 100),
+                'weight' => (int) ($provider['weight'] ?? 1),
+                'status' => empty($provider['is_active']) ? __('Inactive', 'onesmtp') : __('Active', 'onesmtp'),
+                'health' => strip_tags($this->formatCircuitHealth($provider)),
+            ];
+        }
+
+        $payload = [
+            'data' => $data,
+            'fields' => [
+                ['id' => 'name', 'type' => 'text', 'label' => __('Name', 'onesmtp'), 'enableHiding' => false],
+                ['id' => 'type', 'type' => 'text', 'label' => __('Type', 'onesmtp')],
+                ['id' => 'priority', 'type' => 'integer', 'label' => __('Priority', 'onesmtp')],
+                ['id' => 'weight', 'type' => 'integer', 'label' => __('Weight', 'onesmtp')],
+                ['id' => 'status', 'type' => 'text', 'label' => __('Status', 'onesmtp')],
+                ['id' => 'health', 'type' => 'text', 'label' => __('Health', 'onesmtp')],
+            ],
+        ];
+
+        echo '<div class="onesmtp-dataviews-mount" data-onesmtp-dataviews="providers"></div>';
+        echo '<script type="application/json" data-onesmtp-dataviews-config="providers">' . wp_json_encode($payload, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) . '</script>';
     }
 
     /**
@@ -598,7 +661,7 @@ final class ProviderAdmin
     {
         $url = add_query_arg(
             ['onesmtp_provider_status' => $status],
-            admin_url('admin.php?page=onesmtp#onesmtp-providers')
+            admin_url('options-general.php?page=onesmtp#onesmtp-providers')
         );
 
         wp_safe_redirect($url);

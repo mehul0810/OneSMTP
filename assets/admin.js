@@ -9,21 +9,35 @@
     var sections = Array.prototype.slice.call(root.querySelectorAll('[data-onesmtp-workspace]'));
     var links = Array.prototype.slice.call(root.querySelectorAll('[data-onesmtp-workspace-link]'));
     var aliases = {
-        'onesmtp-dashboard': 'onesmtp-general',
-        'onesmtp-setup': 'onesmtp-general',
-        'onesmtp-settings': 'onesmtp-routing',
-        'onesmtp-diagnostics': 'onesmtp-tools',
-        'onesmtp-alerts': 'onesmtp-tools'
+        'onesmtp-general': 'onesmtp-overview',
+        'onesmtp-dashboard': 'onesmtp-analytics',
+        'onesmtp-setup': 'onesmtp-overview',
+        'onesmtp-settings': 'onesmtp-settings',
+        'onesmtp-logs': 'onesmtp-activity',
+        'onesmtp-diagnostics': 'onesmtp-settings',
+        'onesmtp-alerts': 'onesmtp-settings',
+        'onesmtp-tools': 'onesmtp-settings'
     };
 
     function resolveWorkspace() {
+        var queryTab = new URLSearchParams(window.location.search).get('tab');
         var target = window.location.hash.replace(/^#/, '');
-        var resolved = aliases[target] || target;
+        var resolved = queryTab || aliases[target] || target;
         var exists = sections.some(function (section) {
             return section.dataset.onesmtpWorkspace === resolved;
         });
 
-        return exists ? resolved : 'onesmtp-general';
+        return exists ? resolved : 'onesmtp-overview';
+    }
+
+    // Fragment-only links from pre-0.3.0 URLs need a server-rendered screen.
+    var legacyTarget = aliases[window.location.hash.replace(/^#/, '')];
+    var hasTab = new URLSearchParams(window.location.search).has('tab');
+    if (legacyTarget && ! hasTab && legacyTarget !== 'onesmtp-overview') {
+        var legacyUrl = new URL(window.location.href);
+        legacyUrl.searchParams.set('tab', legacyTarget);
+        window.location.replace(legacyUrl.toString());
+        return;
     }
 
     function activateWorkspace(workspaceId, moveFocus) {
@@ -81,9 +95,55 @@
         }
     }
 
+    function openHashTarget() {
+        var targetId = window.location.hash.replace(/^#/, '');
+        if (! targetId) {
+            return;
+        }
+        var target = document.getElementById(targetId);
+        if (target && target.tagName.toLowerCase() === 'details') {
+            target.open = true;
+        }
+    }
+
+    links.forEach(function (link) {
+        link.addEventListener('click', function (event) {
+            var workspaceId = link.dataset.onesmtpWorkspaceLink;
+            if (! workspaceId || ! sections.some(function (section) {
+                return section.dataset.onesmtpWorkspace === workspaceId;
+            })) {
+                return;
+            }
+
+            event.preventDefault();
+            var url = new URL(link.href, window.location.href);
+            url.hash = workspaceId;
+            url.searchParams.set('tab', workspaceId);
+            window.history.pushState({ onesmtpWorkspace: workspaceId }, '', url.toString());
+            activateWorkspace(workspaceId, true);
+        });
+    });
+
+    root.querySelectorAll('[data-onesmtp-provider-type]').forEach(function (link) {
+        link.addEventListener('click', function () {
+            window.setTimeout(function () {
+                var select = document.getElementById('onesmtp-provider-adapter_type');
+                if (select) {
+                    select.value = link.dataset.onesmtpProviderType || '';
+                }
+            }, 0);
+        });
+    });
+
     activateWorkspace(resolveWorkspace(), false);
+    openHashTarget();
 
     window.addEventListener('hashchange', function () {
+        activateWorkspace(resolveWorkspace(), true);
+        openHashTarget();
+    });
+
+    window.addEventListener('popstate', function () {
         activateWorkspace(resolveWorkspace(), true);
     });
 }());

@@ -122,7 +122,7 @@ final class MailConflictNoticeTest extends TestCase
         $json = (string) $GLOBALS['wpdb']->inserts[0]['data']['context_json'];
         self::assertStringContainsString('"plugin_count":1', $json);
         self::assertStringContainsString('"hook_count":1', $json);
-        self::assertStringContainsString('admin.php?page=onesmtp', (string) $GLOBALS['onesmtp_test_redirect']['location']);
+        self::assertStringContainsString('options-general.php?page=onesmtp', (string) $GLOBALS['onesmtp_test_redirect']['location']);
     }
 
     /**

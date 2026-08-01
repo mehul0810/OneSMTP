@@ -40,7 +40,8 @@ final class SettingsAdmin
         private ?SettingsTransferService $transfers = null,
         private ?AttachmentLoggingSettingsRepository $attachmentLogging = null,
         private ?WeeklySummarySettingsRepository $weeklySummary = null,
-        private ?AdminAuditLogger $auditLogger = null
+        private ?AdminAuditLogger $auditLogger = null,
+        private ?AdminRequest $request = null
     ) {
         $this->senderIdentity = $senderIdentity ?? new SenderIdentityRepository();
         $this->rateLimits = $rateLimits ?? new RateLimitSettingsRepository();
@@ -50,17 +51,18 @@ final class SettingsAdmin
         $this->attachmentLogging = $attachmentLogging ?? new AttachmentLoggingSettingsRepository();
         $this->weeklySummary = $weeklySummary ?? new WeeklySummarySettingsRepository();
         $this->auditLogger = $auditLogger ?? new AdminAuditLogger();
+        $this->request = $request ?? new AdminRequest();
     }
 
     public function handleRequest(): void
     {
-        if (($GLOBALS['pagenow'] ?? '') !== 'admin.php') {
+        if (! in_array(($GLOBALS['pagenow'] ?? ''), ['admin.php', 'options-general.php'], true)) {
             return;
         }
 
-        $method = strtoupper((string) ($_SERVER['REQUEST_METHOD'] ?? ''));
+        $method = $this->request->method();
         if ($method === 'GET') {
-            $action = isset($_GET['onesmtp_settings_action']) ? sanitize_key(wp_unslash((string) $_GET['onesmtp_settings_action'])) : '';
+            $action = $this->request->getAction('onesmtp_settings_action');
             if ($action === self::EXPORT_ACTION) {
                 $this->handleExport();
             }
@@ -68,7 +70,7 @@ final class SettingsAdmin
             return;
         }
 
-        $action = isset($_POST['onesmtp_settings_action']) ? sanitize_key(wp_unslash((string) $_POST['onesmtp_settings_action'])) : '';
+        $action = $this->request->postAction('onesmtp_settings_action');
 
         try {
             if ($action === self::IMPORT_ACTION) {
@@ -214,7 +216,7 @@ final class SettingsAdmin
             __('Configure default sender headers for outgoing WordPress mail. Existing headers are preserved unless the matching force option is enabled.', 'onesmtp'),
             true,
             function () use ($values): void {
-                echo '<form class="onesmtp-settings-form" method="post" action="' . esc_url(admin_url('admin.php?page=onesmtp#onesmtp-settings')) . '">';
+        echo '<form class="onesmtp-settings-form" method="post" action="' . esc_url(admin_url('options-general.php?page=onesmtp&tab=onesmtp-settings#onesmtp-settings')) . '">';
                 echo '<input type="hidden" name="onesmtp_settings_action" value="save_sender_identity">';
                 wp_nonce_field(self::ACTION_NAME, self::NONCE_NAME);
                 echo '<table class="form-table" role="presentation"><tbody>';
@@ -239,7 +241,7 @@ final class SettingsAdmin
             __('Set optional site-wide delivery caps. When a cap is exhausted, OneSMTP defers queued mail until capacity is available. Use 0 to disable a limit.', 'onesmtp'),
             false,
             function () use ($limits): void {
-                echo '<form class="onesmtp-settings-form" method="post" action="' . esc_url(admin_url('admin.php?page=onesmtp#onesmtp-settings')) . '">';
+                echo '<form class="onesmtp-settings-form" method="post" action="' . esc_url(admin_url('options-general.php?page=onesmtp#onesmtp-settings')) . '">';
                 echo '<input type="hidden" name="onesmtp_settings_action" value="save_rate_limits">';
                 wp_nonce_field(self::ACTION_NAME, self::NONCE_NAME);
                 echo '<table class="form-table" role="presentation"><tbody>';
@@ -257,7 +259,7 @@ final class SettingsAdmin
             __('Queue normal WordPress mail for asynchronous delivery so user-facing requests are not held by provider latency. Provider test emails and manual resends continue to run synchronously.', 'onesmtp'),
             false,
             function () use ($backgroundSending): void {
-                echo '<form class="onesmtp-settings-form" method="post" action="' . esc_url(admin_url('admin.php?page=onesmtp#onesmtp-settings')) . '">';
+                echo '<form class="onesmtp-settings-form" method="post" action="' . esc_url(admin_url('options-general.php?page=onesmtp#onesmtp-settings')) . '">';
                 echo '<input type="hidden" name="onesmtp_settings_action" value="save_background_sending">';
                 wp_nonce_field(self::ACTION_NAME, self::NONCE_NAME);
                 echo '<fieldset class="onesmtp-settings-fieldset">';
@@ -286,7 +288,7 @@ final class SettingsAdmin
                     )
                 );
                 echo '</p>';
-                echo '<form class="onesmtp-settings-form" method="post" action="' . esc_url(admin_url('admin.php?page=onesmtp#onesmtp-settings')) . '">';
+                echo '<form class="onesmtp-settings-form" method="post" action="' . esc_url(admin_url('options-general.php?page=onesmtp#onesmtp-settings')) . '">';
                 echo '<input type="hidden" name="onesmtp_settings_action" value="save_attachment_logging">';
                 wp_nonce_field(self::ACTION_NAME, self::NONCE_NAME);
                 echo '<fieldset class="onesmtp-settings-fieldset">';
@@ -306,7 +308,7 @@ final class SettingsAdmin
                     $this->renderInlineNotice('info', __('Failure alerts are disabled until an email recipient or HTTPS webhook is enabled.', 'onesmtp'));
                 }
 
-                echo '<form class="onesmtp-settings-form" method="post" action="' . esc_url(admin_url('admin.php?page=onesmtp#onesmtp-settings')) . '">';
+                echo '<form class="onesmtp-settings-form" method="post" action="' . esc_url(admin_url('options-general.php?page=onesmtp#onesmtp-settings')) . '">';
                 echo '<input type="hidden" name="onesmtp_settings_action" value="save_failure_alerts">';
                 wp_nonce_field(self::ACTION_NAME, self::NONCE_NAME);
                 echo '<table class="form-table" role="presentation"><tbody>';
@@ -337,7 +339,7 @@ final class SettingsAdmin
                     $this->renderInlineNotice('info', __('Weekly delivery summaries are disabled until the summary email is enabled and at least one recipient is configured.', 'onesmtp'));
                 }
 
-                echo '<form class="onesmtp-settings-form" method="post" action="' . esc_url(admin_url('admin.php?page=onesmtp#onesmtp-settings')) . '">';
+                echo '<form class="onesmtp-settings-form" method="post" action="' . esc_url(admin_url('options-general.php?page=onesmtp#onesmtp-settings')) . '">';
                 echo '<input type="hidden" name="onesmtp_settings_action" value="save_weekly_summary">';
                 wp_nonce_field(self::ACTION_NAME, self::NONCE_NAME);
                 echo '<table class="form-table" role="presentation"><tbody>';
@@ -399,7 +401,7 @@ final class SettingsAdmin
                 'onesmtp_settings_action' => self::EXPORT_ACTION,
                 self::EXPORT_NONCE_NAME => wp_create_nonce(self::EXPORT_ACTION),
             ],
-            admin_url('admin.php#onesmtp-settings')
+            admin_url('options-general.php?page=onesmtp#onesmtp-settings')
         );
 
         echo '<p>' . esc_html__('Download a privacy-safe JSON settings file for migration or backup. Provider secrets, credentials, tokens, passwords, API keys, webhook URLs, raw recipients, message bodies, raw headers, and payload JSON are excluded by default.', 'onesmtp') . '</p>';
@@ -407,7 +409,7 @@ final class SettingsAdmin
         echo '<a class="button button-secondary" href="' . esc_url($downloadUrl) . '">' . esc_html__('Download safe settings export', 'onesmtp') . '</a>';
         echo '</div>';
 
-        echo '<form class="onesmtp-settings-form onesmtp-settings-import" method="post" action="' . esc_url(admin_url('admin.php?page=onesmtp#onesmtp-settings')) . '">';
+        echo '<form class="onesmtp-settings-form onesmtp-settings-import" method="post" action="' . esc_url(admin_url('options-general.php?page=onesmtp#onesmtp-settings')) . '">';
         echo '<input type="hidden" name="onesmtp_settings_action" value="' . esc_attr(self::IMPORT_ACTION) . '">';
         wp_nonce_field(self::IMPORT_ACTION, self::IMPORT_NONCE_NAME);
         echo '<p><label for="onesmtp-settings-import-json">' . esc_html__('Import safe settings JSON', 'onesmtp') . '</label></p>';
@@ -564,7 +566,10 @@ final class SettingsAdmin
             $args['onesmtp_settings_message'] = $message;
         }
 
-        wp_safe_redirect(add_query_arg($args, admin_url('admin.php?page=onesmtp#onesmtp-settings')));
+        $returnTab = isset($_POST['onesmtp_return_tab']) ? sanitize_key(wp_unslash((string) $_POST['onesmtp_return_tab'])) : '';
+        $returnTarget = $returnTab === 'onesmtp-overview' ? '#onesmtp-overview' : '#onesmtp-settings';
+        $returnUrl = 'options-general.php?page=onesmtp' . ($returnTab !== '' ? '&tab=' . rawurlencode($returnTab) : '') . $returnTarget;
+        wp_safe_redirect(add_query_arg($args, admin_url($returnUrl)));
         throw new RuntimeException('OneSMTP settings admin redirected.');
     }
 

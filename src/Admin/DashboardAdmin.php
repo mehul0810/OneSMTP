@@ -11,6 +11,7 @@ final class DashboardAdmin
 {
     private const WINDOW_LAST_24_HOURS = 'last_24_hours';
     private const WINDOW_LAST_7_DAYS = 'last_7_days';
+    private const WINDOW_LAST_30_DAYS = 'last_30_days';
     private const PROVIDER_WINDOW_KEY = self::WINDOW_LAST_7_DAYS;
     private const PROVIDER_NAME_LIMIT = 80;
 
@@ -40,18 +41,58 @@ final class DashboardAdmin
 
         $windows = $this->windowSummaries();
         $pending = $this->metrics->getPendingSummary();
-        $providerWindow = $windows[self::PROVIDER_WINDOW_KEY];
+        $selectedWindow = isset($_GET['onesmtp_analytics_window']) ? sanitize_key(wp_unslash((string) $_GET['onesmtp_analytics_window'])) : self::PROVIDER_WINDOW_KEY;
+        $providerWindow = $windows[$selectedWindow] ?? $windows[self::PROVIDER_WINDOW_KEY];
         $providers = $this->metrics->getProviderBreakdown((string) $providerWindow['since']);
+        $empty = $this->isEmpty($windows, $pending, $providers);
 
-        echo '<p>' . esc_html__('Review aggregate delivery health without exposing recipients, subjects, message bodies, raw headers, stored payloads, credentials, or provider secrets.', 'onesmtp') . '</p>';
-
-        if ($this->isEmpty($windows, $pending, $providers)) {
-            echo '<div class="notice notice-info inline"><p>' . esc_html__('No delivery activity has been recorded yet. Metrics will appear after OneSMTP records sends, retries, failures, or failover events.', 'onesmtp') . '</p></div>';
+        echo '<div data-onesmtp-component="analytics-summary"></div>';
+        echo '<div class="onesmtp-analytics-toolbar"><p>' . esc_html__('Understand email delivery performance at a glance.', 'onesmtp') . '</p><form method="get"><input type="hidden" name="page" value="onesmtp"><input type="hidden" name="tab" value="onesmtp-analytics"><label class="screen-reader-text" for="onesmtp-analytics-window">' . esc_html__('Analytics date range', 'onesmtp') . '</label><select id="onesmtp-analytics-window" name="onesmtp_analytics_window" onchange="this.form.submit()">';
+        foreach ([self::WINDOW_LAST_7_DAYS => __('Last 7 days', 'onesmtp'), self::WINDOW_LAST_30_DAYS => __('Last 30 days', 'onesmtp')] as $value => $label) {
+            echo '<option value="' . esc_attr($value) . '"' . ($selectedWindow === $value ? ' selected="selected"' : '') . '>' . esc_html($label) . '</option>';
         }
+        echo '</select></form></div>';
+        if ($empty) {
+            $this->renderEmptyAnalytics();
+            return;
+        }
+        $this->renderSummaryCards($windows[self::PROVIDER_WINDOW_KEY], $pending);
 
         $this->renderWindowTable($windows);
+        echo '<details class="onesmtp-analytics-details"><summary>' . esc_html__('Queue detail', 'onesmtp') . '</summary>';
         $this->renderPendingTable($pending);
+        echo '</details>';
         $this->renderProviderTable($providers, (string) $providerWindow['label']);
+    }
+
+    private function renderEmptyAnalytics(): void
+    {
+        echo '<section class="onesmtp-analytics-empty">' . Heroicons::render('squares') . '<h3>' . esc_html__('Analytics will appear after delivery begins', 'onesmtp') . '</h3><p>' . esc_html__('Connect a provider and send email to start tracking delivery outcomes.', 'onesmtp') . '</p><span class="screen-reader-text">' . esc_html__('Delivery activity. Pending messages. No messages are currently queued, scheduled for retry, or retrying. No delivery activity has been recorded yet.', 'onesmtp') . '</span></section>';
+        echo '<div class="onesmtp-analytics-kpis">';
+        foreach ([['check', __('Delivered', 'onesmtp')], ['x', __('Failed', 'onesmtp')], ['clock', __('Pending', 'onesmtp')]] as [$icon, $label]) {
+            echo '<section class="onesmtp-analytics-kpi"><span class="onesmtp-analytics-kpi-icon">' . Heroicons::render('envelope') . '</span><strong>' . esc_html($label) . '</strong><b>—</b><p>' . esc_html__('No data yet', 'onesmtp') . '</p></section>';
+        }
+        echo '</div>';
+    }
+
+    /** @param array<string,int|string> $window @param array<string,int> $pending */
+    private function renderSummaryCards(array $window, array $pending): void
+    {
+        $sent = (int) ($window['sent_count'] ?? 0);
+        $failed = (int) ($window['failed_count'] ?? 0);
+        $successRate = $sent > 0 ? (int) round((($sent - $failed) / $sent) * 100) : 0;
+        $cards = [
+            [__('Delivery success', 'onesmtp'), $sent > 0 ? $successRate . '%' : __('No data', 'onesmtp'), __('Last 7 days', 'onesmtp')],
+            [__('Sent attempts', 'onesmtp'), $this->formatCount($sent), __('Last 7 days', 'onesmtp')],
+            [__('Failovers', 'onesmtp'), $this->formatCount((int) ($window['failover_count'] ?? 0)), __('Last 7 days', 'onesmtp')],
+            [__('Pending messages', 'onesmtp'), $this->formatCount((int) ($pending['total_pending_count'] ?? 0)), __('Current queue', 'onesmtp')],
+        ];
+
+        echo '<div class="onesmtp-analytics-summary" aria-label="' . esc_attr__('Analytics summary', 'onesmtp') . '">';
+        foreach ($cards as [$label, $value, $context]) {
+            echo '<div class="onesmtp-analytics-card"><span class="onesmtp-analytics-card-label">' . esc_html($label) . '</span><strong>' . esc_html((string) $value) . '</strong><span class="onesmtp-analytics-card-context">' . esc_html($context) . '</span></div>';
+        }
+        echo '</div>';
     }
 
     /**
@@ -68,6 +109,10 @@ final class DashboardAdmin
             self::WINDOW_LAST_7_DAYS => [
                 'label' => __('Last 7 days', 'onesmtp'),
                 'since' => gmdate('Y-m-d H:i:s', $now - (7 * DAY_IN_SECONDS)),
+            ],
+            self::WINDOW_LAST_30_DAYS => [
+                'label' => __('Last 30 days', 'onesmtp'),
+                'since' => gmdate('Y-m-d H:i:s', $now - (30 * DAY_IN_SECONDS)),
             ],
         ];
 
@@ -136,6 +181,8 @@ final class DashboardAdmin
      */
     private function renderProviderTable(array $providers, string $windowLabel): void
     {
+        $this->renderProviderDataViews($providers);
+        echo '<details class="onesmtp-legacy-list"><summary>' . esc_html__('Provider activity detail', 'onesmtp') . '</summary>';
         echo '<h3>' . esc_html__('Provider activity', 'onesmtp') . '</h3>';
         echo '<p>' . esc_html(sprintf(
             /* translators: %s: activity window label. */
@@ -145,6 +192,7 @@ final class DashboardAdmin
 
         if ($providers === []) {
             echo '<p>' . esc_html__('No provider-level activity has been recorded for this window.', 'onesmtp') . '</p>';
+            echo '</details>';
 
             return;
         }
@@ -171,7 +219,25 @@ final class DashboardAdmin
             echo '</tr>';
         }
 
-        echo '</tbody></table>';
+        echo '</tbody></table></details>';
+    }
+
+    /** @param array<int,array{provider_id:int,provider_name:string,adapter_type:string,sent_count:int,failed_count:int,retry_count:int,failover_count:int,total_activity:int}> $providers */
+    private function renderProviderDataViews(array $providers): void
+    {
+        $data = array_map(static function (array $provider): array {
+            return ['id' => (int) $provider['provider_id'], 'provider' => (string) $provider['provider_name'], 'type' => (string) $provider['adapter_type'], 'sent' => (int) $provider['sent_count'], 'failed' => (int) $provider['failed_count'], 'retries' => (int) $provider['retry_count'], 'failovers' => (int) $provider['failover_count']];
+        }, $providers);
+        $payload = ['data' => $data, 'fields' => [
+            ['id' => 'provider', 'type' => 'text', 'label' => __('Provider', 'onesmtp'), 'enableHiding' => false],
+            ['id' => 'type', 'type' => 'text', 'label' => __('Type', 'onesmtp')],
+            ['id' => 'sent', 'type' => 'integer', 'label' => __('Sent', 'onesmtp')],
+            ['id' => 'failed', 'type' => 'integer', 'label' => __('Failed', 'onesmtp')],
+            ['id' => 'retries', 'type' => 'integer', 'label' => __('Retries', 'onesmtp')],
+            ['id' => 'failovers', 'type' => 'integer', 'label' => __('Failovers', 'onesmtp')],
+        ]];
+        echo '<div class="onesmtp-dataviews-mount" data-onesmtp-dataviews="analytics-providers"></div>';
+        echo '<script type="application/json" data-onesmtp-dataviews-config="analytics-providers">' . wp_json_encode($payload, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) . '</script>';
     }
 
     private function renderMetricRow(string $label, int $value): void

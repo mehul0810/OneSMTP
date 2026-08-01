@@ -131,7 +131,7 @@ final class QueueDiagnosticsAdmin
                 self::ACTION_NAME => self::DOWNLOAD_ACTION,
                 self::NONCE_NAME => wp_create_nonce(self::DOWNLOAD_ACTION),
             ],
-            admin_url('admin.php#onesmtp-diagnostics')
+            admin_url('options-general.php?page=onesmtp#onesmtp-diagnostics')
         );
 
         echo '<p><a class="button button-secondary" href="' . esc_url($downloadUrl) . '">' . esc_html__('Download diagnostic report', 'onesmtp') . '</a></p>';

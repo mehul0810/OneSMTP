@@ -1,4 +1,6 @@
-# OneSMTP Testing Baseline (H1/H2)
+# OneSMTP Testing Baseline
+
+> The release gate and evidence contract lives in the repository-root [`TESTING.md`](../../TESTING.md). This document keeps the detailed behavior matrix and test inventory.
 
 This document defines the QA baseline scaffold for MVP deliverability behavior.
 

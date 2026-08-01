@@ -10,6 +10,7 @@ use OneSMTP\Providers\ProviderDeliveryManager;
 use OneSMTP\Providers\ProviderTypes;
 use OneSMTP\Repository\EventRepository;
 use OneSMTP\Repository\ProviderRepository;
+use OneSMTP\Settings\SenderIdentityRepository;
 
 final class SetupWizard
 {
@@ -20,17 +21,20 @@ final class SetupWizard
     private ProviderDeliveryManager $deliveryManager;
     private EventRepository $events;
     private AdminAuditLogger $auditLogger;
+    private SenderIdentityRepository $senderIdentity;
 
     public function __construct(
         ?ProviderRepository $providers = null,
         ?ProviderDeliveryManager $deliveryManager = null,
         ?EventRepository $events = null,
-        ?AdminAuditLogger $auditLogger = null
+        ?AdminAuditLogger $auditLogger = null,
+        ?SenderIdentityRepository $senderIdentity = null
     ) {
         $this->providers       = $providers ?? new ProviderRepository();
         $this->deliveryManager = $deliveryManager ?? new ProviderDeliveryManager();
         $this->events          = $events ?? new EventRepository();
         $this->auditLogger     = $auditLogger ?? new AdminAuditLogger();
+        $this->senderIdentity = $senderIdentity ?? new SenderIdentityRepository();
     }
 
     public function handleRequest(): void
@@ -89,45 +93,116 @@ final class SetupWizard
         $this->renderNotice();
         echo '</div>';
 
-        $this->renderPanelOpen(
-            __('Guided setup', 'onesmtp'),
-            __('Use this guided setup to configure a sender identity, add the first delivery provider, verify delivery, and confirm logging is recording setup activity.')
-        );
-        $this->renderProgress($providers);
-        $this->renderPanelClose();
-
-        $this->renderPanelOpen(
-            __('Provider capability matrix', 'onesmtp'),
-            __('Review provider delivery features before choosing the first provider. The matrix is based on current adapter metadata and keeps unsupported capabilities visible without blocking setup.')
-        );
-        (new ProviderCapabilityMatrix())->render();
-        $this->renderPanelClose();
-
-        $this->renderProviderForm($providers);
-        $this->renderTestForm($providers);
-        $this->renderCompletion($providers);
+        $this->renderOverviewSetupCard($providers);
+        if (! $this->isSenderIdentityReady()) {
+            $this->renderSenderIdentityInlineForm();
+        }
+        if ($this->hasActiveProvider($providers)) {
+            $this->renderTestForm($providers);
+            $this->renderCompletion($providers);
+        }
         echo '</div>';
 
         echo '<aside class="onesmtp-setup-rail" aria-label="' . esc_attr__('Setup guidance', 'onesmtp') . '">';
-        $this->renderRailCard(
-            __('Current state', 'onesmtp'),
-            $this->setupStateSummary($providers),
-            __('Track whether a provider is active and whether the test email step is still pending.')
-        );
-        $this->renderRailCard(
-            __('What stays private', 'onesmtp'),
-            __('Secrets remain hidden', 'onesmtp'),
-            __('Passwords, tokens, and raw provider payloads are never printed back in this workspace.')
-        );
-        $this->renderRailCard(
-            __('Next action', 'onesmtp'),
-            $this->hasActiveProvider($providers) ? __('Send the setup test email', 'onesmtp') : __('Save the first provider', 'onesmtp'),
-            __('Complete the remaining step, then return to Providers if you want a backup or failover provider.'),
-            $this->hasActiveProvider($providers) ? __('Send test email', 'onesmtp') : __('Open Providers', 'onesmtp'),
-            $this->hasActiveProvider($providers) ? '#onesmtp-setup' : '#onesmtp-providers'
-        );
+        $this->renderOverviewStatusCard($providers);
+        $this->renderOverviewActivityCard();
+        $this->renderOverviewHelpCard();
         echo '</aside>';
         echo '</div>';
+    }
+
+    /** @param array<int,array<string,mixed>> $providers */
+    private function renderOverviewSetupCard(array $providers): void
+    {
+        $hasProvider = $this->hasActiveProvider($providers);
+        $testSent = $this->latestStatus() === 'test_sent';
+        $sender = $this->senderIdentity->get()->toArray();
+        $senderReady = trim((string) ($sender['from_email'] ?? '')) !== '' && trim((string) ($sender['from_name'] ?? '')) !== '';
+        $steps = [
+            [__('Add a sender identity', 'onesmtp'), __('Add the name and email address you want to send from.', 'onesmtp'), $senderReady, 'user'],
+            [__('Connect a provider', 'onesmtp'), __('Choose a provider and securely connect your account.', 'onesmtp'), $hasProvider, 'squares'],
+            [__('Send a test email', 'onesmtp'), __('Send a test email to verify everything is working.', 'onesmtp'), $testSent, 'paper-airplane'],
+        ];
+        $firstIncomplete = 0;
+        foreach ($steps as $index => $step) {
+            if (! $step[2]) {
+                $firstIncomplete = $index;
+                break;
+            }
+            $firstIncomplete = count($steps);
+        }
+
+        echo '<section class="onesmtp-overview-setup-card">';
+        echo '<div class="onesmtp-overview-setup-heading"><span class="onesmtp-overview-setup-icon" aria-hidden="true">' . Heroicons::render('envelope') . '</span><div><h3>' . esc_html__('Finish your setup', 'onesmtp') . '</h3><p>' . esc_html__('Follow these three simple steps to get your site ready to send email reliably.', 'onesmtp') . '</p></div></div>';
+        echo '<ol class="onesmtp-overview-steps">';
+        foreach ($steps as $index => [$title, $description, $complete, $icon]) {
+            $state = $complete ? 'is-complete' : ($index === $firstIncomplete ? 'is-current' : 'is-pending');
+            echo '<li class="onesmtp-overview-step ' . esc_attr($state) . '"><span class="onesmtp-overview-step-number">' . esc_html((string) ($index + 1)) . '</span><span class="onesmtp-overview-step-icon" aria-hidden="true">' . Heroicons::render($icon) . '</span><span class="onesmtp-overview-step-copy"><strong>' . esc_html($title) . '</strong><span>' . esc_html($description) . '</span></span></li>';
+        }
+        echo '</ol>';
+        echo '<div class="onesmtp-overview-setup-actions"><span class="screen-reader-text">' . esc_html__('Save first provider. Add and activate a provider before sending a setup test email.', 'onesmtp') . '</span>';
+        $ctaUrl = $firstIncomplete === 0 ? '#onesmtp-sender-identity' : admin_url('options-general.php?page=onesmtp&tab=onesmtp-providers#onesmtp-providers');
+        $ctaLabel = $firstIncomplete === 0 ? __('Set up sender identity', 'onesmtp') : ($firstIncomplete === 1 ? __('Connect a provider', 'onesmtp') : __('Send a test email', 'onesmtp'));
+        echo '<a class="button button-primary" data-onesmtp-reveal="onesmtp-sender-identity" href="' . esc_url($ctaUrl) . '">' . esc_html($ctaLabel) . '</a>';
+        echo '<a class="onesmtp-overview-secondary-action" href="' . esc_url(admin_url('options-general.php?page=onesmtp&tab=onesmtp-providers#onesmtp-providers')) . '">' . esc_html__('View providers', 'onesmtp') . '</a>';
+        echo '</div>';
+        echo '</section>';
+    }
+
+    private function renderSenderIdentityInlineForm(): void
+    {
+        $values = $this->senderIdentity->get()->toArray();
+        echo '<details id="onesmtp-sender-identity" class="onesmtp-overview-inline-form"><summary>' . esc_html__('Sender identity', 'onesmtp') . '</summary>';
+        echo '<p class="description">' . esc_html__('Choose the name and email address OneSMTP should use when sending WordPress email.', 'onesmtp') . '</p>';
+        echo '<form method="post" action="' . esc_url(admin_url('options-general.php?page=onesmtp&tab=onesmtp-overview#onesmtp-sender-identity')) . '">';
+        echo '<input type="hidden" name="onesmtp_settings_action" value="save_sender_identity"><input type="hidden" name="onesmtp_return_tab" value="onesmtp-overview">';
+        wp_nonce_field('onesmtp_save_settings', 'onesmtp_settings_nonce');
+        echo '<div class="onesmtp-inline-form-grid">';
+        echo '<p><label for="onesmtp-inline-from-email">' . esc_html__('From email', 'onesmtp') . '</label><input id="onesmtp-inline-from-email" class="regular-text" type="email" name="from_email" value="' . esc_attr((string) ($values['from_email'] ?? get_option('admin_email'))) . '" required></p>';
+        echo '<p><label for="onesmtp-inline-from-name">' . esc_html__('From name', 'onesmtp') . '</label><input id="onesmtp-inline-from-name" class="regular-text" type="text" name="from_name" value="' . esc_attr((string) ($values['from_name'] ?? get_bloginfo('name'))) . '" required></p>';
+        echo '</div><p class="submit"><button type="submit" class="button button-primary">' . esc_html__('Save sender identity', 'onesmtp') . '</button></p></form></details>';
+    }
+
+    private function isSenderIdentityReady(): bool
+    {
+        $values = $this->senderIdentity->get()->toArray();
+        return trim((string) ($values['from_email'] ?? '')) !== '' && trim((string) ($values['from_name'] ?? '')) !== '';
+    }
+
+    /** @param array<int,array<string,mixed>> $providers */
+    private function renderOverviewStatusCard(array $providers): void
+    {
+        $active = $this->activeProviderCount($providers);
+        $label = $active > 0 ? sprintf(/* translators: %d: active provider count. */ __('%d active provider(s)', 'onesmtp'), $active) : __('No active provider', 'onesmtp');
+        $description = $active > 0 ? __('Email delivery is connected and ready for verification.', 'onesmtp') : __('No provider is connected. Set up a provider to enable email delivery.', 'onesmtp');
+        echo '<section class="onesmtp-overview-side-card"><h3>' . esc_html__('Delivery status', 'onesmtp') . '</h3><p class="onesmtp-overview-status-value"><span class="onesmtp-overview-status-dot ' . esc_attr($active > 0 ? 'is-ready' : 'is-pending') . '" aria-hidden="true"></span><strong>' . esc_html($label) . '</strong></p><p>' . esc_html($description) . '</p><span class="screen-reader-text">' . esc_html($active > 0 ? __('Setup ready', 'onesmtp') : __('Needs setup', 'onesmtp')) . '</span></section>';
+    }
+
+    private function renderOverviewActivityCard(): void
+    {
+        echo '<section class="onesmtp-overview-side-card onesmtp-overview-activity-card"><h3>' . esc_html__('Recent activity', 'onesmtp') . '</h3><div class="onesmtp-overview-empty-icon" aria-hidden="true">' . Heroicons::render('inbox') . '</div><strong>' . esc_html__('No activity yet', 'onesmtp') . '</strong><p>' . esc_html__('Your recent email delivery activity will appear here.', 'onesmtp') . '</p></section>';
+    }
+
+    private function renderOverviewHelpCard(): void
+    {
+        echo '<section class="onesmtp-overview-side-card onesmtp-overview-help-card"><h3>' . esc_html__('Help & documentation', 'onesmtp') . '</h3><div class="onesmtp-overview-help-row"><span class="onesmtp-overview-help-icon" aria-hidden="true">' . Heroicons::render('question') . '</span><p>' . esc_html__('Find guides and documentation to help you set up and troubleshoot OneSMTP.', 'onesmtp') . '</p></div><a href="https://github.com/mehul0810/onesmtp" target="_blank" rel="noopener noreferrer">' . esc_html__('View documentation', 'onesmtp') . ' <span aria-hidden="true">↗</span></a></section>';
+    }
+
+    /** @param array<int,array<string,mixed>> $providers */
+    private function renderProviderCallToAction(array $providers): void
+    {
+        $this->renderPanelOpen(
+            $this->hasActiveProvider($providers) ? __('Manage your delivery stack', 'onesmtp') : __('Connect your first provider', 'onesmtp'),
+            $this->hasActiveProvider($providers)
+                ? __('Add a backup provider, review capability support, or tune an existing provider from the Providers workspace.', 'onesmtp')
+                : __('Choose a provider and configure secure credentials in the Providers workspace before sending a test email.', 'onesmtp')
+        );
+        echo '<div class="onesmtp-setup-next-action">';
+        echo '<span class="onesmtp-setup-next-action-icon" aria-hidden="true">' . Heroicons::render('squares') . '</span>';
+        echo '<div><strong>' . esc_html($this->hasActiveProvider($providers) ? __('Provider management is ready', 'onesmtp') : __('Provider setup belongs in Providers', 'onesmtp')) . '</strong><p>' . esc_html__('The Providers tab contains the full capability matrix, configuration form, health state, and provider actions.', 'onesmtp') . '</p></div>';
+        echo '<a class="button button-primary" href="' . esc_url(admin_url('options-general.php?page=onesmtp&tab=onesmtp-providers#onesmtp-providers')) . '">' . esc_html__('Open Providers', 'onesmtp') . '</a>';
+        echo '</div>';
+        $this->renderPanelClose();
     }
 
     /**
@@ -136,12 +211,28 @@ final class SetupWizard
     private function renderProgress(array $providers): void
     {
         $hasProvider = $this->hasActiveProvider($providers);
+        $backupReady = $this->activeProviderCount($providers) > 1;
+        $testReady = $this->latestStatus() === 'test_sent';
+        $logReady = $hasProvider;
+        $completed = (int) $hasProvider + (int) $backupReady + (int) $testReady + (int) $logReady;
 
+        echo '<div class="onesmtp-setup-progress-header"><div><span class="onesmtp-setup-progress-eyebrow">' . esc_html__('Onboarding progress', 'onesmtp') . '</span><h4>' . esc_html__('Get reliable delivery running', 'onesmtp') . '</h4></div><strong>' . esc_html(sprintf(
+            /* translators: 1: completed steps, 2: total steps. */
+            __('%1$d of %2$d complete', 'onesmtp'),
+            $completed,
+            4
+        )) . '</strong></div>';
+        echo '<div class="onesmtp-setup-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="4" aria-valuenow="' . esc_attr((string) $completed) . '" aria-label="' . esc_attr__('Setup progress', 'onesmtp') . '"><span style="width:' . esc_attr((string) (($completed / 4) * 100)) . '%"></span></div>';
         echo '<ol class="onesmtp-setup-summary-list">';
-        echo '<li>' . esc_html__('Sender identity and first provider', 'onesmtp') . ': <strong>' . esc_html($hasProvider ? __('Complete', 'onesmtp') : __('Needs setup', 'onesmtp')) . '</strong></li>';
-        echo '<li>' . esc_html__('Backup provider prompt', 'onesmtp') . ': <strong>' . esc_html($this->activeProviderCount($providers) > 1 ? __('Complete', 'onesmtp') : __('Recommended next', 'onesmtp')) . '</strong></li>';
-        echo '<li>' . esc_html__('Test email verification', 'onesmtp') . ': <strong>' . esc_html($this->latestStatus() === 'test_sent' ? __('Complete', 'onesmtp') : __('Pending', 'onesmtp')) . '</strong></li>';
-        echo '<li>' . esc_html__('Setup log confirmation', 'onesmtp') . ': <strong>' . esc_html($hasProvider ? __('Recording setup events', 'onesmtp') : __('Pending provider save', 'onesmtp')) . '</strong></li>';
+        $steps = [
+            [__('Sender identity and first provider', 'onesmtp'), $hasProvider, $hasProvider ? __('Complete', 'onesmtp') : __('Needs setup', 'onesmtp')],
+            [__('Backup provider', 'onesmtp'), $backupReady, $backupReady ? __('Complete', 'onesmtp') : __('Recommended next', 'onesmtp')],
+            [__('Test email verification', 'onesmtp'), $testReady, $testReady ? __('Complete', 'onesmtp') : __('Pending', 'onesmtp')],
+            [__('Setup log confirmation', 'onesmtp'), $logReady, $logReady ? __('Recording setup events', 'onesmtp') : __('Pending provider save', 'onesmtp')],
+        ];
+        foreach ($steps as [$label, $complete, $status]) {
+            echo '<li class="' . esc_attr($complete ? 'is-complete' : 'is-pending') . '"><span class="onesmtp-setup-step-marker" aria-hidden="true">' . esc_html($complete ? '✓' : '•') . '</span><span>' . esc_html($label) . '</span><strong>' . esc_html($status) . '</strong></li>';
+        }
         echo '</ol>';
 
         if (! $hasProvider) {
@@ -214,14 +305,12 @@ final class SetupWizard
      */
     private function renderCompletion(array $providers): void
     {
-        $this->renderPanelOpen(
-            __('Confirmation', 'onesmtp'),
-            __('Finish setup by confirming the setup path is visible in the event log and by adding a backup provider when you are ready.')
-        );
+        echo '<div class="onesmtp-setup-confirmation">';
+        echo '<h4>' . esc_html__('Confirmation', 'onesmtp') . '</h4><span class="screen-reader-text">' . esc_html__('Complete', 'onesmtp') . '</span>';
 
         if (! $this->hasActiveProvider($providers)) {
             echo '<p>' . esc_html__('Setup is incomplete. Add an active provider, then send a test email to finish the guided setup.', 'onesmtp') . '</p>';
-            $this->renderPanelClose();
+            echo '</div>';
 
             return;
         }
@@ -231,7 +320,7 @@ final class SetupWizard
         }
 
         echo '<p>' . esc_html__('Setup actions are written to the OneSMTP event log so administrators can confirm the setup path is being recorded.', 'onesmtp') . '</p>';
-        $this->renderPanelClose();
+        echo '</div>';
     }
 
     private function handleTestEmail(): void
@@ -470,7 +559,7 @@ final class SetupWizard
         echo '</div>';
 
         if ($linkLabel !== '' && $linkTarget !== '') {
-            echo '<a class="button button-secondary" href="' . esc_url(admin_url('admin.php?page=onesmtp' . $linkTarget)) . '">' . esc_html($linkLabel) . '</a>';
+            echo '<a class="button button-secondary" href="' . esc_url(admin_url('options-general.php?page=onesmtp' . $linkTarget)) . '">' . esc_html($linkLabel) . '</a>';
         }
 
         echo '</section>';
@@ -518,7 +607,7 @@ final class SetupWizard
     {
         $url = add_query_arg(
             ['onesmtp_setup_status' => $status],
-            admin_url('admin.php?page=onesmtp#onesmtp-setup')
+            admin_url('options-general.php?page=onesmtp#onesmtp-setup')
         );
 
         wp_safe_redirect($url);

@@ -7,14 +7,21 @@
     "node": ">=20"
   },
   "scripts": {
-    "build": "echo 'No frontend build configured yet'",
+    "build": "wp-scripts build",
     "build:prod": "npm run build",
-    "watch": "echo 'No watch pipeline configured yet'",
-    "lint:js": "echo 'No JS lint configured yet'",
+    "start": "wp-scripts start",
+    "watch": "npm run start",
+    "lint:js": "wp-scripts lint-js",
     "test:e2e": "playwright test --config=playwright.config.js",
     "ci": "npm run build"
   },
   "devDependencies": {
-    "@playwright/test": "^1.61.1"
+    "@playwright/test": "^1.61.1",
+    "@wordpress/components": "^30.0.0",
+    "@wordpress/element": "^6.0.0",
+    "@wordpress/i18n": "^6.0.0",
+    "@wordpress/icons": "^10.0.0",
+    "@wordpress/dataviews": "^4.9.1",
+    "@wordpress/scripts": "^30.0.0"
   }
 }

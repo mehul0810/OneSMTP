@@ -43,6 +43,10 @@ OneSMTP routes transactional emails across multiple providers with automatic fai
 - Policies: `docs/policies/`
 - Templates: `docs/templates/`
 - Product design contract: `DESIGN.md`
+- WordPress Design System contract: `docs/developer/design-system.md`
+- Testing contract: `TESTING.md`
+- Release runbook: `RELEASE.md`
+- Security policy: `SECURITY.md`
 
 ## Contributing
 
