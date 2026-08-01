@@ -1203,7 +1203,9 @@
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
-    .onesmtp-route-line { width:70px; }
+    .onesmtp-route-diagram { gap:8px; justify-content:space-between; }
+    .onesmtp-route-node { min-width:0; flex:1 1 0; }
+    .onesmtp-route-line { width:auto; flex:0 0 24px; }
     .onesmtp-provider-list-item { grid-template-columns:40px 120px 1fr auto; }
     .onesmtp-analytics-kpis { grid-template-columns:1fr; }
 }

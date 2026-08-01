@@ -21,7 +21,7 @@ test.describe('OneSMTP admin browser smoke', () => {
   test.beforeEach(async ({ page }) => {
     const html = renderAdminFixture();
 
-    await page.route('https://example.org/wp-admin/admin.php**', async (route) => {
+    await page.route('https://example.org/wp-admin/options-general.php**', async (route) => {
       await route.fulfill({
         status: 200,
         contentType: 'text/html; charset=utf-8',
@@ -41,7 +41,6 @@ test.describe('OneSMTP admin browser smoke', () => {
       { label: 'Overview', tab: 'onesmtp-overview' },
       { label: 'Providers', tab: 'onesmtp-providers' },
       { label: 'Routing', tab: 'onesmtp-routing' },
-      { label: 'Delivery', tab: 'onesmtp-delivery' },
       { label: 'Activity', tab: 'onesmtp-activity' },
       { label: 'Analytics', tab: 'onesmtp-analytics' },
       { label: 'Settings', tab: 'onesmtp-settings' },
@@ -53,14 +52,15 @@ test.describe('OneSMTP admin browser smoke', () => {
     await expect(page.locator('#onesmtp-providers')).toBeHidden();
     await expect(primaryNav.getByRole('link', { name: 'Overview', exact: true })).toHaveAttribute('aria-current', 'page');
     await expect(page.locator('#onesmtp-overview')).toContainText('Test email');
+    await expect(page.locator('#onesmtp-overview .onesmtp-context-rail')).toHaveCount(0);
 
-    await page.locator('#onesmtp-overview .onesmtp-context-rail').getByRole('link', { name: 'Continue setup', exact: true }).click();
-    await expect(page).toHaveURL(/tab=onesmtp-overview#onesmtp-setup$/);
+    await page.goto(`${adminUrl}?tab=onesmtp-delivery#onesmtp-delivery`);
     await expect(page.locator('#onesmtp-overview')).toBeVisible();
+    await expect(page.locator('#onesmtp-delivery')).toBeVisible();
 
     await openWorkspace(page, 'Providers', 'onesmtp-providers');
     await expect(page.locator('#onesmtp-overview')).toBeHidden();
-    await expect(page.locator('#onesmtp-providers')).toContainText('Active delivery stack');
+    await expect(page.locator('#onesmtp-providers')).toContainText('Configured providers');
     await expect(primaryNav.getByRole('link', { name: 'Providers', exact: true })).toHaveAttribute('aria-current', 'page');
     await expect(page.getByRole('heading', { name: 'Providers', exact: true })).toBeFocused();
   });
@@ -84,6 +84,7 @@ test.describe('OneSMTP admin browser smoke', () => {
   test('submits provider settings with safe local fixture values', async ({ page }) => {
     await captureFormSubmissions(page);
     await openWorkspace(page, 'Providers', 'onesmtp-providers');
+    await page.locator('#onesmtp-provider-form summary').click();
 
     const providerForm = page.locator('form.onesmtp-provider-form');
     await providerForm.locator('input[name="name"]').fill('Browser Smoke SMTP');
@@ -159,6 +160,7 @@ test.describe('OneSMTP admin browser smoke', () => {
     await openWorkspace(page, 'Settings', 'onesmtp-settings');
 
     const alerts = page.locator('#onesmtp-settings');
+    await alerts.locator('details.onesmtp-admin-secondary-panel').filter({ hasText: 'Alert history' }).locator('summary').click();
     await expect(alerts).toContainText('Review privacy-safe alert events');
     await expect(alerts).toContainText('Terminal failure for message #21 after retry boundary.');
     await expect(alerts).toContainText('Terminal failure already acknowledged for message #20.');
@@ -200,15 +202,11 @@ test.describe('OneSMTP admin browser smoke', () => {
       ['Overview', 'onesmtp-overview'],
       ['Providers', 'onesmtp-providers'],
       ['Routing', 'onesmtp-routing'],
-      ['Delivery', 'onesmtp-delivery'],
       ['Activity', 'onesmtp-activity'],
       ['Analytics', 'onesmtp-analytics'],
       ['Settings', 'onesmtp-settings'],
     ]) {
       await openWorkspace(page, workspace[0], workspace[1]);
-      if (!['onesmtp-providers', 'onesmtp-analytics'].includes(workspace[1])) {
-        await expect(page.locator(`#${workspace[1]} .onesmtp-context-rail`)).toBeVisible();
-      }
       if (workspace[1] === 'onesmtp-overview') {
         await expect(page.locator('#onesmtp-overview .onesmtp-setup-shell')).toBeVisible();
       }
@@ -216,7 +214,7 @@ test.describe('OneSMTP admin browser smoke', () => {
       const hasPageOverflow = await page.evaluate(
         () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1
       );
-      expect(hasPageOverflow).toBe(false);
+      expect(hasPageOverflow, `workspace ${workspace[1]} should not overflow the viewport`).toBe(false);
     }
   });
 });

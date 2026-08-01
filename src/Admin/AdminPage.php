@@ -23,7 +23,6 @@ final class AdminPage
     private DashboardAdmin $dashboard;
     private ProviderAdmin $providers;
     private SetupWizard $setupWizard;
-    private DeliveryAdmin $delivery;
     private LogAdmin $logs;
     private SettingsAdmin $settings;
     private QueueDiagnosticsAdmin $diagnostics;
@@ -49,7 +48,6 @@ final class AdminPage
         $this->dashboard = $dashboard ?? new DashboardAdmin();
         $this->providers = $providers ?? new ProviderAdmin($this->providerRepository);
         $this->setupWizard = $setupWizard ?? new SetupWizard($this->providerRepository);
-        $this->delivery = new DeliveryAdmin($this->providerRepository);
         $this->logs = $logs ?? new LogAdmin(new MessageRepository(), new AttemptRepository(), $this->providerRepository);
         $this->settings = $settings ?? new SettingsAdmin();
         $this->diagnostics = $diagnostics ?? new QueueDiagnosticsAdmin();
@@ -207,27 +205,17 @@ final class AdminPage
         $headingId = $sectionId . '-heading';
 
         echo '<section id="' . esc_attr($sectionId) . '" class="onesmtp-admin-section" data-onesmtp-workspace="' . esc_attr($sectionId) . '" aria-labelledby="' . esc_attr($headingId) . '"' . ($isActive ? '' : ' hidden') . '>';
-        if ($sectionId === 'onesmtp-overview') {
-            echo '<h2 id="' . esc_attr($headingId) . '" class="screen-reader-text" tabindex="-1">' . esc_html($screen->title()) . '</h2>';
-        } else {
-            echo '<header class="onesmtp-admin-section-header">';
-            echo '<div class="onesmtp-admin-section-heading">';
-            echo '<h2 id="' . esc_attr($headingId) . '" tabindex="-1">' . esc_html($screen->title()) . '</h2>';
-            echo '<p class="onesmtp-admin-section-description">' . esc_html($screen->description()) . '</p>';
-            echo '</div>';
-            echo '</header>';
-        }
-        $fullWidth = in_array($sectionId, ['onesmtp-overview', 'onesmtp-providers', 'onesmtp-analytics'], true);
-        echo '<div class="onesmtp-admin-workspace-layout' . ($sectionId === 'onesmtp-overview' ? ' is-overview' : '') . ($fullWidth ? ' is-full-width' : '') . '">';
+        echo '<header class="onesmtp-admin-section-header">';
+        echo '<div class="onesmtp-admin-section-heading">';
+        echo '<h2 id="' . esc_attr($headingId) . '" tabindex="-1">' . esc_html($screen->title()) . '</h2>';
+        echo '<p class="onesmtp-admin-section-description">' . esc_html($screen->description()) . '</p>';
+        echo '</div>';
+        echo '</header>';
+        echo '<div class="onesmtp-admin-workspace-layout is-full-width' . ($sectionId === 'onesmtp-overview' ? ' is-overview' : '') . '">';
         echo '<div class="onesmtp-admin-section-body">';
-        $this->renderWorkspaceIntro($sectionId, $activeProviders, $senderIdentity);
-
         $screen->render($activeProviders, $senderIdentity);
 
         echo '</div>';
-        if (! in_array($sectionId, ['onesmtp-overview', 'onesmtp-providers', 'onesmtp-analytics'], true)) {
-            $this->renderContextualRail($sectionId, $activeProviders, $senderIdentity);
-        }
         echo '</div>';
         echo '</section>';
     }
@@ -271,145 +259,6 @@ final class AdminPage
 
     /**
      * @param array<int,array<string,mixed>> $activeProviders
-     * @param array<string,mixed> $senderIdentity
-     */
-    private function renderContextualRail(string $sectionId, array $activeProviders, array $senderIdentity): void
-    {
-        $providerCount = count($activeProviders);
-        $primaryProvider = $activeProviders[0] ?? null;
-        $setupReady = $this->isSetupReady($senderIdentity, $activeProviders);
-        $senderReady = trim( (string) ($senderIdentity['from_email'] ?? '') ) !== ''
-            && trim( (string) ($senderIdentity['from_name'] ?? '') ) !== '';
-        $retention = sprintf(
-            /* translators: %d: retention days. */
-            __('%d-day retention', 'onesmtp'),
-            \OneSMTP\Core\RetentionPolicy::getLogRetentionDays()
-        );
-
-        echo '<aside class="onesmtp-context-rail" aria-label="' . esc_attr(sprintf(
-            /* translators: %s: workspace name. */
-            __('%s workspace context', 'onesmtp'),
-            $this->sectionTitle($sectionId)
-        )) . '">';
-
-        if ($sectionId === 'onesmtp-overview') {
-            $this->renderContextCard(
-                __('Setup health', 'onesmtp'),
-                $setupReady ? __('Ready to test', 'onesmtp') : __('Needs setup', 'onesmtp'),
-                $setupReady ? __('Sender identity and an active provider are configured.', 'onesmtp') : __('Complete sender identity and activate a provider.', 'onesmtp'),
-                '#onesmtp-setup',
-                __('Continue setup', 'onesmtp')
-            );
-            $this->renderProviderContextCard($providerCount, $primaryProvider, '#onesmtp-providers', __('Manage providers', 'onesmtp'));
-        } elseif ($sectionId === 'onesmtp-providers') {
-            $this->renderProviderContextCard($providerCount, $primaryProvider, '#onesmtp-providers', __('Add or edit providers', 'onesmtp'));
-            $this->renderContextCard(
-                __('Failover coverage', 'onesmtp'),
-                $providerCount > 1 ? __('Backup available', 'onesmtp') : __('Single-provider stack', 'onesmtp'),
-                $providerCount > 1 ? __('Multiple active providers can support failover.', 'onesmtp') : __('Add a second active provider before relying on failover.', 'onesmtp'),
-                '#onesmtp-routing',
-                __('Review routing', 'onesmtp')
-            );
-        } elseif ($sectionId === 'onesmtp-routing') {
-            $this->renderContextCard(
-                __('Sender identity', 'onesmtp'),
-                $senderReady ? __('Configured', 'onesmtp') : __('Needs setup', 'onesmtp'),
-                $senderReady ? __('Default sender values are available to the routing controls.', 'onesmtp') : __('Set the default sender name and email before enabling force options.', 'onesmtp'),
-                '#onesmtp-settings',
-                __('Review sender settings', 'onesmtp')
-            );
-            $this->renderContextCard(
-                __('Delivery stack', 'onesmtp'),
-                $providerCount > 1 ? __('Failover-ready', 'onesmtp') : __('Limited coverage', 'onesmtp'),
-                $providerCount > 1 ? __('Routing has multiple active providers available.', 'onesmtp') : __('Routing currently has fewer than two active providers.', 'onesmtp'),
-                '#onesmtp-providers',
-                __('Review providers', 'onesmtp')
-            );
-        } elseif ($sectionId === 'onesmtp-delivery') {
-            $this->renderContextCard(
-                __('Delivery health', 'onesmtp'),
-                $providerCount > 0 ? __('Ready to test', 'onesmtp') : __('Setup needed', 'onesmtp'),
-                $providerCount > 0 ? __('Connect a sender identity and send a test email to confirm delivery.', 'onesmtp') : __('Connect a provider and send a test email to confirm delivery.', 'onesmtp'),
-                '#onesmtp-providers',
-                __('Review providers', 'onesmtp')
-            );
-            $this->renderContextCard(
-                __('Last test', 'onesmtp'),
-                __('No test yet', 'onesmtp'),
-                __('Your latest test result will appear here after the first delivery attempt.', 'onesmtp'),
-                '#onesmtp-activity',
-                __('View activity', 'onesmtp')
-            );
-        } elseif ($sectionId === 'onesmtp-activity') {
-            $this->renderContextCard(
-                __('Understand activity', 'onesmtp'),
-                __('Delivery events', 'onesmtp'),
-                __('Activity shows email delivery attempts, provider responses, and errors without exposing message content.', 'onesmtp'),
-                '#onesmtp-settings',
-                __('Review logging', 'onesmtp')
-            );
-        } elseif ($sectionId === 'onesmtp-analytics') {
-            $this->renderContextCard(
-                __('Delivery visibility', 'onesmtp'),
-                __('Analytics', 'onesmtp'),
-                __('Compare provider activity, retries, failures, and failover patterns before changing your routing strategy.', 'onesmtp'),
-                '#onesmtp-providers',
-                __('Review providers', 'onesmtp')
-            );
-            $this->renderContextCard(
-                __('Current delivery stack', 'onesmtp'),
-                $providerCount > 1 ? __('Failover-ready', 'onesmtp') : __('Limited coverage', 'onesmtp'),
-                $providerCount > 1 ? __('Analytics can compare multiple active providers.', 'onesmtp') : __('Add another active provider to compare failover behavior.', 'onesmtp'),
-                '#onesmtp-routing',
-                __('Review routing', 'onesmtp')
-            );
-        } elseif ($sectionId === 'onesmtp-settings') {
-            $this->renderContextCard(
-                __('Operational readiness', 'onesmtp'),
-                $setupReady ? __('Configured', 'onesmtp') : __('Setup incomplete', 'onesmtp'),
-                $setupReady ? __('Core sender and provider prerequisites are available.', 'onesmtp') : __('Finish setup before treating diagnostics as delivery proof.', 'onesmtp'),
-                '#onesmtp-overview',
-                __('Review setup', 'onesmtp')
-            );
-            $this->renderContextCard(
-                __('Log retention', 'onesmtp'),
-                $retention,
-                __('Cleanup, export, and diagnostics keep the current privacy-safe retention boundary.', 'onesmtp'),
-                '#onesmtp-delivery',
-                __('Open delivery', 'onesmtp')
-            );
-        }
-
-        echo '</aside>';
-    }
-
-    /**
-     * @param array<string,mixed>|null $primaryProvider
-     */
-    private function renderProviderContextCard(int $providerCount, ?array $primaryProvider, string $href, string $buttonLabel): void
-    {
-        $providerName = $primaryProvider !== null
-            ? (string) ($primaryProvider['name'] ?? __('Unknown provider', 'onesmtp'))
-            : __('No active providers', 'onesmtp');
-        if ($providerCount === 1) {
-            /* translators: %d: active provider count. */
-            $availability = __('%d active provider is available.', 'onesmtp');
-        } else {
-            /* translators: %d: active provider count. */
-            $availability = __('%d active providers are available.', 'onesmtp');
-        }
-
-        $this->renderContextCard(
-            __('Active delivery stack', 'onesmtp'),
-            $providerName,
-            sprintf($availability, $providerCount),
-            $href,
-            $buttonLabel
-        );
-    }
-
-    /**
-     * @param array<int,array<string,mixed>> $activeProviders
      */
     private function renderRoutingOverview(array $activeProviders): void
     {
@@ -423,90 +272,6 @@ final class AdminPage
         echo '<section class="onesmtp-routing-rules"><h3>' . esc_html__('Routing rules', 'onesmtp') . '</h3><div class="onesmtp-empty-state onesmtp-empty-state--inline">' . Heroicons::render('squares') . '<div><strong>' . esc_html__('No routing rules yet', 'onesmtp') . '</strong><p>' . esc_html__('Create rules to send certain emails through specific providers.', 'onesmtp') . '</p><a href="' . esc_url($this->normalizeInternalHref('#onesmtp-settings')) . '">' . esc_html__('Learn about routing rules', 'onesmtp') . '</a></div></div></section>';
     }
 
-    /**
-     * Render a compact task-oriented orientation panel before the detailed workspace.
-     *
-     * @param array<int,array<string,mixed>> $activeProviders
-     * @param array<string,mixed> $senderIdentity
-     */
-    private function renderWorkspaceIntro(string $sectionId, array $activeProviders, array $senderIdentity): void
-    {
-        if ($sectionId === 'onesmtp-overview') {
-            echo '<div class="onesmtp-overview-lead"><h2>' . esc_html__('Welcome to OneSMTP', 'onesmtp') . '</h2><p>' . esc_html__('Set up reliable email delivery for your WordPress site.', 'onesmtp') . '</p></div>';
-            return;
-        }
-
-        $providerCount = count($activeProviders);
-        $senderReady = trim((string) ($senderIdentity['from_email'] ?? '')) !== ''
-            && trim((string) ($senderIdentity['from_name'] ?? '')) !== '';
-        $intros = [
-            'onesmtp-overview' => [
-                __('Delivery command center', 'onesmtp'),
-                __('See what needs attention, complete setup, and verify your first reliable send.', 'onesmtp'),
-                __('Next best action', 'onesmtp'),
-                $senderReady && $providerCount > 0 ? __('Send a test email', 'onesmtp') : __('Complete setup', 'onesmtp'),
-            ],
-            'onesmtp-providers' => [
-                __('Delivery stack', 'onesmtp'),
-                __('Keep primary and backup providers healthy, secure, and ready for failover.', 'onesmtp'),
-                __('Active providers', 'onesmtp'),
-                (string) $providerCount,
-            ],
-            'onesmtp-routing' => [
-                __('Routing control plane', 'onesmtp'),
-                __('Define how OneSMTP selects a provider, distributes load, and recovers from failure.', 'onesmtp'),
-                __('Current strategy', 'onesmtp'),
-                __('Priority + weighted failover', 'onesmtp'),
-            ],
-            'onesmtp-delivery' => [
-                __('Test delivery', 'onesmtp'),
-                __('Send a test email and confirm your site can deliver messages.', 'onesmtp'),
-                __('Delivery status', 'onesmtp'),
-                $providerCount > 0 ? __('Ready to test', 'onesmtp') : __('Setup needed', 'onesmtp'),
-            ],
-            'onesmtp-activity' => [
-                __('Delivery activity', 'onesmtp'),
-                __('Review recent email delivery events from OneSMTP.', 'onesmtp'),
-                __('Logging', 'onesmtp'),
-                __('Privacy-safe events', 'onesmtp'),
-            ],
-            'onesmtp-analytics' => [
-                __('Delivery intelligence', 'onesmtp'),
-                __('Use reliability and failover signals to improve provider decisions over time.', 'onesmtp'),
-                __('Reporting window', 'onesmtp'),
-                __('Last 7 days', 'onesmtp'),
-            ],
-            'onesmtp-settings' => [
-                __('Operational controls', 'onesmtp'),
-                __('Configure identity, limits, alerts, retention, diagnostics, and safe transfer controls.', 'onesmtp'),
-                __('Configuration status', 'onesmtp'),
-                $senderReady ? __('Sender identity configured', 'onesmtp') : __('Sender identity needs setup', 'onesmtp'),
-            ],
-        ];
-        $intro = $intros[$sectionId] ?? null;
-        if ($intro === null) {
-            return;
-        }
-
-        echo '<div class="onesmtp-workspace-intro">';
-        echo '<div class="onesmtp-workspace-intro-copy"><span class="onesmtp-eyebrow">' . esc_html__('OneSMTP workspace', 'onesmtp') . '</span><h3>' . esc_html($intro[0]) . '</h3><p>' . esc_html($intro[1]) . '</p></div>';
-        echo '<div class="onesmtp-workspace-intro-metric"><span>' . esc_html($intro[2]) . '</span><strong>' . esc_html($intro[3]) . '</strong></div>';
-        echo '</div>';
-    }
-
-    private function renderContextCard(string $title, string $value, string $description, string $href, string $buttonLabel): void
-    {
-        $href = $this->normalizeInternalHref($href);
-        echo '<section class="onesmtp-context-card">';
-        echo '<div class="onesmtp-context-card-copy">';
-        echo '<p class="onesmtp-context-card-title">' . esc_html($title) . '</p>';
-        echo '<p class="onesmtp-context-card-value">' . esc_html($value) . '</p>';
-        echo '<p class="onesmtp-context-card-description">' . esc_html($description) . '</p>';
-        echo '</div>';
-        echo '<a class="button button-secondary" href="' . esc_url($href) . '">' . esc_html($buttonLabel) . '</a>';
-        echo '</section>';
-    }
-
     private function normalizeInternalHref(string $href): string
     {
         if (! str_starts_with($href, '#')) {
@@ -518,17 +283,6 @@ final class AdminPage
         $screenId = $screen?->id() ?? 'onesmtp-overview';
 
         return admin_url('options-general.php?page=' . self::MENU_SLUG . '&tab=' . rawurlencode($screenId) . '#' . $target);
-    }
-
-    private function sectionTitle(string $sectionId): string
-    {
-        foreach ($this->sections() as $section) {
-            if ($section['id'] === $sectionId) {
-                return $section['title'];
-            }
-        }
-
-        return __('OneSMTP', 'onesmtp');
     }
 
     private function requestedScreenId(): string
@@ -546,13 +300,13 @@ final class AdminPage
         $registry->register(new AdminScreenDefinition(
             'onesmtp-overview',
             __('Overview', 'onesmtp'),
-            __('Check setup readiness and complete the guided path to reliable WordPress email delivery.', 'onesmtp'),
+            __('Check readiness and complete the next step toward reliable WordPress email delivery.', 'onesmtp'),
             function (): void {
                 $this->renderAnchorAlias('onesmtp-general');
                 $this->renderAnchorAlias('onesmtp-setup');
                 $this->setupWizard->render();
             },
-            ['onesmtp-general', 'onesmtp-setup']
+            ['onesmtp-general', 'onesmtp-setup', 'onesmtp-delivery']
         ));
         $registry->register(new AdminScreenDefinition(
             'onesmtp-providers',
@@ -568,14 +322,6 @@ final class AdminPage
             __('Understand and tune provider selection, weighted delivery, routing rules, and automatic failover behavior.', 'onesmtp'),
             function (array $activeProviders): void {
                 $this->renderRoutingOverview($activeProviders);
-            }
-        ));
-        $registry->register(new AdminScreenDefinition(
-            'onesmtp-delivery',
-            __('Delivery', 'onesmtp'),
-            __('Send a test email and confirm your site can deliver messages.', 'onesmtp'),
-            function (): void {
-                $this->delivery->render();
             }
         ));
         $registry->register(new AdminScreenDefinition(

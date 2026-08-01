@@ -87,7 +87,7 @@ final class SetupWizard
     {
         $providers = $this->providers->getAllSafe();
 
-        echo '<div class="onesmtp-setup-shell">';
+        echo '<div id="onesmtp-delivery" class="onesmtp-setup-shell">';
         echo '<div class="onesmtp-setup-main">';
         echo '<div class="onesmtp-setup-notices">';
         $this->renderNotice();

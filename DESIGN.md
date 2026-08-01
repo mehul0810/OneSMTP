@@ -22,7 +22,11 @@ Use WordPress semantic status colors for warning and error states. Do not introd
 
 The current admin information architecture is:
 
-`Overview` · `Providers` · `Routing` · `Delivery` · `Analytics` · `Settings`
+`Overview` · `Providers` · `Routing` · `Activity` · `Analytics` · `Settings`
+
+Delivery testing is part of the guided setup and provider verification flow. The
+legacy `onesmtp-delivery` destination remains an alias to the Overview setup
+surface for backward compatibility.
 
 ## WordPress Design System
 

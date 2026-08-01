@@ -74,12 +74,12 @@ final class AdminPageTest extends TestCase
         self::assertStringContainsString('nav-tab nav-tab-active', $output);
         self::assertStringContainsString('aria-current="page"', $output);
         self::assertStringContainsString('id="onesmtp-overview"', $output);
-        self::assertStringContainsString('Welcome to OneSMTP', $output);
         self::assertStringContainsString('Reliable email delivery for WordPress.', $output);
         self::assertStringContainsString('Setup needed', $output);
         self::assertStringContainsString('Overview', $output);
         self::assertStringContainsString('Routing', $output);
-        self::assertStringContainsString('Delivery', $output);
+        self::assertStringNotContainsString('data-onesmtp-workspace-link="onesmtp-delivery"', $output);
+        self::assertStringContainsString('Activity', $output);
         self::assertStringContainsString('Analytics', $output);
         self::assertStringContainsString('Settings', $output);
     }

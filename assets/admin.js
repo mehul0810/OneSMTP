@@ -12,6 +12,7 @@
         'onesmtp-general': 'onesmtp-overview',
         'onesmtp-dashboard': 'onesmtp-analytics',
         'onesmtp-setup': 'onesmtp-overview',
+        'onesmtp-delivery': 'onesmtp-overview',
         'onesmtp-settings': 'onesmtp-settings',
         'onesmtp-logs': 'onesmtp-activity',
         'onesmtp-diagnostics': 'onesmtp-settings',
