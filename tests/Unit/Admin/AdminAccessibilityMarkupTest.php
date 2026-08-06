@@ -68,7 +68,7 @@ final class AdminAccessibilityMarkupTest extends TestCase
 
     public function test_admin_sections_expose_labeled_keyboard_reachable_navigation(): void
     {
-        $html = $this->capture(static fn (): null => (new AdminPage())->render());
+        $html = $this->capture(static fn () => (new AdminPage())->render());
 
         self::assertStringContainsString('<nav class="nav-tab-wrapper" aria-label="Aculect Mail sections">', $html);
         self::assertStringContainsString('data-onesmtp-workspace-link="onesmtp-overview"', $html);
@@ -107,7 +107,7 @@ final class AdminAccessibilityMarkupTest extends TestCase
             ],
         ];
 
-        $html = $this->capture(static fn (): null => (new ProviderAdmin(new ProviderRepository()))->render());
+        $html = $this->capture(static fn () => (new ProviderAdmin(new ProviderRepository()))->render());
 
         self::assertStringContainsString('aria-label="Email providers"', $html);
         self::assertStringContainsString('onesmtp-provider-logo-smtp', $html);
@@ -202,7 +202,7 @@ final class AdminAccessibilityMarkupTest extends TestCase
         ];
         $GLOBALS['wpdb']->providerRowsById[7] = $GLOBALS['wpdb']->activeProviders[0];
 
-        $html = $this->capture(static fn (): null => (new LogAdmin(new MessageRepository(), new AttemptRepository(), new ProviderRepository()))->render());
+        $html = $this->capture(static fn () => (new LogAdmin(new MessageRepository(), new AttemptRepository(), new ProviderRepository()))->render());
 
         self::assertStringContainsString('<label for="onesmtp-log-status">Status</label>', $html);
         self::assertStringContainsString('<label for="onesmtp-log-provider">Provider</label>', $html);
