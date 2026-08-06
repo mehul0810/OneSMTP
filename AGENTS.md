@@ -52,7 +52,8 @@ Guidance for AI coding agents working in the Aculect Mail plugin repository.
   - `.github/workflows/ci.yml`
   - `.github/workflows/performance-smoke.yml`
   - `.github/workflows/release.yml`
-- CI and performance smoke should run for pull requests and for pushes to `main`, `develop`, and `release/**`.
+- CI runs for pull requests and pushes to `main`, `develop`, and `release/**`.
+- Performance smoke is intentionally manual-only in GitHub Actions; run `composer perf:smoke` locally by default and dispatch the hosted workflow only when durable hosted evidence is needed.
 - If a touched area cannot be validated locally, call out the gap clearly in the PR body.
 
 ## Documentation Contracts

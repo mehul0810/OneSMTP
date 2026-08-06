@@ -19,8 +19,9 @@ This is the contributor-facing testing contract. The detailed behavior matrix re
 composer install --no-interaction --prefer-dist
 composer lint
 composer test
-composer analyze -- --memory-limit=512M
-npm install --no-fund --no-audit
+./vendor/bin/phpstan analyse --configuration=phpstan.neon --no-progress --memory-limit=512M
+PATH=/path/to/node-20.19.0/bin:$PATH npm ci
+npm run lint:js
 npm run build
 ```
 
@@ -33,6 +34,14 @@ For the Studio site, use `studio --version`, `studio status`, and `studio wp` co
 - Record known baseline failures separately from regressions introduced by the change.
 - A passing unit suite does not prove live provider delivery; state that boundary explicitly.
 - Release evidence must include the commit SHA, branch, package checksum, PHP/WordPress versions tested, and any skipped checks.
+
+## Screenshot evidence for visible changes
+
+- Admin-shell, layout, responsive, component, or other visibly changed work requires fresh screenshots at desktop and a narrow WordPress admin width.
+- Capture every affected tab and the important interaction state, including drawers, validation, empty states, and overflow-sensitive listings when applicable.
+- Attach the screenshots to the implementation or release PR with the tested viewport sizes and candidate commit SHA.
+- Screenshots complement keyboard/accessibility and browser smoke; they do not replace those checks.
+- If the real admin cannot be captured, record `Screenshot blocked` with the exact environment or access reason. A blocked note is a release risk that requires explicit owner acceptance, not an automatic pass.
 
 ## Test layers
 

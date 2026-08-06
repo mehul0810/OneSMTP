@@ -22,7 +22,7 @@ Use WordPress semantic status colors for warning and error states. Do not introd
 
 The current admin information architecture is:
 
-`Overview` · `Providers` · `Routing` · `Activity` · `Analytics` · `Settings`
+`Overview` · `Providers` · `Routing` · `Activity` · `Analytics` · `Settings` · `Advanced`
 
 Delivery testing is part of the guided setup and provider verification flow. The
 legacy `onesmtp-delivery` destination remains an alias to the Overview setup
@@ -114,7 +114,7 @@ Aculect Mail copy should be clear, operational, and specific.
 - Use sentence-case UI text unless WordPress conventions require otherwise.
 - Say what the system knows. Use `Not configured` instead of vague states like `Inactive`.
 - Avoid fear-based language, exaggerated reliability claims, and competitor comparisons.
-- Keep public README, readme.txt, website, and docs copy aligned with implemented 0.1.0 behavior.
+- Keep public README, readme.txt, website, and docs copy aligned with the currently implemented release behavior.
 
 ## Website, Docs, And Release Assets
 

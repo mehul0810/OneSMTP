@@ -16,14 +16,19 @@ This is the production-release contract for Aculect Mail. Release actions remain
 
 ## Release gates
 
-- Working tree is clean and the candidate branch/base are proven.
-- `composer lint`, `composer test`, and `composer analyze` pass, or approved baseline exceptions are recorded.
-- `npm run build` passes when assets are present or changed.
-- Performance smoke passes for queue/retry changes.
-- Admin smoke covers the current seven-tab IA: Overview, Providers, Routing, Activity, Analytics, Settings, Advanced.
-- No secrets, test fixtures, vendor directories, node modules, or repository metadata are in the package.
-- Package installs and activates on the supported PHP/WordPress matrix.
-- Changelog and release notes describe user impact, compatibility, upgrade notes, and known limitations.
+Use only `Pass`, `Risk`, `Blocked`, or `Not applicable - reason` in the candidate release record. A `Risk` requires named owner acceptance; a `Blocked` gate prevents merge, tag, and publication.
+
+| Gate | Evidence | Required status |
+| --- | --- | --- |
+| Scope and source | Clean candidate tree, proven branch/base, resolved or explicitly deferred milestone work, and fresh source review | `Pass` |
+| PHP and data behavior | PHPCS gate, PHPUnit, PHPStan, supported PHP matrix, migrations, queue/retry/failover tests | `Pass` |
+| Admin and accessibility | JavaScript lint/build, seven-tab admin smoke, keyboard checks, and desktop/narrow screenshot evidence | `Pass` |
+| Security and privacy | Plugin Check, dependency audits, secret scan, credential/log/export boundaries | `Pass` |
+| Performance | Queue/retry benchmark, large-log paths, and documented bundle impact | `Pass` or owner-accepted `Risk` |
+| Package and compatibility | Clean ZIP, checksum, install/activate smoke, supported WordPress/PHP matrix | `Pass` |
+| Documentation | Changelog, release notes, metadata, upgrade guidance, known limitations, rollback notes | `Pass` |
+| Live delivery | Owner-controlled provider send and controlled eligible-provider failover using disposable staging credentials | `Pass` |
+| Owner approval | Explicit approval for production merge, tag, and publication | `Pass` |
 
 ## Rollback
 
