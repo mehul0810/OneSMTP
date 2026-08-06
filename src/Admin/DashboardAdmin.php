@@ -1,0 +1,297 @@
+<?php
+
+declare(strict_types=1);
+
+namespace OneSMTP\Admin;
+
+use OneSMTP\Core\Capabilities;
+use OneSMTP\Repository\MetricsRepository;
+
+final class DashboardAdmin
+{
+    private const WINDOW_LAST_24_HOURS = 'last_24_hours';
+    private const WINDOW_LAST_7_DAYS = 'last_7_days';
+    private const WINDOW_LAST_30_DAYS = 'last_30_days';
+    private const PROVIDER_WINDOW_KEY = self::WINDOW_LAST_7_DAYS;
+    private const PROVIDER_NAME_LIMIT = 80;
+
+    private MetricsRepository $metrics;
+
+    /** @var callable():int */
+    private $nowProvider;
+
+    /**
+     * @param callable():int|null $nowProvider
+     */
+    public function __construct(?MetricsRepository $metrics = null, ?callable $nowProvider = null)
+    {
+        $this->metrics = $metrics ?? new MetricsRepository();
+        $this->nowProvider = $nowProvider ?? static fn (): int => time();
+    }
+
+    public function render(): void
+    {
+        if (! Capabilities::canViewLogs()) {
+            wp_die(
+                esc_html__('You do not have permission to view Aculect Mail dashboard metrics.', 'onesmtp'),
+                esc_html__('Aculect Mail access denied', 'onesmtp'),
+                ['response' => 403]
+            );
+        }
+
+        $windows = $this->windowSummaries();
+        $pending = $this->metrics->getPendingSummary();
+        $selectedWindow = isset($_GET['onesmtp_analytics_window']) ? sanitize_key(wp_unslash((string) $_GET['onesmtp_analytics_window'])) : self::PROVIDER_WINDOW_KEY;
+        $providerWindow = $windows[$selectedWindow] ?? $windows[self::PROVIDER_WINDOW_KEY];
+        $providers = $this->metrics->getProviderBreakdown((string) $providerWindow['since']);
+        $empty = $this->isEmpty($windows, $pending, $providers);
+
+        echo '<div class="onesmtp-analytics-toolbar"><p>' . esc_html__('Understand email delivery performance at a glance.', 'onesmtp') . '</p><form method="get"><input type="hidden" name="page" value="onesmtp"><input type="hidden" name="tab" value="onesmtp-analytics"><label class="screen-reader-text" for="onesmtp-analytics-window">' . esc_html__('Analytics date range', 'onesmtp') . '</label><select id="onesmtp-analytics-window" name="onesmtp_analytics_window" onchange="this.form.submit()">';
+        foreach ([self::WINDOW_LAST_7_DAYS => __('Last 7 days', 'onesmtp'), self::WINDOW_LAST_30_DAYS => __('Last 30 days', 'onesmtp')] as $value => $label) {
+            echo '<option value="' . esc_attr($value) . '"' . ($selectedWindow === $value ? ' selected="selected"' : '') . '>' . esc_html($label) . '</option>';
+        }
+        echo '</select></form></div>';
+        if ($empty) {
+            $this->renderEmptyAnalytics();
+            return;
+        }
+        $this->renderSummaryCards($windows[self::PROVIDER_WINDOW_KEY], $pending);
+
+        $this->renderWindowTable($windows);
+        echo '<details class="onesmtp-analytics-details"><summary>' . esc_html__('Queue detail', 'onesmtp') . '</summary>';
+        $this->renderPendingTable($pending);
+        echo '</details>';
+        $this->renderProviderTable($providers, (string) $providerWindow['label']);
+    }
+
+    private function renderEmptyAnalytics(): void
+    {
+        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Heroicons renders an SVG selected from a private allowlist and escapes its only dynamic attribute.
+        echo '<section class="onesmtp-analytics-empty">' . Heroicons::render('squares') . '<h3>' . esc_html__('No delivery data yet', 'onesmtp') . '</h3><p>' . esc_html__('Connect a provider and send your first message. Delivery trends and provider comparisons will appear here automatically.', 'onesmtp') . '</p><a class="button button-primary" href="' . esc_url(admin_url('options-general.php?page=onesmtp&tab=onesmtp-providers#onesmtp-providers')) . '">' . esc_html__('Connect a provider', 'onesmtp') . '</a></section>';
+    }
+
+    /** @param array<string,int|string> $window @param array<string,int> $pending */
+    private function renderSummaryCards(array $window, array $pending): void
+    {
+        $sent = (int) ($window['sent_count'] ?? 0);
+        $failed = (int) ($window['failed_count'] ?? 0);
+        $successRate = $sent > 0 ? (int) round((($sent - $failed) / $sent) * 100) : 0;
+        $cards = [
+            [__('Delivery success', 'onesmtp'), $sent > 0 ? $successRate . '%' : __('No data', 'onesmtp'), __('Last 7 days', 'onesmtp')],
+            [__('Sent attempts', 'onesmtp'), $this->formatCount($sent), __('Last 7 days', 'onesmtp')],
+            [__('Failovers', 'onesmtp'), $this->formatCount((int) ($window['failover_count'] ?? 0)), __('Last 7 days', 'onesmtp')],
+            [__('Pending messages', 'onesmtp'), $this->formatCount((int) ($pending['total_pending_count'] ?? 0)), __('Current queue', 'onesmtp')],
+        ];
+
+        echo '<div class="onesmtp-analytics-summary" aria-label="' . esc_attr__('Analytics summary', 'onesmtp') . '">';
+        foreach ($cards as [$label, $value, $context]) {
+            echo '<div class="onesmtp-analytics-card"><span class="onesmtp-analytics-card-label">' . esc_html($label) . '</span><strong>' . esc_html((string) $value) . '</strong><span class="onesmtp-analytics-card-context">' . esc_html($context) . '</span></div>';
+        }
+        echo '</div>';
+    }
+
+    /**
+     * @return array<string,array{label:string,since:string,sent_count:int,failed_count:int,retry_count:int,failover_count:int}>
+     */
+    private function windowSummaries(): array
+    {
+        $now = max(0, (int) ($this->nowProvider)());
+        $windows = [
+            self::WINDOW_LAST_24_HOURS => [
+                'label' => __('Last 24 hours', 'onesmtp'),
+                'since' => gmdate('Y-m-d H:i:s', $now - DAY_IN_SECONDS),
+            ],
+            self::WINDOW_LAST_7_DAYS => [
+                'label' => __('Last 7 days', 'onesmtp'),
+                'since' => gmdate('Y-m-d H:i:s', $now - (7 * DAY_IN_SECONDS)),
+            ],
+            self::WINDOW_LAST_30_DAYS => [
+                'label' => __('Last 30 days', 'onesmtp'),
+                'since' => gmdate('Y-m-d H:i:s', $now - (30 * DAY_IN_SECONDS)),
+            ],
+        ];
+
+        foreach ($windows as $key => $window) {
+            $windows[$key] += $this->metrics->getActivityWindowSummary((string) $window['since']);
+        }
+
+        return $windows;
+    }
+
+    /**
+     * @param array<string,array{label:string,since:string,sent_count:int,failed_count:int,retry_count:int,failover_count:int}> $windows
+     */
+    private function renderWindowTable(array $windows): void
+    {
+        echo '<h3>' . esc_html__('Delivery activity', 'onesmtp') . '</h3>';
+        echo '<table class="widefat striped">';
+        echo '<thead><tr>';
+        echo '<th scope="col">' . esc_html__('Window', 'onesmtp') . '</th>';
+        echo '<th scope="col">' . esc_html__('Sent attempts', 'onesmtp') . '</th>';
+        echo '<th scope="col">' . esc_html__('Failed attempts', 'onesmtp') . '</th>';
+        echo '<th scope="col">' . esc_html__('Retry attempts', 'onesmtp') . '</th>';
+        echo '<th scope="col">' . esc_html__('Failovers', 'onesmtp') . '</th>';
+        echo '</tr></thead><tbody>';
+
+        foreach ($windows as $window) {
+            echo '<tr>';
+            echo '<th scope="row">' . esc_html((string) $window['label']) . '<br><span class="description">' . esc_html(sprintf(
+                /* translators: %s: UTC datetime. */
+                __('Since %s UTC', 'onesmtp'),
+                (string) $window['since']
+            )) . '</span></th>';
+            echo '<td>' . esc_html($this->formatCount((int) $window['sent_count'])) . '</td>';
+            echo '<td>' . esc_html($this->formatCount((int) $window['failed_count'])) . '</td>';
+            echo '<td>' . esc_html($this->formatCount((int) $window['retry_count'])) . '</td>';
+            echo '<td>' . esc_html($this->formatCount((int) $window['failover_count'])) . '</td>';
+            echo '</tr>';
+        }
+
+        echo '</tbody></table>';
+    }
+
+    /**
+     * @param array{queued_count:int,retry_scheduled_count:int,retrying_count:int,total_pending_count:int} $pending
+     */
+    private function renderPendingTable(array $pending): void
+    {
+        echo '<h3>' . esc_html__('Pending messages', 'onesmtp') . '</h3>';
+
+        if ((int) $pending['total_pending_count'] === 0) {
+            echo '<div class="notice notice-success inline"><p>' . esc_html__('No messages are currently queued, scheduled for retry, or retrying.', 'onesmtp') . '</p></div>';
+        }
+
+        echo '<table class="widefat striped">';
+        echo '<tbody>';
+        $this->renderMetricRow(__('Total pending', 'onesmtp'), (int) $pending['total_pending_count']);
+        $this->renderMetricRow(__('Queued', 'onesmtp'), (int) $pending['queued_count']);
+        $this->renderMetricRow(__('Scheduled retries', 'onesmtp'), (int) $pending['retry_scheduled_count']);
+        $this->renderMetricRow(__('Running retries', 'onesmtp'), (int) $pending['retrying_count']);
+        echo '</tbody>';
+        echo '</table>';
+    }
+
+    /**
+     * @param array<int,array{provider_id:int,provider_name:string,adapter_type:string,sent_count:int,failed_count:int,retry_count:int,failover_count:int,switch_out_count:int,total_activity:int}> $providers
+     */
+    private function renderProviderTable(array $providers, string $windowLabel): void
+    {
+        $this->renderProviderDataViews($providers);
+        echo '<details class="onesmtp-legacy-list"><summary>' . esc_html__('Provider activity detail', 'onesmtp') . '</summary>';
+        echo '<h3>' . esc_html__('Provider activity', 'onesmtp') . '</h3>';
+        echo '<p>' . esc_html(sprintf(
+            /* translators: %s: activity window label. */
+            __('Provider breakdown for %s.', 'onesmtp'),
+            $windowLabel
+        )) . '</p>';
+
+        if ($providers === []) {
+            echo '<p>' . esc_html__('No provider-level activity has been recorded for this window.', 'onesmtp') . '</p>';
+            echo '</details>';
+
+            return;
+        }
+
+        echo '<table class="widefat striped">';
+        echo '<thead><tr>';
+        echo '<th scope="col">' . esc_html__('Provider', 'onesmtp') . '</th>';
+        echo '<th scope="col">' . esc_html__('Type', 'onesmtp') . '</th>';
+        echo '<th scope="col">' . esc_html__('Sent', 'onesmtp') . '</th>';
+        echo '<th scope="col">' . esc_html__('Failed', 'onesmtp') . '</th>';
+        echo '<th scope="col">' . esc_html__('Retries', 'onesmtp') . '</th>';
+        echo '<th scope="col">' . esc_html__('Switched to', 'onesmtp') . '</th>';
+        echo '<th scope="col">' . esc_html__('Switched away', 'onesmtp') . '</th>';
+        echo '</tr></thead><tbody>';
+
+        foreach ($providers as $provider) {
+            $fullName = (string) $provider['provider_name'];
+            echo '<tr>';
+            echo '<th scope="row" title="' . esc_attr($fullName) . '">' . esc_html($this->shorten($fullName)) . '</th>';
+            echo '<td>' . esc_html($this->formatProviderType((string) $provider['adapter_type'])) . '</td>';
+            echo '<td>' . esc_html($this->formatCount((int) $provider['sent_count'])) . '</td>';
+            echo '<td>' . esc_html($this->formatCount((int) $provider['failed_count'])) . '</td>';
+            echo '<td>' . esc_html($this->formatCount((int) $provider['retry_count'])) . '</td>';
+            echo '<td>' . esc_html($this->formatCount((int) $provider['failover_count'])) . '</td>';
+            echo '<td>' . esc_html($this->formatCount((int) ($provider['switch_out_count'] ?? 0))) . '</td>';
+            echo '</tr>';
+        }
+
+        echo '</tbody></table></details>';
+    }
+
+    /** @param array<int,array{provider_id:int,provider_name:string,adapter_type:string,sent_count:int,failed_count:int,retry_count:int,failover_count:int,switch_out_count:int,total_activity:int}> $providers */
+    private function renderProviderDataViews(array $providers): void
+    {
+        $data = array_map(static function (array $provider): array {
+            return ['id' => (int) $provider['provider_id'], 'provider' => (string) $provider['provider_name'], 'type' => (string) $provider['adapter_type'], 'sent' => (int) $provider['sent_count'], 'failed' => (int) $provider['failed_count'], 'retries' => (int) $provider['retry_count'], 'failovers' => (int) $provider['failover_count'], 'switchedAway' => (int) $provider['switch_out_count']];
+        }, $providers);
+        $payload = ['data' => $data, 'fields' => [
+            ['id' => 'provider', 'type' => 'text', 'label' => __('Provider', 'onesmtp'), 'enableHiding' => false],
+            ['id' => 'type', 'type' => 'text', 'label' => __('Type', 'onesmtp')],
+            ['id' => 'sent', 'type' => 'integer', 'label' => __('Sent', 'onesmtp')],
+            ['id' => 'failed', 'type' => 'integer', 'label' => __('Failed', 'onesmtp')],
+            ['id' => 'retries', 'type' => 'integer', 'label' => __('Retries', 'onesmtp')],
+            ['id' => 'failovers', 'type' => 'integer', 'label' => __('Failovers', 'onesmtp')],
+            ['id' => 'switchedAway', 'type' => 'integer', 'label' => __('Switched away', 'onesmtp')],
+        ]];
+        echo '<div class="onesmtp-dataviews-mount" data-onesmtp-dataviews="analytics-providers"></div>';
+        echo '<script type="application/json" data-onesmtp-dataviews-config="analytics-providers">' . wp_json_encode($payload, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) . '</script>';
+    }
+
+    private function renderMetricRow(string $label, int $value): void
+    {
+        echo '<tr><th scope="row">' . esc_html($label) . '</th><td>' . esc_html($this->formatCount($value)) . '</td></tr>';
+    }
+
+    /**
+     * @param array<string,array{sent_count:int,failed_count:int,retry_count:int,failover_count:int}> $windows
+     * @param array{total_pending_count:int} $pending
+     * @param array<int,array{total_activity:int}> $providers
+     */
+    private function isEmpty(array $windows, array $pending, array $providers): bool
+    {
+        foreach ($windows as $window) {
+            if ((int) $window['sent_count'] > 0 || (int) $window['failed_count'] > 0 || (int) $window['retry_count'] > 0 || (int) $window['failover_count'] > 0) {
+                return false;
+            }
+        }
+
+        if ((int) $pending['total_pending_count'] > 0) {
+            return false;
+        }
+
+        foreach ($providers as $provider) {
+            if ((int) $provider['total_activity'] > 0) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function formatCount(int $value): string
+    {
+        return number_format(max(0, $value));
+    }
+
+    private function formatProviderType(string $type): string
+    {
+        $type = sanitize_key($type);
+
+        return $type !== '' ? str_replace('_', ' ', $type) : __('unknown', 'onesmtp');
+    }
+
+    private function shorten(string $value): string
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return __('Unknown provider', 'onesmtp');
+        }
+
+        if (strlen($value) <= self::PROVIDER_NAME_LIMIT) {
+            return $value;
+        }
+
+        return substr($value, 0, self::PROVIDER_NAME_LIMIT - 3) . '...';
+    }
+}

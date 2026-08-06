@@ -17,40 +17,62 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build release package
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          tools: composer:v2
+          coverage: none
+
+      - name: Install PHP dependencies
+        run: composer install --prefer-dist --no-interaction --no-progress
+
+      - name: Validate PHP release candidate
         run: |
-          set -euo pipefail
-          PLUGIN_SLUG="onesmtp"
-          rm -rf build
-          mkdir -p build/$PLUGIN_SLUG
+          composer validate --strict
+          composer lint
+          composer test
+          ./vendor/bin/phpstan analyse --configuration=phpstan.neon --no-progress --memory-limit=512M
+          composer audit --locked --no-interaction
 
-          rsync -av ./ build/$PLUGIN_SLUG/ \
-            --exclude ".git" \
-            --exclude ".github" \
-            --exclude "node_modules" \
-            --exclude "vendor" \
-            --exclude "tests" \
-            --exclude "build"
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.19.0'
+          cache: npm
 
-          cd build
-          zip -r "$PLUGIN_SLUG.zip" "$PLUGIN_SLUG"
-          shasum -a 256 "$PLUGIN_SLUG.zip" > "$PLUGIN_SLUG.zip.sha256"
+      - name: Install admin build dependencies
+        run: npm ci
+
+      - name: Lint JavaScript
+        run: npm run lint:js
+
+      - name: Build admin assets
+        run: npm run build
+
+      - name: Audit production JavaScript dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Build release package
+        run: bash scripts/ci/build-package.sh dist
 
       - name: Verify package checksum
-        run: shasum -a 256 -c build/onesmtp.zip.sha256
+        run: |
+          cd dist
+          shasum -a 256 -c onesmtp.zip.sha256
 
       - name: Upload package artifact
         uses: actions/upload-artifact@v4
         with:
           name: onesmtp-package
           path: |
-            build/onesmtp.zip
-            build/onesmtp.zip.sha256
+            dist/onesmtp.zip
+            dist/onesmtp.zip.sha256
 
       - name: Publish GitHub release assets
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            build/onesmtp.zip
-            build/onesmtp.zip.sha256
+            dist/onesmtp.zip
+            dist/onesmtp.zip.sha256

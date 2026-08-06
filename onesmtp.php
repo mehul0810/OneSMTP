@@ -1,11 +1,14 @@
 <?php
 /**
- * Plugin Name: OneSMTP
- * Description: Enterprise-ready email deliverability orchestration with provider failover, rotation, and retry control.
- * Version: 0.1.0
- * Author: OneSMTP
+ * Plugin Name: Aculect Mail
+ * Description: Reliable multi-provider email delivery for WordPress with failover, routing, retries, and delivery analytics.
+ * Version: 0.3.0
+ * Author: Aculect
+ * License: GPL-2.0-or-later
+ * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Text Domain: onesmtp
- * Requires at least: 6.2
+ * Domain Path: /languages
+ * Requires at least: 6.6
  * Requires PHP: 8.1
  */
 
@@ -15,7 +18,7 @@ if (! defined('ABSPATH')) {
     exit;
 }
 
-define('ONESMTP_VERSION', '0.1.0');
+define('ONESMTP_VERSION', '0.3.0');
 define('ONESMTP_FILE', __FILE__);
 define('ONESMTP_PATH', plugin_dir_path(__FILE__));
 define('ONESMTP_URL', plugin_dir_url(__FILE__));
@@ -26,6 +29,7 @@ require_once ONESMTP_PATH . 'src/Autoloader.php';
 
 register_activation_hook(ONESMTP_FILE, ['\\OneSMTP\\Core\\Installer', 'activate']);
 register_deactivation_hook(ONESMTP_FILE, ['\\OneSMTP\\Core\\Installer', 'deactivate']);
+register_uninstall_hook(ONESMTP_FILE, ['\\OneSMTP\\Core\\Installer', 'uninstall']);
 
 add_action('plugins_loaded', static function (): void {
     $plugin = new \OneSMTP\Plugin();

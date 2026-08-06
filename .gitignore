@@ -4,6 +4,7 @@
 /dist/
 /coverage/
 /artifacts/
+/output/playwright/
 /.phpunit.cache/
 /.phpunit.result.cache
 /.phpstan/

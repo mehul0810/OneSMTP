@@ -26,7 +26,7 @@ final class SecretVault
         $key  = $this->deriveKey();
         $data = openssl_encrypt($plainText, 'aes-256-gcm', $key, OPENSSL_RAW_DATA, $iv, $tag);
 
-        if ($data === false || $tag === '') {
+        if ($data === false) {
             throw new RuntimeException('Unable to encrypt secret value.');
         }
 

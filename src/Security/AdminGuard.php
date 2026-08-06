@@ -11,12 +11,12 @@ final class AdminGuard
 {
     public function assertCanManage(): void
     {
-        $this->assertCapability(Capabilities::MANAGE_PLUGIN, 'You are not allowed to manage OneSMTP settings.');
+        $this->assertCapability(Capabilities::MANAGE_PLUGIN, 'You are not allowed to manage Aculect Mail settings.');
     }
 
     public function assertCanResend(): void
     {
-        $this->assertCapability(Capabilities::RESEND_EMAILS, 'You are not allowed to resend OneSMTP emails.');
+        $this->assertCapability(Capabilities::RESEND_EMAILS, 'You are not allowed to resend Aculect Mail emails.');
     }
 
     public function verifyNonce(string $action, string $field = '_wpnonce'): void
@@ -44,13 +44,14 @@ final class AdminGuard
     private function assertCapability(string $capability, string $message): void
     {
         if (! function_exists('current_user_can') || ! current_user_can($capability)) {
+            // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- The caller supplies a fixed internal message; presentation layers escape it before output.
             throw new RuntimeException($message);
         }
     }
 
     private function shouldEnforceForCurrentRequest(): bool
     {
-        if (! function_exists('is_admin') || ! is_admin()) {
+        if (function_exists('is_admin') && ! is_admin()) {
             return false;
         }
 

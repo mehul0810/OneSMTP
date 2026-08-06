@@ -1,6 +1,6 @@
 # Data Model
 
-OneSMTP uses custom database tables for operational email records.
+Aculect Mail uses custom database tables for operational email records.
 
 ## Table Intent (MVP)
 
@@ -16,3 +16,10 @@ OneSMTP uses custom database tables for operational email records.
 - Status (queued/sent/failed)
 - Error message/code
 - Created timestamp
+
+## Lifecycle Contract
+
+- Activation creates or upgrades the provider, message, attempt, and event tables with `dbDelta`.
+- Activation is repeatable and refreshes the stored `onesmtp_version` option to the current plugin version.
+- Activation seeds the default log retention option only when it does not already exist, preserving administrator changes.
+- Uninstall preserves operational records and settings by default. A destructive deletion path requires an explicit product decision, migration plan, and user-facing control before it can ship.

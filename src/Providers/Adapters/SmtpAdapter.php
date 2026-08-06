@@ -33,7 +33,8 @@ class SmtpAdapter extends AbstractAdapter implements ProviderAdapterInterface
             $mailer->SMTPSecure = (string) $config->get('encryption', PHPMailer::ENCRYPTION_STARTTLS);
             $mailer->Timeout = max(5, (int) $config->get('timeout', 30));
 
-            $from = $this->extractFrom($this->normalizeHeaders($message['headers'] ?? []));
+            $headers = $this->normalizeHeaders($message['headers'] ?? []);
+            $from = $this->extractFrom($headers);
             $mailer->setFrom((string) $from['email'], (string) $from['name']);
 
             $to = $this->normalizeRecipients($message['to'] ?? []);
@@ -43,6 +44,26 @@ class SmtpAdapter extends AbstractAdapter implements ProviderAdapterInterface
 
             foreach ($to as $recipient) {
                 $mailer->addAddress($recipient);
+            }
+
+            foreach ($this->extractReplyTo($headers) as $replyTo) {
+                $mailer->addReplyTo($replyTo, $this->extractFirstAddressName($headers, 'reply-to'));
+            }
+
+            foreach ($this->extractBcc($headers) as $bcc) {
+                $mailer->addBCC($bcc);
+            }
+
+            $attachments = $message['attachments'] ?? [];
+            if (is_string($attachments)) {
+                $attachments = $attachments !== '' ? [$attachments] : [];
+            }
+            foreach (is_array($attachments) ? $attachments : [] as $attachment) {
+                $path = is_scalar($attachment) ? trim((string) $attachment) : '';
+                if ($path === '' || ! is_file($path) || ! is_readable($path)) {
+                    return new SendResult(false, 'invalid_attachment', 'An email attachment is missing or unreadable.');
+                }
+                $mailer->addAttachment($path);
             }
 
             $mailer->Subject = $this->getSubject($message);
@@ -61,8 +82,8 @@ class SmtpAdapter extends AbstractAdapter implements ProviderAdapterInterface
     {
         $probe = [
             'to' => [sanitize_email((string) get_option('admin_email'))],
-            'subject' => '[OneSMTP] SMTP Connection Test',
-            'message' => 'Connection test from OneSMTP.',
+            'subject' => '[Aculect Mail] SMTP Connection Test',
+            'message' => 'Connection test from Aculect Mail.',
             'headers' => [],
         ];
 
@@ -84,4 +105,3 @@ class SmtpAdapter extends AbstractAdapter implements ProviderAdapterInterface
         require_once ABSPATH . WPINC . '/PHPMailer/Exception.php';
     }
 }
-

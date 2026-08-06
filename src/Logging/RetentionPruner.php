@@ -57,7 +57,7 @@ final class RetentionPruner
         );
         $this->deleteInBatches(
             TableNames::messages(),
-            "created_at < %s AND status IN ('sent','failed')",
+            "created_at < %s AND status IN ('sent','failed','simulated')",
             [$cutoff],
             $batchSize
         );
@@ -67,6 +67,12 @@ final class RetentionPruner
     {
         global $wpdb;
 
+        /*
+         * The caller supplies only plugin-owned TableNames identifiers and
+         * fixed WHERE templates. Runtime cutoff and batch values are prepared.
+         * Plugin Check cannot follow those invariants into this helper.
+         */
+        // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
         do {
             $query = "DELETE FROM {$tableName} WHERE {$whereSql} LIMIT %d";
             $args  = array_merge($params, [$batchSize]);
@@ -81,5 +87,6 @@ final class RetentionPruner
                 break;
             }
         } while ((int) $deletedRows === $batchSize);
+        // phpcs:enable WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
     }
 }

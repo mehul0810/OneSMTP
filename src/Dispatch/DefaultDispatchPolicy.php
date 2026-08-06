@@ -8,6 +8,13 @@ final class DefaultDispatchPolicy implements DispatchPolicyInterface
 {
     private const MAX_ATTEMPTS = 6;
 
+    private RoutingRuleEvaluator $routingRules;
+
+    public function __construct(?RoutingRuleEvaluator $routingRules = null)
+    {
+        $this->routingRules = $routingRules ?? new RoutingRuleEvaluator();
+    }
+
     public function chooseNextProvider(int $messageId, int $attemptNumber, array $context): ?int
     {
         if ($attemptNumber > self::MAX_ATTEMPTS) {
@@ -29,6 +36,16 @@ final class DefaultDispatchPolicy implements DispatchPolicyInterface
             return $forcedProviderId;
         }
 
+        $routingProviderId = $this->routingRules->evaluate(
+            is_array($context['routing_rules'] ?? null) ? $context['routing_rules'] : [],
+            is_array($context['routing_context'] ?? null) ? $context['routing_context'] : [],
+            $providers
+        );
+
+        if ($routingProviderId !== null && $this->providerExists($weightedPool, $routingProviderId)) {
+            return $routingProviderId;
+        }
+
         $lastProviderId = isset($context['last_provider_id']) ? (int) $context['last_provider_id'] : 0;
         $consecutive    = isset($context['consecutive_failures_for_last_provider'])
             ? (int) $context['consecutive_failures_for_last_provider']
@@ -40,8 +57,12 @@ final class DefaultDispatchPolicy implements DispatchPolicyInterface
             return (int) $weightedPool[$startIndex]['id'];
         }
 
-        // Invariant: after 2 consecutive failures, switch away from the current provider.
-        if ($consecutive >= 2) {
+        // Normal retries keep the current provider for one additional attempt so
+        // transient provider blips do not rotate the pool unnecessarily. The
+        // delivery pipeline can opt into immediate failover when a provider has
+        // already failed and another healthy provider is available.
+        $failureThreshold = ! empty($context['failover_on_first_failure']) ? 1 : 2;
+        if ($consecutive >= $failureThreshold) {
             return $this->nextProviderInOrder($weightedPool, $lastProviderId);
         }
 
@@ -57,7 +78,7 @@ final class DefaultDispatchPolicy implements DispatchPolicyInterface
                 continue;
             }
 
-            if ((int) ($provider['is_active'] ?? 0) !== 1) {
+            if (array_key_exists('is_active', $provider) && (int) $provider['is_active'] !== 1) {
                 continue;
             }
 

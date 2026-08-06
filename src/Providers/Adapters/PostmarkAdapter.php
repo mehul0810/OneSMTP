@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OneSMTP\Providers\Adapters;
 
+use OneSMTP\Providers\FailureClassifier;
 use OneSMTP\Providers\ProviderAdapterInterface;
 use OneSMTP\Providers\ProviderConfig;
 use OneSMTP\Providers\SendResult;
@@ -29,6 +30,8 @@ final class PostmarkAdapter extends AbstractAdapter implements ProviderAdapterIn
 
         $headers = $this->normalizeHeaders($message['headers'] ?? []);
         $from = $this->extractFrom($headers);
+        $replyTo = $this->extractFirstAddress($this->extractReplyTo($headers));
+        $bcc = $this->extractBcc($headers);
 
         $payload = [
             'From' => $from['email'],
@@ -36,6 +39,14 @@ final class PostmarkAdapter extends AbstractAdapter implements ProviderAdapterIn
             'Subject' => $this->getSubject($message),
             'TextBody' => $this->getBody($message),
         ];
+
+        if ($replyTo !== '') {
+            $payload['ReplyTo'] = $replyTo;
+        }
+
+        if ($bcc !== []) {
+            $payload['Bcc'] = implode(',', $bcc);
+        }
 
         $response = wp_remote_post(
             'https://api.postmarkapp.com/email',
@@ -50,7 +61,13 @@ final class PostmarkAdapter extends AbstractAdapter implements ProviderAdapterIn
         );
 
         if (is_wp_error($response)) {
-            return new SendResult(false, 'postmark_network_error', $response->get_error_message());
+            return new SendResult(
+                false,
+                'postmark_network_error',
+                $response->get_error_message(),
+                null,
+                FailureClassifier::classify($response->get_error_code(), $response->get_error_message())
+            );
         }
 
         $status = (int) wp_remote_retrieve_response_code($response);
@@ -61,19 +78,26 @@ final class PostmarkAdapter extends AbstractAdapter implements ProviderAdapterIn
             return new SendResult(true, 'accepted', 'Accepted by Postmark.', $messageId !== '' ? $messageId : null);
         }
 
-        return new SendResult(false, 'postmark_api_error', (string) wp_remote_retrieve_body($response));
+        $body = (string) wp_remote_retrieve_body($response);
+
+        return new SendResult(
+            false,
+            'postmark_api_error',
+            $body,
+            null,
+            FailureClassifier::classify('postmark_api_error', $body, $status)
+        );
     }
 
     public function testConnection(ProviderConfig $config): SendResult
     {
         $probe = [
             'to' => [sanitize_email((string) get_option('admin_email'))],
-            'subject' => '[OneSMTP] Postmark Connection Test',
-            'message' => 'Connection test from OneSMTP.',
+            'subject' => '[Aculect Mail] Postmark Connection Test',
+            'message' => 'Connection test from Aculect Mail.',
             'headers' => [],
         ];
 
         return $this->send($probe, $config);
     }
 }
-

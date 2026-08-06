@@ -41,9 +41,27 @@ final class SettingsRepository
         return is_array($value) ? $value : [];
     }
 
-    public function save(array $settings): bool
+    public function save(array $settings, string $nonceField = '_wpnonce', string $nonceAction = 'onesmtp_save_settings'): bool
     {
-        $this->adminGuard->assertManageRequest('onesmtp_save_settings', '_wpnonce');
+        $this->adminGuard->assertManageRequest($nonceAction, $nonceField);
+
+        return $this->persist($settings);
+    }
+
+    /**
+     * Persist settings after WordPress REST authentication and route permission
+     * checks have run. Capability is intentionally checked again here, while
+     * form nonce verification remains the responsibility of save().
+     */
+    public function saveAuthorized(array $settings): bool
+    {
+        $this->adminGuard->assertCanManage();
+
+        return $this->persist($settings);
+    }
+
+    private function persist(array $settings): bool
+    {
 
         $protectedSettings = $this->encryptSensitiveSettings($settings);
         $safeForAudit      = $this->redactor->redactArray($protectedSettings);

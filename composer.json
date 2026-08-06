@@ -1,8 +1,8 @@
 {
   "name": "onesmtp/onesmtp",
-  "description": "OneSMTP WordPress plugin",
+  "description": "Aculect Mail WordPress plugin",
   "type": "project",
-  "license": "proprietary",
+  "license": "GPL-2.0-or-later",
   "require": {
     "php": ">=8.1"
   },
@@ -25,10 +25,13 @@
     }
   },
   "scripts": {
-    "lint": "phpcs --standard=phpcs.xml.dist",
+    "lint": "scripts/ci/phpcs-changed-files.sh",
+    "lint:changed": "scripts/ci/phpcs-changed-files.sh",
+    "lint:full": "phpcs --standard=phpcs.xml.dist",
     "lint:fix": "phpcbf --standard=phpcs.xml.dist",
     "test": "phpunit --configuration phpunit.xml.dist",
     "analyze": "phpstan analyse --configuration=phpstan.neon --no-progress",
+    "i18n:make-pot": "php scripts/i18n/make-pot.php",
     "perf:smoke": "./scripts/benchmarks/run-baseline.sh smoke",
     "ci": [
       "@lint",

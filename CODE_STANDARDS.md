@@ -3,6 +3,8 @@
 ## PHP + WordPress Standards
 
 - Follow WordPress Coding Standards (WPCS).
+- Pull requests enforce an actionable WPCS subset on changed PHP files through `composer lint`.
+- Full-tree WPCS remains advisory while existing standards debt is reduced; run `composer lint:full` to inspect the full baseline against `phpcs.xml.dist`.
 - Use strict input validation/sanitization for all settings and request parameters.
 - Escape all output in admin views.
 - Verify nonce + capability checks for state-changing actions.

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OneSMTP\Providers\Adapters;
 
+use OneSMTP\Providers\FailureClassifier;
 use OneSMTP\Providers\ProviderAdapterInterface;
 use OneSMTP\Providers\ProviderConfig;
 use OneSMTP\Providers\SendResult;
@@ -29,6 +30,8 @@ final class BrevoAdapter extends AbstractAdapter implements ProviderAdapterInter
 
         $headers = $this->normalizeHeaders($message['headers'] ?? []);
         $from = $this->extractFrom($headers);
+        $replyTo = $this->extractFirstAddress($this->extractReplyTo($headers));
+        $bcc = $this->extractBcc($headers);
 
         $payload = [
             'sender' => [
@@ -39,6 +42,14 @@ final class BrevoAdapter extends AbstractAdapter implements ProviderAdapterInter
             'subject' => $this->getSubject($message),
             'textContent' => $this->getBody($message),
         ];
+
+        if ($replyTo !== '') {
+            $payload['replyTo'] = ['email' => $replyTo];
+        }
+
+        if ($bcc !== []) {
+            $payload['bcc'] = array_map(static fn (string $email): array => ['email' => $email], $bcc);
+        }
 
         $response = wp_remote_post(
             'https://api.brevo.com/v3/smtp/email',
@@ -53,7 +64,13 @@ final class BrevoAdapter extends AbstractAdapter implements ProviderAdapterInter
         );
 
         if (is_wp_error($response)) {
-            return new SendResult(false, 'brevo_network_error', $response->get_error_message());
+            return new SendResult(
+                false,
+                'brevo_network_error',
+                $response->get_error_message(),
+                null,
+                FailureClassifier::classify($response->get_error_code(), $response->get_error_message())
+            );
         }
 
         $status = (int) wp_remote_retrieve_response_code($response);
@@ -64,19 +81,26 @@ final class BrevoAdapter extends AbstractAdapter implements ProviderAdapterInter
             return new SendResult(true, 'accepted', 'Accepted by Brevo.', $messageId !== '' ? $messageId : null);
         }
 
-        return new SendResult(false, 'brevo_api_error', (string) wp_remote_retrieve_body($response));
+        $body = (string) wp_remote_retrieve_body($response);
+
+        return new SendResult(
+            false,
+            'brevo_api_error',
+            $body,
+            null,
+            FailureClassifier::classify('brevo_api_error', $body, $status)
+        );
     }
 
     public function testConnection(ProviderConfig $config): SendResult
     {
         $probe = [
             'to' => [sanitize_email((string) get_option('admin_email'))],
-            'subject' => '[OneSMTP] Brevo Connection Test',
-            'message' => 'Connection test from OneSMTP.',
+            'subject' => '[Aculect Mail] Brevo Connection Test',
+            'message' => 'Connection test from Aculect Mail.',
             'headers' => [],
         ];
 
         return $this->send($probe, $config);
     }
 }
-

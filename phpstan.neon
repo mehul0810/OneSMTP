@@ -4,5 +4,8 @@ parameters:
     - src
     - tests
   tmpDir: .phpstan
+  bootstrapFiles:
+    - tests/phpstan/bootstrap.php
+  scanFiles:
+    - tests/phpstan/phpmailer.php
   treatPhpDocTypesAsCertain: false
-  checkMissingIterableValueType: false

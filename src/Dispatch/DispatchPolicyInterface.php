@@ -7,7 +7,7 @@ namespace OneSMTP\Dispatch;
 interface DispatchPolicyInterface
 {
     /**
-     * @param int   $messageId      OneSMTP message identifier.
+     * @param int   $messageId      Aculect Mail message identifier.
      * @param int   $attemptNumber  Current attempt number.
      * @param array $context        Provider health/attempt metadata.
      */
