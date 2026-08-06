@@ -10,6 +10,7 @@ use OneSMTP\Alerts\FailureAlertSettings;
 use OneSMTP\Alerts\FailureAlertSettingsRepository;
 use OneSMTP\Core\Capabilities;
 use OneSMTP\Core\RetentionPolicy;
+use OneSMTP\Conflict\MailDeliveryOwnership;
 use OneSMTP\Settings\AttachmentLoggingSettings;
 use OneSMTP\Settings\AttachmentLoggingSettingsRepository;
 use OneSMTP\Settings\BackgroundSendingSettings;
@@ -19,6 +20,8 @@ use OneSMTP\Settings\RateLimitSettingsRepository;
 use OneSMTP\Settings\SenderIdentity;
 use OneSMTP\Settings\SenderIdentityRepository;
 use OneSMTP\Settings\SettingsTransferService;
+use OneSMTP\Settings\SimulationModeSettings;
+use OneSMTP\Settings\SimulationModeSettingsRepository;
 use OneSMTP\Summary\WeeklySummarySettings;
 use OneSMTP\Summary\WeeklySummarySettingsRepository;
 use RuntimeException;
@@ -41,7 +44,9 @@ final class SettingsAdmin
         private ?AttachmentLoggingSettingsRepository $attachmentLogging = null,
         private ?WeeklySummarySettingsRepository $weeklySummary = null,
         private ?AdminAuditLogger $auditLogger = null,
-        private ?AdminRequest $request = null
+        private ?AdminRequest $request = null,
+        private ?SimulationModeSettingsRepository $simulationMode = null,
+        private ?MailDeliveryOwnership $deliveryOwnership = null
     ) {
         $this->senderIdentity = $senderIdentity ?? new SenderIdentityRepository();
         $this->rateLimits = $rateLimits ?? new RateLimitSettingsRepository();
@@ -52,6 +57,8 @@ final class SettingsAdmin
         $this->weeklySummary = $weeklySummary ?? new WeeklySummarySettingsRepository();
         $this->auditLogger = $auditLogger ?? new AdminAuditLogger();
         $this->request = $request ?? new AdminRequest();
+        $this->simulationMode = $simulationMode ?? new SimulationModeSettingsRepository();
+        $this->deliveryOwnership = $deliveryOwnership ?? new MailDeliveryOwnership();
     }
 
     public function handleRequest(): void
@@ -71,6 +78,17 @@ final class SettingsAdmin
         }
 
         $action = $this->request->postAction('onesmtp_settings_action');
+
+        if ($action !== self::IMPORT_ACTION) {
+            if (! Capabilities::canManage()) {
+                wp_die(
+                    esc_html__('You are not allowed to manage Aculect Mail settings.', 'onesmtp'),
+                    esc_html__('Aculect Mail access denied', 'onesmtp'),
+                    ['response' => 403]
+                );
+            }
+            check_admin_referer(self::ACTION_NAME, self::NONCE_NAME);
+        }
 
         try {
             if ($action === self::IMPORT_ACTION) {
@@ -124,6 +142,26 @@ final class SettingsAdmin
                     'enabled' => $background->toArray()['enabled'] ?? false,
                 ]);
                 $this->redirect('background_sending_saved');
+                return;
+            }
+
+            if ($action === 'save_simulation_mode') {
+                if (isset($_POST['simulation_mode_enabled']) && ! $this->deliveryOwnership->canAculectDeliver()) {
+                    $this->redirect(
+                        'simulation_mode_owner_conflict',
+                        __('Simulation mode cannot be enabled while SureMail owns live WordPress delivery. Complete or pause the migration first.', 'onesmtp')
+                    );
+                    return;
+                }
+                $simulation = SimulationModeSettings::fromArray([
+                    'enabled' => isset($_POST['simulation_mode_enabled']),
+                ]);
+                $this->simulationMode->save($simulation);
+                $this->auditLogger->logSettingsChange('simulation_mode', [
+                    'source' => 'settings_admin',
+                    'enabled' => $simulation->isEnabled(),
+                ]);
+                $this->redirect('simulation_mode_saved');
                 return;
             }
 
@@ -196,12 +234,6 @@ final class SettingsAdmin
         $identity = $this->senderIdentity->get();
         $values = $identity->toArray();
 
-        $limits = $this->rateLimits->get()->toArray();
-
-        $backgroundSending = $this->backgroundSending->get();
-
-        $attachmentLogging = $this->attachmentLogging->get();
-
         $alerts = $this->failureAlerts->get();
         $alertValues = $alerts->toArray();
 
@@ -209,7 +241,8 @@ final class SettingsAdmin
         $weeklyValues = $weeklySummary->toArray();
         echo '<div class="onesmtp-settings-shell">';
         $this->renderStatusNotice($status, $message);
-        echo '<div class="onesmtp-settings-grid">';
+        echo '<div data-onesmtp-component="settings-navigation"></div>';
+        echo '<div class="onesmtp-settings-group" data-onesmtp-settings-group="general"><div class="onesmtp-settings-grid">';
 
         $this->renderPanel(
             __('Sender identity', 'onesmtp'),
@@ -236,68 +269,7 @@ final class SettingsAdmin
             }
         );
 
-        $this->renderPanel(
-            __('Delivery rate limits', 'onesmtp'),
-            __('Set optional site-wide delivery caps. When a cap is exhausted, OneSMTP defers queued mail until capacity is available. Use 0 to disable a limit.', 'onesmtp'),
-            false,
-            function () use ($limits): void {
-                echo '<form class="onesmtp-settings-form" method="post" action="' . esc_url(admin_url('options-general.php?page=onesmtp#onesmtp-settings')) . '">';
-                echo '<input type="hidden" name="onesmtp_settings_action" value="save_rate_limits">';
-                wp_nonce_field(self::ACTION_NAME, self::NONCE_NAME);
-                echo '<table class="form-table" role="presentation"><tbody>';
-                $this->renderNumberInput('rate_limit_per_minute', __('Per-minute limit', 'onesmtp'), (int) ($limits['per_minute'] ?? 0));
-                $this->renderNumberInput('rate_limit_per_hour', __('Hourly limit', 'onesmtp'), (int) ($limits['per_hour'] ?? 0));
-                $this->renderNumberInput('rate_limit_per_day', __('Daily limit', 'onesmtp'), (int) ($limits['per_day'] ?? 0));
-                echo '</tbody></table>';
-                $this->renderActionFooter(__('Save delivery rate limits', 'onesmtp'));
-                echo '</form>';
-            }
-        );
-
-        $this->renderPanel(
-            __('Background sending', 'onesmtp'),
-            __('Queue normal WordPress mail for asynchronous delivery so user-facing requests are not held by provider latency. Provider test emails and manual resends continue to run synchronously.', 'onesmtp'),
-            false,
-            function () use ($backgroundSending): void {
-                echo '<form class="onesmtp-settings-form" method="post" action="' . esc_url(admin_url('options-general.php?page=onesmtp#onesmtp-settings')) . '">';
-                echo '<input type="hidden" name="onesmtp_settings_action" value="save_background_sending">';
-                wp_nonce_field(self::ACTION_NAME, self::NONCE_NAME);
-                echo '<fieldset class="onesmtp-settings-fieldset">';
-                $this->renderCheckbox('background_sending_enabled', __('Enable background sending for normal mail.', 'onesmtp'), $backgroundSending->isEnabled());
-                echo '</fieldset>';
-                $this->renderActionFooter(__('Save background sending', 'onesmtp'));
-                echo '</form>';
-            }
-        );
-
-        $this->renderPanel(
-            __('Attachment logging', 'onesmtp'),
-            __('When enabled, OneSMTP stores attachment metadata only: count, safe filename, extension, and file size when available. File contents and raw server paths are not copied into logs.', 'onesmtp'),
-            false,
-            function () use ($attachmentLogging): void {
-                if (! $attachmentLogging->isEnabled()) {
-                    $this->renderInlineNotice('info', __('Attachment logging is off. OneSMTP removes raw attachment paths from stored log payloads by default.', 'onesmtp'));
-                }
-
-                echo '<p class="description">';
-                echo esc_html(
-                    sprintf(
-                        /* translators: %d: log retention days. */
-                        __('Attachment metadata is deleted with the parent email log according to the current %d-day log retention policy. Messages with file attachments may not preserve attachments for background retries or manual resend unless the source can provide them again.', 'onesmtp'),
-                        RetentionPolicy::getLogRetentionDays()
-                    )
-                );
-                echo '</p>';
-                echo '<form class="onesmtp-settings-form" method="post" action="' . esc_url(admin_url('options-general.php?page=onesmtp#onesmtp-settings')) . '">';
-                echo '<input type="hidden" name="onesmtp_settings_action" value="save_attachment_logging">';
-                wp_nonce_field(self::ACTION_NAME, self::NONCE_NAME);
-                echo '<fieldset class="onesmtp-settings-fieldset">';
-                $this->renderCheckbox('attachment_logging_enabled', __('Enable privacy-safe attachment metadata in email logs.', 'onesmtp'), $attachmentLogging->isEnabled());
-                echo '</fieldset>';
-                $this->renderActionFooter(__('Save attachment logging', 'onesmtp'));
-                echo '</form>';
-            }
-        );
+        echo '</div></div><div class="onesmtp-settings-group" data-onesmtp-settings-group="notifications" hidden><div class="onesmtp-settings-grid">';
 
         $this->renderPanel(
             __('Failure alerts', 'onesmtp'),
@@ -353,12 +325,124 @@ final class SettingsAdmin
             }
         );
 
+        echo '</div></div>';
+        echo '</div>';
+    }
+
+    /**
+     * Render delivery controls and data-transfer operations intended for
+     * experienced administrators. This is kept separate from daily settings
+     * so sender identity and notifications remain easy to scan.
+     */
+    public function renderAdvanced(): void
+    {
+        $status = isset($_GET['onesmtp_settings_status']) ? sanitize_text_field(wp_unslash((string) $_GET['onesmtp_settings_status'])) : '';
+        $message = isset($_GET['onesmtp_settings_message']) ? sanitize_text_field(wp_unslash((string) $_GET['onesmtp_settings_message'])) : '';
+        $limits = $this->rateLimits->get()->toArray();
+        $backgroundSending = $this->backgroundSending->get();
+        $attachmentLogging = $this->attachmentLogging->get();
+        $simulationMode = $this->simulationMode->get();
+        $actionUrl = admin_url('options-general.php?page=onesmtp&tab=onesmtp-advanced#onesmtp-advanced');
+
+        echo '<div class="onesmtp-settings-shell onesmtp-advanced-settings-shell">';
+        $this->renderStatusNotice($status, $message);
+        echo '<div class="onesmtp-settings-grid">';
+
+        $this->renderPanel(
+            __('Simulation mode', 'onesmtp'),
+            __('For staging and development only. Aculect Mail captures outgoing messages in the email log as Simulated and never contacts a provider or reports them as delivered.', 'onesmtp'),
+            false,
+            function () use ($simulationMode, $actionUrl): void {
+                if (! $this->deliveryOwnership->canAculectDeliver()) {
+                    $this->renderInlineNotice('error', __('SureMail currently owns live WordPress delivery. Aculect Mail simulation mode cannot guarantee that messages are captured instead of sent until delivery ownership is migrated.', 'onesmtp'));
+                }
+                if ($simulationMode->isEnabled()) {
+                    $this->renderInlineNotice('warning', __('Simulation mode is active. WordPress mail calls return successfully, but no email is sent.', 'onesmtp'));
+                }
+                echo '<form class="onesmtp-settings-form" method="post" action="' . esc_url($actionUrl) . '">';
+                echo '<input type="hidden" name="onesmtp_settings_action" value="save_simulation_mode">';
+                echo '<input type="hidden" name="onesmtp_return_tab" value="onesmtp-advanced">';
+                wp_nonce_field(self::ACTION_NAME, self::NONCE_NAME);
+                echo '<fieldset class="onesmtp-settings-fieldset">';
+                $this->renderCheckbox('simulation_mode_enabled', __('Enable simulation mode on this site.', 'onesmtp'), $simulationMode->isEnabled());
+                echo '</fieldset>';
+                $this->renderActionFooter(__('Save simulation mode', 'onesmtp'));
+                echo '</form>';
+            }
+        );
+
+        $this->renderPanel(
+            __('Delivery rate limits', 'onesmtp'),
+            __('Set optional site-wide delivery caps. When a cap is exhausted, Aculect Mail defers queued mail until capacity is available. Use 0 to disable a limit.', 'onesmtp'),
+            false,
+            function () use ($limits, $actionUrl): void {
+                echo '<form class="onesmtp-settings-form" method="post" action="' . esc_url($actionUrl) . '">';
+                echo '<input type="hidden" name="onesmtp_settings_action" value="save_rate_limits">';
+                echo '<input type="hidden" name="onesmtp_return_tab" value="onesmtp-advanced">';
+                wp_nonce_field(self::ACTION_NAME, self::NONCE_NAME);
+                echo '<table class="form-table" role="presentation"><tbody>';
+                $this->renderNumberInput('rate_limit_per_minute', __('Per-minute limit', 'onesmtp'), (int) ($limits['per_minute'] ?? 0));
+                $this->renderNumberInput('rate_limit_per_hour', __('Hourly limit', 'onesmtp'), (int) ($limits['per_hour'] ?? 0));
+                $this->renderNumberInput('rate_limit_per_day', __('Daily limit', 'onesmtp'), (int) ($limits['per_day'] ?? 0));
+                echo '</tbody></table>';
+                $this->renderActionFooter(__('Save delivery rate limits', 'onesmtp'));
+                echo '</form>';
+            }
+        );
+
+        $this->renderPanel(
+            __('Background sending', 'onesmtp'),
+            __('Queue normal WordPress mail for asynchronous delivery so user-facing requests are not held by provider latency. Provider test emails and manual resends continue to run synchronously.', 'onesmtp'),
+            false,
+            function () use ($backgroundSending, $actionUrl): void {
+                echo '<form class="onesmtp-settings-form" method="post" action="' . esc_url($actionUrl) . '">';
+                echo '<input type="hidden" name="onesmtp_settings_action" value="save_background_sending">';
+                echo '<input type="hidden" name="onesmtp_return_tab" value="onesmtp-advanced">';
+                wp_nonce_field(self::ACTION_NAME, self::NONCE_NAME);
+                echo '<fieldset class="onesmtp-settings-fieldset">';
+                $this->renderCheckbox('background_sending_enabled', __('Enable background sending for normal mail.', 'onesmtp'), $backgroundSending->isEnabled());
+                echo '</fieldset>';
+                $this->renderActionFooter(__('Save background sending', 'onesmtp'));
+                echo '</form>';
+            }
+        );
+
+        $this->renderPanel(
+            __('Attachment logging', 'onesmtp'),
+            __('When enabled, Aculect Mail stores attachment metadata only: count, safe filename, extension, and file size when available. File contents and raw server paths are not copied into logs.', 'onesmtp'),
+            false,
+            function () use ($attachmentLogging, $actionUrl): void {
+                if (! $attachmentLogging->isEnabled()) {
+                    $this->renderInlineNotice('info', __('Attachment logging is off. Aculect Mail removes raw attachment paths from stored log payloads by default.', 'onesmtp'));
+                }
+
+                echo '<p class="description">';
+                echo esc_html(
+                    sprintf(
+                        /* translators: %d: log retention days. */
+                        __('Attachment metadata is deleted with the parent email log according to the current %d-day log retention policy. Messages with file attachments may not preserve attachments for background retries or manual resend unless the source can provide them again.', 'onesmtp'),
+                        RetentionPolicy::getLogRetentionDays()
+                    )
+                );
+                echo '</p>';
+                echo '<form class="onesmtp-settings-form" method="post" action="' . esc_url($actionUrl) . '">';
+                echo '<input type="hidden" name="onesmtp_settings_action" value="save_attachment_logging">';
+                echo '<input type="hidden" name="onesmtp_return_tab" value="onesmtp-advanced">';
+                wp_nonce_field(self::ACTION_NAME, self::NONCE_NAME);
+                echo '<fieldset class="onesmtp-settings-fieldset">';
+                $this->renderCheckbox('attachment_logging_enabled', __('Enable privacy-safe attachment metadata in email logs.', 'onesmtp'), $attachmentLogging->isEnabled());
+                echo '</fieldset>';
+                $this->renderActionFooter(__('Save attachment logging', 'onesmtp'));
+                echo '</form>';
+            }
+        );
+
         $this->renderPanel(
             __('Settings import/export', 'onesmtp'),
-            __('Move safe OneSMTP configuration between environments without exposing secrets, credentials, raw recipients, headers, or payload data.', 'onesmtp'),
+            __('Move safe Aculect Mail configuration between environments without exposing secrets, credentials, raw recipients, headers, or payload data.', 'onesmtp'),
             true,
             function (): void {
-                $this->renderImportExport();
+                $this->renderImportExport('onesmtp-advanced');
             }
         );
 
@@ -393,15 +477,16 @@ final class SettingsAdmin
         echo '</td></tr>';
     }
 
-    private function renderImportExport(): void
+    private function renderImportExport(string $returnTab): void
     {
+        $returnUrl = admin_url('options-general.php?page=onesmtp&tab=' . rawurlencode($returnTab) . '#' . $returnTab);
         $downloadUrl = add_query_arg(
             [
                 'page' => 'onesmtp',
                 'onesmtp_settings_action' => self::EXPORT_ACTION,
                 self::EXPORT_NONCE_NAME => wp_create_nonce(self::EXPORT_ACTION),
             ],
-            admin_url('options-general.php?page=onesmtp#onesmtp-settings')
+            $returnUrl
         );
 
         echo '<p>' . esc_html__('Download a privacy-safe JSON settings file for migration or backup. Provider secrets, credentials, tokens, passwords, API keys, webhook URLs, raw recipients, message bodies, raw headers, and payload JSON are excluded by default.', 'onesmtp') . '</p>';
@@ -409,8 +494,9 @@ final class SettingsAdmin
         echo '<a class="button button-secondary" href="' . esc_url($downloadUrl) . '">' . esc_html__('Download safe settings export', 'onesmtp') . '</a>';
         echo '</div>';
 
-        echo '<form class="onesmtp-settings-form onesmtp-settings-import" method="post" action="' . esc_url(admin_url('options-general.php?page=onesmtp#onesmtp-settings')) . '">';
+        echo '<form class="onesmtp-settings-form onesmtp-settings-import" method="post" action="' . esc_url($returnUrl) . '">';
         echo '<input type="hidden" name="onesmtp_settings_action" value="' . esc_attr(self::IMPORT_ACTION) . '">';
+        echo '<input type="hidden" name="onesmtp_return_tab" value="' . esc_attr($returnTab) . '">';
         wp_nonce_field(self::IMPORT_ACTION, self::IMPORT_NONCE_NAME);
         echo '<p><label for="onesmtp-settings-import-json">' . esc_html__('Import safe settings JSON', 'onesmtp') . '</label></p>';
         echo '<textarea id="onesmtp-settings-import-json" class="large-text code" rows="10" name="onesmtp_settings_import_json" spellcheck="false"></textarea>';
@@ -436,6 +522,12 @@ final class SettingsAdmin
         } elseif ($status === 'background_sending_saved') {
             $noticeClass = 'success';
             $noticeText = __('Background sending settings saved.', 'onesmtp');
+        } elseif ($status === 'simulation_mode_saved') {
+            $noticeClass = 'success';
+            $noticeText = __('Simulation mode settings saved.', 'onesmtp');
+        } elseif ($status === 'simulation_mode_owner_conflict') {
+            $noticeClass = 'error';
+            $noticeText = $message !== '' ? $message : __('Simulation mode cannot be enabled while another plugin owns live delivery.', 'onesmtp');
         } elseif ($status === 'attachment_logging_saved') {
             $noticeClass = 'success';
             $noticeText = __('Attachment logging settings saved.', 'onesmtp');
@@ -444,10 +536,10 @@ final class SettingsAdmin
             $noticeText = __('Weekly delivery summary settings saved.', 'onesmtp');
         } elseif ($status === 'imported') {
             $noticeClass = 'success';
-            $noticeText = $message !== '' ? $message : __('OneSMTP settings imported. Secrets and recipient fields were excluded.', 'onesmtp');
+            $noticeText = $message !== '' ? $message : __('Aculect Mail settings imported. Secrets and recipient fields were excluded.', 'onesmtp');
         } elseif ($status === 'invalid') {
             $noticeClass = 'error';
-            $noticeText = $message !== '' ? $message : __('OneSMTP settings could not be saved.', 'onesmtp');
+            $noticeText = $message !== '' ? $message : __('Aculect Mail settings could not be saved.', 'onesmtp');
         }
 
         if ($noticeClass === '' || $noticeText === '') {
@@ -494,8 +586,8 @@ final class SettingsAdmin
     {
         if (! Capabilities::canManage()) {
             wp_die(
-                esc_html__('You do not have permission to export OneSMTP settings.', 'onesmtp'),
-                esc_html__('OneSMTP access denied', 'onesmtp'),
+                esc_html__('You do not have permission to export Aculect Mail settings.', 'onesmtp'),
+                esc_html__('Aculect Mail access denied', 'onesmtp'),
                 ['response' => 403]
             );
         }
@@ -503,8 +595,8 @@ final class SettingsAdmin
         $nonce = isset($_GET[self::EXPORT_NONCE_NAME]) ? sanitize_text_field(wp_unslash((string) $_GET[self::EXPORT_NONCE_NAME])) : '';
         if ($nonce === '' || ! wp_verify_nonce($nonce, self::EXPORT_ACTION)) {
             wp_die(
-                esc_html__('The OneSMTP settings export link has expired. Refresh the page and try again.', 'onesmtp'),
-                esc_html__('OneSMTP export denied', 'onesmtp'),
+                esc_html__('The Aculect Mail settings export link has expired. Refresh the page and try again.', 'onesmtp'),
+                esc_html__('Aculect Mail export denied', 'onesmtp'),
                 ['response' => 403]
             );
         }
@@ -520,7 +612,7 @@ final class SettingsAdmin
         echo wp_json_encode($payload, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
 
         if ($this->isTestingRuntime()) {
-            throw new RuntimeException('OneSMTP settings exported.');
+            throw new RuntimeException('Aculect Mail settings exported.');
         }
 
         exit;
@@ -530,8 +622,8 @@ final class SettingsAdmin
     {
         if (! Capabilities::canManage()) {
             wp_die(
-                esc_html__('You do not have permission to import OneSMTP settings.', 'onesmtp'),
-                esc_html__('OneSMTP access denied', 'onesmtp'),
+                esc_html__('You do not have permission to import Aculect Mail settings.', 'onesmtp'),
+                esc_html__('Aculect Mail access denied', 'onesmtp'),
                 ['response' => 403]
             );
         }
@@ -539,8 +631,8 @@ final class SettingsAdmin
         $nonce = isset($_POST[self::IMPORT_NONCE_NAME]) ? sanitize_text_field(wp_unslash((string) $_POST[self::IMPORT_NONCE_NAME])) : '';
         if ($nonce === '' || ! wp_verify_nonce($nonce, self::IMPORT_ACTION)) {
             wp_die(
-                esc_html__('The OneSMTP settings import form has expired. Refresh the page and try again.', 'onesmtp'),
-                esc_html__('OneSMTP import denied', 'onesmtp'),
+                esc_html__('The Aculect Mail settings import form has expired. Refresh the page and try again.', 'onesmtp'),
+                esc_html__('Aculect Mail import denied', 'onesmtp'),
                 ['response' => 403]
             );
         }
@@ -567,10 +659,14 @@ final class SettingsAdmin
         }
 
         $returnTab = isset($_POST['onesmtp_return_tab']) ? sanitize_key(wp_unslash((string) $_POST['onesmtp_return_tab'])) : '';
-        $returnTarget = $returnTab === 'onesmtp-overview' ? '#onesmtp-overview' : '#onesmtp-settings';
+        $returnTarget = match ($returnTab) {
+            'onesmtp-overview' => '#onesmtp-overview',
+            'onesmtp-advanced' => '#onesmtp-advanced',
+            default => '#onesmtp-settings',
+        };
         $returnUrl = 'options-general.php?page=onesmtp' . ($returnTab !== '' ? '&tab=' . rawurlencode($returnTab) : '') . $returnTarget;
         wp_safe_redirect(add_query_arg($args, admin_url($returnUrl)));
-        throw new RuntimeException('OneSMTP settings admin redirected.');
+        throw new RuntimeException('Aculect Mail settings admin redirected.');
     }
 
     private function isTestingRuntime(): bool

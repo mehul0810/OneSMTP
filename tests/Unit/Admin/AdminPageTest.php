@@ -18,6 +18,7 @@ final class AdminPageTest extends TestCase
         parent::setUp();
 
         $GLOBALS['onesmtp_test_actions'] = [];
+        $GLOBALS['onesmtp_test_removed_actions'] = [];
         $GLOBALS['onesmtp_test_admin_menu_pages'] = [];
         $GLOBALS['onesmtp_test_admin_submenu_pages'] = [];
         $GLOBALS['onesmtp_test_current_user_can'] = true;
@@ -45,6 +46,42 @@ final class AdminPageTest extends TestCase
         $hooks = array_column($GLOBALS['onesmtp_test_actions'], 'hook');
 
         self::assertContains('admin_menu', $hooks);
+        $noticeCallbacks = array_values(array_filter(
+            $GLOBALS['onesmtp_test_actions'],
+            static fn (array $action): bool => $action['hook'] === 'admin_notices'
+        ));
+        self::assertCount(1, $noticeCallbacks);
+        self::assertSame('suppressExternalNotices', $noticeCallbacks[0]['callback'][1]);
+    }
+
+    public function test_register_hooks_adds_scoped_external_notice_suppression(): void
+    {
+        $page = new AdminPage();
+
+        $page->registerHooks();
+
+        $noticeHooks = array_values(array_filter(
+            $GLOBALS['onesmtp_test_actions'],
+            static fn (array $action): bool => $action['hook'] === 'admin_notices'
+        ));
+
+        self::assertCount(1, $noticeHooks);
+        self::assertSame([$page, 'suppressExternalNotices'], $noticeHooks[0]['callback']);
+        self::assertSame(-PHP_INT_MAX, $noticeHooks[0]['priority']);
+    }
+
+    public function test_external_notice_suppression_only_runs_on_aculect_mail_page(): void
+    {
+        $page = new AdminPage();
+
+        $_GET['page'] = 'onesmtp';
+        $page->suppressExternalNotices();
+        self::assertSame(['admin_notices', 'all_admin_notices'], $GLOBALS['onesmtp_test_removed_actions']);
+
+        $GLOBALS['onesmtp_test_removed_actions'] = [];
+        $_GET['page'] = 'dashboard';
+        $page->suppressExternalNotices();
+        self::assertSame([], $GLOBALS['onesmtp_test_removed_actions']);
     }
 
     public function test_register_menu_uses_manage_plugin_capability(): void
@@ -69,7 +106,11 @@ final class AdminPageTest extends TestCase
         self::assertStringContainsString('nav-tab-wrapper', $output);
         self::assertStringContainsString('data-onesmtp-workspaces', $output);
         self::assertStringContainsString('onesmtp-admin-header', $output);
-        self::assertStringContainsString('onesmtp-overview-side-card', $output);
+        self::assertStringContainsString('assets/images/aculect-icon-light.svg', $output);
+        self::assertStringContainsString('class="onesmtp-admin-brand-mark" aria-hidden="true"><img', $output);
+        self::assertStringContainsString('<h1>Mail</h1>', $output);
+        self::assertStringContainsString('onesmtp-overview-setup-card', $output);
+        self::assertStringNotContainsString('onesmtp-overview-side-card', $output);
         self::assertStringContainsString('data-onesmtp-workspace-link="onesmtp-overview"', $output);
         self::assertStringContainsString('nav-tab nav-tab-active', $output);
         self::assertStringContainsString('aria-current="page"', $output);
@@ -82,6 +123,9 @@ final class AdminPageTest extends TestCase
         self::assertStringContainsString('Activity', $output);
         self::assertStringContainsString('Analytics', $output);
         self::assertStringContainsString('Settings', $output);
+        self::assertStringContainsString('Advanced', $output);
+        self::assertStringContainsString('data-onesmtp-workspace-link="onesmtp-advanced"', $output);
+        self::assertStringContainsString('id="onesmtp-advanced"', $output);
     }
 
     public function test_render_resolves_requested_tab_server_side(): void
@@ -98,13 +142,29 @@ final class AdminPageTest extends TestCase
         self::assertStringContainsString('class="nav-tab nav-tab-active" data-onesmtp-workspace-link="onesmtp-analytics"', $output);
     }
 
+    public function test_render_resolves_legacy_advanced_tab_server_side(): void
+    {
+        $_GET['tab'] = 'onesmtp-settings-advanced';
+        $page = new AdminPage();
+
+        ob_start();
+        $page->render();
+        $output = (string) ob_get_clean();
+
+        self::assertStringContainsString('id="onesmtp-advanced"', $output);
+        self::assertStringContainsString('class="nav-tab nav-tab-active" data-onesmtp-workspace-link="onesmtp-advanced"', $output);
+        self::assertStringContainsString('id="onesmtp-provider-tools"', $output);
+        self::assertStringContainsString('id="onesmtp-diagnostics"', $output);
+        self::assertStringContainsString('id="onesmtp-alerts"', $output);
+    }
+
     public function test_render_blocks_users_without_manage_capability(): void
     {
         $GLOBALS['onesmtp_test_current_user_can'] = false;
         $page = new AdminPage();
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('You do not have permission to access OneSMTP settings.');
+        $this->expectExceptionMessage('You do not have permission to access Aculect Mail settings.');
 
         ob_start();
 

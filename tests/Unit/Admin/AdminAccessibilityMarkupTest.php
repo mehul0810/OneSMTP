@@ -8,6 +8,7 @@ use OneSMTP\Admin\AdminPage;
 use OneSMTP\Admin\LogAdmin;
 use OneSMTP\Admin\MailConflictNotice;
 use OneSMTP\Admin\ProviderAdmin;
+use OneSMTP\Admin\ProviderIcons;
 use OneSMTP\Admin\QueueDiagnosticsAdmin;
 use OneSMTP\Admin\SchedulerNotice;
 use OneSMTP\Admin\SettingsAdmin;
@@ -69,7 +70,7 @@ final class AdminAccessibilityMarkupTest extends TestCase
     {
         $html = $this->capture(static fn (): null => (new AdminPage())->render());
 
-        self::assertStringContainsString('<nav class="nav-tab-wrapper" aria-label="OneSMTP sections">', $html);
+        self::assertStringContainsString('<nav class="nav-tab-wrapper" aria-label="Aculect Mail sections">', $html);
         self::assertStringContainsString('data-onesmtp-workspace-link="onesmtp-overview"', $html);
         self::assertStringContainsString('aria-current="page"', $html);
         self::assertStringContainsString('href="https://example.org/wp-admin/options-general.php?page=onesmtp&amp;tab=onesmtp-overview#onesmtp-overview"', $html);
@@ -78,8 +79,11 @@ final class AdminAccessibilityMarkupTest extends TestCase
         self::assertStringNotContainsString('data-onesmtp-workspace-link="onesmtp-delivery"', $html);
         self::assertStringContainsString('href="https://example.org/wp-admin/options-general.php?page=onesmtp&amp;tab=onesmtp-activity#onesmtp-activity"', $html);
         self::assertStringContainsString('href="https://example.org/wp-admin/options-general.php?page=onesmtp&amp;tab=onesmtp-analytics#onesmtp-analytics"', $html);
+        self::assertStringContainsString('href="https://example.org/wp-admin/options-general.php?page=onesmtp&amp;tab=onesmtp-advanced#onesmtp-advanced"', $html);
+        self::assertStringContainsString('id="onesmtp-advanced"', $html);
+        self::assertStringContainsString('id="onesmtp-provider-tools"', $html);
         self::assertStringContainsString('id="onesmtp-overview-heading" tabindex="-1"', $html);
-        self::assertStringContainsString('id="onesmtp-delivery" class="onesmtp-setup-shell"', $html);
+        self::assertStringContainsString('id="onesmtp-delivery" class="onesmtp-setup-shell is-simplified"', $html);
         self::assertStringContainsString('data-onesmtp-component="sender-identity-drawer"', $html);
         self::assertStringContainsString('data-onesmtp-drawer-trigger="sender-identity"', $html);
         self::assertStringContainsString('id="onesmtp-sender-identity-fallback"', $html);
@@ -105,14 +109,55 @@ final class AdminAccessibilityMarkupTest extends TestCase
 
         $html = $this->capture(static fn (): null => (new ProviderAdmin(new ProviderRepository()))->render());
 
-        self::assertStringContainsString('<th scope="col">Name</th>', $html);
-        self::assertStringContainsString('<th scope="row">Primary SMTP<br><code>primary</code></th>', $html);
-        self::assertStringContainsString('style="max-width:32em;white-space:normal;word-break:break-word;"', $html);
-        self::assertStringContainsString('aria-label="Deactivate provider Primary SMTP"', $html);
-        self::assertStringContainsString('aria-label="Delete provider Primary SMTP"', $html);
+        self::assertStringContainsString('aria-label="Email providers"', $html);
+        self::assertStringContainsString('onesmtp-provider-logo-smtp', $html);
+        self::assertStringContainsString('onesmtp-provider-logo-amazon_ses', $html);
+        self::assertStringContainsString('onesmtp-provider-logo-sendgrid', $html);
+        self::assertStringContainsString('onesmtp-provider-logo-postmark', $html);
+        self::assertStringContainsString('onesmtp-provider-logo-brevo', $html);
+        self::assertStringContainsString('onesmtp-provider-logo-mailgun', $html);
+        self::assertStringContainsString('onesmtp-provider-logo-resend', $html);
+        self::assertStringContainsString('onesmtp-provider-logo-mailjet', $html);
+        self::assertStringContainsString('onesmtp-provider-logo-sparkpost', $html);
+        self::assertStringContainsString('onesmtp-provider-logo-mailersend', $html);
+        self::assertStringContainsString('onesmtp-provider-logo-smtp2go', $html);
+        self::assertStringContainsString('onesmtp-provider-logo-elastic_email', $html);
+        self::assertStringContainsString('onesmtp-provider-logo-zeptomail', $html);
+        self::assertStringContainsString('onesmtp-provider-logo-mailchimp_transactional', $html);
+        self::assertStringContainsString('data-provider-type="smtp"', $html);
+        self::assertStringContainsString('Primary SMTP', $html);
+        self::assertStringContainsString('onesmtp-provider-connection-summary', $html);
+        self::assertStringContainsString('&quot;connections&quot;:[{&quot;id&quot;:7', $html);
+        self::assertStringNotContainsString('Configured connections', $html);
+        self::assertStringNotContainsString('onesmtp-provider-safe-config', $html);
+        self::assertStringNotContainsString('aria-label="Deactivate provider Primary SMTP"', $html);
+        self::assertStringNotContainsString('aria-label="Delete provider Primary SMTP"', $html);
         self::assertStringContainsString('<label for="onesmtp-provider-name">Name</label>', $html);
         self::assertStringContainsString('<label for="onesmtp-provider-adapter_type">Provider type</label>', $html);
         self::assertStringNotContainsString('plain-password', $html);
+    }
+
+    public function test_provider_catalog_uses_compact_local_brand_marks(): void
+    {
+        $gmail = ProviderIcons::render('gmail');
+        $amazonSes = ProviderIcons::render('amazon_ses');
+        $sendGrid = ProviderIcons::render('sendgrid');
+        $resend = ProviderIcons::render('resend');
+        $mailjet = ProviderIcons::render('mailjet');
+
+        self::assertStringContainsString('viewBox="0 0 256 193"', $gmail);
+        self::assertStringContainsString('fill="#4285F4"', $gmail);
+        self::assertStringContainsString('viewBox="0 0 256 256"', $amazonSes);
+        self::assertStringContainsString('onesmtp-aws-ses-gradient', $amazonSes);
+        self::assertStringContainsString('fill="#00A9D1"', $sendGrid);
+        self::assertStringContainsString('fill="#111827"', $resend);
+        self::assertStringContainsString('viewBox="0 0 256 255"', $mailjet);
+        self::assertStringNotContainsString('>MJ<', $mailjet);
+
+        foreach ([$gmail, $amazonSes, $sendGrid, $resend, $mailjet] as $icon) {
+            self::assertStringContainsString('preserveAspectRatio="xMidYMid meet"', $icon);
+            self::assertStringContainsString('aria-hidden="true"', $icon);
+        }
     }
 
     public function test_log_filters_tables_export_pagination_and_resend_controls_are_labeled(): void
@@ -187,8 +232,9 @@ final class AdminAccessibilityMarkupTest extends TestCase
 
         self::assertStringContainsString('Connect a provider', $html);
         self::assertStringContainsString('onesmtp-setup-shell', $html);
-        self::assertStringContainsString('onesmtp-setup-rail', $html);
+        self::assertStringNotContainsString('onesmtp-setup-rail', $html);
         self::assertStringContainsString('onesmtp-overview-setup-card', $html);
+        self::assertStringContainsString('data-onesmtp-component="settings-navigation"', $html);
         self::assertStringContainsString('<label for="from_email">From Email</label>', $html);
         self::assertStringContainsString('<legend>Force settings</legend>', $html);
         self::assertStringContainsString('<label><input type="checkbox" name="failure_alert_email_enabled"', $html);
@@ -210,7 +256,7 @@ final class AdminAccessibilityMarkupTest extends TestCase
         self::assertStringContainsString('Configure providers', $html);
         self::assertStringContainsString('href="https://example.org/wp-admin/options-general.php?page=onesmtp#onesmtp-providers"', $html);
         self::assertStringContainsString('Remind me later', $html);
-        self::assertStringContainsString('aria-label="Remind me later about the OneSMTP mail conflict notice"', $html);
+        self::assertStringContainsString('aria-label="Remind me later about the Aculect Mail conflict notice"', $html);
         self::assertStringNotContainsString('api_key', $html);
         self::assertStringNotContainsString('payload_json', $html);
     }

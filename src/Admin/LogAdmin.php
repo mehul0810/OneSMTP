@@ -20,6 +20,7 @@ final class LogAdmin
     private const EXPORT_ACTION = 'export_csv';
     private const EXPORT_NONCE_NAME = 'onesmtp_log_export_nonce';
     private const BULK_RESEND_ACTION = 'bulk_resend';
+    private const QUEUE_RETRY_NOW_ACTION = 'queue_retry_now';
     private const FORWARD_ACTION = 'forward_summary';
     private const BULK_MESSAGE_IDS_PARAM = 'onesmtp_message_ids';
     private const DEFAULT_PER_PAGE = 25;
@@ -36,6 +37,8 @@ final class LogAdmin
     private AdminRequest $request;
     /** @var callable(int,?int):bool|null */
     private $resendHandler;
+    /** @var callable(int):bool|null */
+    private $queueRetryHandler;
 
     public function __construct(
         MessageRepository $messages,
@@ -44,13 +47,15 @@ final class LogAdmin
         ?Redactor $redactor = null,
         ?callable $resendHandler = null,
         ?AdminAuditLogger $auditLogger = null,
-        ?AdminRequest $request = null
+        ?AdminRequest $request = null,
+        ?callable $queueRetryHandler = null
     ) {
         $this->messages = $messages;
         $this->attempts = $attempts;
         $this->providers = $providers;
         $this->redactor = $redactor ?? new Redactor();
         $this->resendHandler = $resendHandler;
+        $this->queueRetryHandler = $queueRetryHandler;
         $this->auditLogger = $auditLogger ?? new AdminAuditLogger();
         $this->request = $request ?? new AdminRequest();
     }
@@ -79,6 +84,12 @@ final class LogAdmin
             return;
         }
 
+        if ($action === self::QUEUE_RETRY_NOW_ACTION) {
+            $this->handleQueueRetryNow();
+
+            return;
+        }
+
         if ($action === self::BULK_RESEND_ACTION) {
             $this->handleBulkResend();
 
@@ -94,8 +105,8 @@ final class LogAdmin
     {
         if (! Capabilities::canResendEmails()) {
             wp_die(
-                esc_html__('You do not have permission to resend OneSMTP emails.', 'onesmtp'),
-                esc_html__('OneSMTP access denied', 'onesmtp'),
+                esc_html__('You do not have permission to resend Aculect Mail emails.', 'onesmtp'),
+                esc_html__('Aculect Mail access denied', 'onesmtp'),
                 ['response' => 403]
             );
         }
@@ -133,8 +144,8 @@ final class LogAdmin
     {
         if (! Capabilities::canResendEmails()) {
             wp_die(
-                esc_html__('You do not have permission to bulk resend OneSMTP emails.', 'onesmtp'),
-                esc_html__('OneSMTP access denied', 'onesmtp'),
+                esc_html__('You do not have permission to bulk resend Aculect Mail emails.', 'onesmtp'),
+                esc_html__('Aculect Mail access denied', 'onesmtp'),
                 ['response' => 403]
             );
         }
@@ -180,12 +191,36 @@ final class LogAdmin
         $this->redirectBulk($resent > 0 ? 'partial' : 'failed', $resent, $failed);
     }
 
+    private function handleQueueRetryNow(): void
+    {
+        if (! Capabilities::canResendEmails()) {
+            wp_die(
+                esc_html__('You do not have permission to manage the Aculect Mail queue.', 'onesmtp'),
+                esc_html__('Aculect Mail access denied', 'onesmtp'),
+                ['response' => 403]
+            );
+        }
+
+        check_admin_referer(self::ACTION_NAME, self::NONCE_NAME);
+
+        $messageId = isset($_POST[self::DETAIL_PARAM]) ? absint(wp_unslash((string) $_POST[self::DETAIL_PARAM])) : 0;
+        $message = $messageId > 0 ? $this->messages->find($messageId) : null;
+        $status = is_array($message) ? (string) ($message['status'] ?? '') : '';
+        if (! is_array($message) || ! in_array($status, ['queued', 'retry_scheduled'], true)) {
+            $this->redirectQueue('rejected', $messageId);
+        }
+
+        $handler = $this->queueRetryHandler;
+        $queued = is_callable($handler) && (bool) $handler($messageId);
+        $this->redirectQueue($queued ? 'queued' : 'failed', $messageId);
+    }
+
     private function handleForward(): void
     {
         if (! Capabilities::canResendEmails()) {
             wp_die(
-                esc_html__('You do not have permission to forward OneSMTP log summaries.', 'onesmtp'),
-                esc_html__('OneSMTP access denied', 'onesmtp'),
+                esc_html__('You do not have permission to forward Aculect Mail log summaries.', 'onesmtp'),
+                esc_html__('Aculect Mail access denied', 'onesmtp'),
                 ['response' => 403]
             );
         }
@@ -207,7 +242,7 @@ final class LogAdmin
             $to,
             sprintf(
                 /* translators: %d: message log id. */
-                __('OneSMTP safe log summary #%d', 'onesmtp'),
+                __('Aculect Mail safe log summary #%d', 'onesmtp'),
                 $messageId
             ),
             $this->safeForwardBody($message),
@@ -221,14 +256,15 @@ final class LogAdmin
     {
         if (! Capabilities::canViewLogs()) {
             wp_die(
-                esc_html__('You do not have permission to view OneSMTP logs.', 'onesmtp'),
-                esc_html__('OneSMTP access denied', 'onesmtp'),
+                esc_html__('You do not have permission to view Aculect Mail logs.', 'onesmtp'),
+                esc_html__('Aculect Mail access denied', 'onesmtp'),
                 ['response' => 403]
             );
         }
 
         echo '<p>' . esc_html__('Review delivery lineage without exposing message bodies, raw headers, secrets, or full recipient addresses.', 'onesmtp') . '</p>';
         $this->renderActionNotices();
+        $this->renderQueue();
 
         $messageId = isset($_GET[self::DETAIL_PARAM]) ? absint(wp_unslash((string) $_GET[self::DETAIL_PARAM])) : 0;
         if ($messageId > 0) {
@@ -237,6 +273,68 @@ final class LogAdmin
         }
 
         $this->renderList();
+    }
+
+    private function renderQueue(): void
+    {
+        $rows = $this->messages->listQueueWithAttemptCounts(25);
+        $summary = $this->messages->getQueueStatusSummary(gmdate('Y-m-d H:i:s', time() - 300));
+
+        echo '<section class="onesmtp-queue-panel" aria-labelledby="onesmtp-queue-heading">';
+        echo '<div class="onesmtp-queue-panel-heading"><div><h3 id="onesmtp-queue-heading">' . esc_html__('Email queue', 'onesmtp') . '</h3><p>' . esc_html__('Every queued message is retried through the delivery pipeline, with provider switches recorded for reliability reporting.', 'onesmtp') . '</p></div></div>';
+        echo '<div class="onesmtp-queue-summary" aria-label="' . esc_attr__('Email queue summary', 'onesmtp') . '">';
+        foreach ([
+            __('Queued', 'onesmtp') => (int) ($summary['queued_count'] ?? 0),
+            __('Scheduled retries', 'onesmtp') => (int) ($summary['retry_scheduled_count'] ?? 0),
+            __('In progress', 'onesmtp') => (int) ($summary['retrying_count'] ?? 0),
+        ] as $label => $value) {
+            echo '<div class="onesmtp-queue-summary-card"><span>' . esc_html($label) . '</span><strong>' . esc_html((string) $value) . '</strong></div>';
+        }
+        echo '</div>';
+
+        if ($rows === []) {
+            echo '<p class="onesmtp-queue-empty">' . esc_html__('The queue is clear. New messages will appear here while they are waiting for delivery or retry.', 'onesmtp') . '</p></section>';
+
+            return;
+        }
+
+        echo '<div class="onesmtp-queue-table-wrap"><table class="widefat striped"><thead><tr>';
+        echo '<th scope="col">' . esc_html__('Message', 'onesmtp') . '</th>';
+        echo '<th scope="col">' . esc_html__('Status', 'onesmtp') . '</th>';
+        echo '<th scope="col">' . esc_html__('Attempts', 'onesmtp') . '</th>';
+        echo '<th scope="col">' . esc_html__('Switchovers', 'onesmtp') . '</th>';
+        echo '<th scope="col">' . esc_html__('Next retry', 'onesmtp') . '</th>';
+        echo '<th scope="col"><span class="screen-reader-text">' . esc_html__('Queue actions', 'onesmtp') . '</span></th>';
+        echo '</tr></thead><tbody>';
+
+        foreach ($rows as $row) {
+            $messageId = (int) ($row['id'] ?? 0);
+            $status = (string) ($row['status'] ?? '');
+            $detailUrl = add_query_arg(
+                [self::DETAIL_PARAM => $messageId],
+                admin_url('options-general.php?page=onesmtp#onesmtp-logs')
+            );
+            echo '<tr>';
+            echo '<th scope="row"><a href="' . esc_url($detailUrl) . '">#' . esc_html((string) $messageId) . '</a><br><code>' . esc_html((string) ($row['message_uuid'] ?? '')) . '</code></th>';
+            echo '<td>' . esc_html($this->formatStatus($status)) . '</td>';
+            echo '<td>' . esc_html((string) ((int) ($row['queue_attempt_count'] ?? $row['current_attempt'] ?? 0))) . ' / ' . esc_html((string) ((int) ($row['max_attempts'] ?? 0))) . '</td>';
+            echo '<td>' . esc_html((string) ((int) ($row['switch_count'] ?? 0))) . '</td>';
+            echo '<td>' . esc_html((string) ($row['next_retry_at'] ?? __('Waiting for first attempt', 'onesmtp'))) . '</td>';
+            echo '<td>';
+            if (Capabilities::canResendEmails() && is_callable($this->queueRetryHandler) && in_array($status, ['queued', 'retry_scheduled'], true)) {
+                echo '<form method="post">';
+                wp_nonce_field(self::ACTION_NAME, self::NONCE_NAME);
+                echo '<input type="hidden" name="' . esc_attr(self::ACTION_NAME) . '" value="' . esc_attr(self::QUEUE_RETRY_NOW_ACTION) . '">';
+                echo '<input type="hidden" name="' . esc_attr(self::DETAIL_PARAM) . '" value="' . esc_attr((string) $messageId) . '">';
+                submit_button(__('Retry now', 'onesmtp'), 'secondary', 'submit', false);
+                echo '</form>';
+            } else {
+                echo '<span class="description">' . esc_html__('Processing', 'onesmtp') . '</span>';
+            }
+            echo '</td></tr>';
+        }
+
+        echo '</tbody></table></div></section>';
     }
 
     private function renderList(): void
@@ -250,15 +348,18 @@ final class LogAdmin
         $page = min($page, $maxPage);
         $messages = $this->messages->listFilteredWithAttemptCounts($filters, $page, $perPage);
 
-        echo '<h3>' . esc_html__('Recent messages', 'onesmtp') . '</h3>';
+        echo '<div class="onesmtp-activity-heading"><h3>' . esc_html__('Recent messages', 'onesmtp') . '</h3><details class="onesmtp-activity-filters"><summary>' . esc_html__('Advanced filters', 'onesmtp') . '</summary>';
         $this->renderFilters($filters, $perPage);
+        echo '</details></div>';
 
         if ($messages === []) {
-            echo '<p>' . esc_html(
+            $this->renderDataViews([]);
+            // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Heroicons renders an SVG selected from a private allowlist and escapes its only dynamic attribute.
+            echo '<section class="onesmtp-empty-state onesmtp-activity-empty">' . Heroicons::render('inbox') . '<strong>' . esc_html(
                 $this->hasActiveFilters($filters)
-                    ? __('No email log entries matched the current filters.', 'onesmtp')
-                    : __('No email log entries have been recorded yet.', 'onesmtp')
-            ) . '</p>';
+                    ? __('No messages match these filters', 'onesmtp')
+                    : __('No email activity yet', 'onesmtp')
+            ) . '</strong><p>' . esc_html__('Delivery attempts will appear here after WordPress sends its first message.', 'onesmtp') . '</p></section>';
 
             return;
         }
@@ -298,6 +399,7 @@ final class LogAdmin
         echo '<th scope="col">' . esc_html__('Message', 'onesmtp') . '</th>';
         echo '<th scope="col">' . esc_html__('Status', 'onesmtp') . '</th>';
         echo '<th scope="col">' . esc_html__('Provider', 'onesmtp') . '</th>';
+        echo '<th scope="col">' . esc_html__('Switchovers', 'onesmtp') . '</th>';
         echo '<th scope="col">' . esc_html__('Source', 'onesmtp') . '</th>';
         echo '<th scope="col">' . esc_html__('Attempts', 'onesmtp') . '</th>';
         echo '<th scope="col">' . esc_html__('Attachments', 'onesmtp') . '</th>';
@@ -335,6 +437,7 @@ final class LogAdmin
             $payload = $this->payloadFor($message);
             echo '<td>' . esc_html($this->formatStatus((string) ($message['status'] ?? ''))) . '</td>';
             echo '<td>' . esc_html($this->formatProvider((int) ($message['selected_provider_id'] ?? 0))) . '</td>';
+            echo '<td>' . esc_html((string) ((int) ($message['switch_count'] ?? 0))) . '</td>';
             echo '<td>' . esc_html($this->formatSourceAttribution($payload)) . '</td>';
             echo '<td>' . esc_html((string) ((int) ($message['attempt_count'] ?? $message['current_attempt'] ?? 0))) . ' / ' . esc_html((string) ((int) ($message['max_attempts'] ?? 0))) . '</td>';
             echo '<td>' . esc_html($this->formatAttachmentSummary($payload)) . '</td>';
@@ -362,7 +465,8 @@ final class LogAdmin
                 'message' => '#' . (int) ($message['id'] ?? 0),
                 'status' => $this->formatStatus((string) ($message['status'] ?? '')),
                 'provider' => $this->formatProvider((int) ($message['selected_provider_id'] ?? 0)),
-                'attempts' => (int) ($message['attempt_count'] ?? $message['current_attempt'] ?? 0) . ' / ' . (int) ($message['max_attempts'] ?? 0),
+            'attempts' => (int) ($message['attempt_count'] ?? $message['current_attempt'] ?? 0) . ' / ' . (int) ($message['max_attempts'] ?? 0),
+                'switchovers' => (int) ($message['switch_count'] ?? 0),
                 'recipients' => $this->formatRecipientSummary($payload),
                 'created' => (string) ($message['created_at'] ?? ''),
             ];
@@ -372,6 +476,7 @@ final class LogAdmin
             ['id' => 'status', 'type' => 'text', 'label' => __('Status', 'onesmtp')],
             ['id' => 'provider', 'type' => 'text', 'label' => __('Provider', 'onesmtp')],
             ['id' => 'attempts', 'type' => 'text', 'label' => __('Attempts', 'onesmtp')],
+            ['id' => 'switchovers', 'type' => 'integer', 'label' => __('Switchovers', 'onesmtp')],
             ['id' => 'recipients', 'type' => 'text', 'label' => __('Recipients', 'onesmtp')],
             ['id' => 'created', 'type' => 'text', 'label' => __('Created', 'onesmtp')],
         ]];
@@ -394,7 +499,7 @@ final class LogAdmin
         echo '<label for="onesmtp-log-status">' . esc_html__('Status', 'onesmtp') . '</label> ';
         echo '<select id="onesmtp-log-status" name="status">';
         $this->renderOption('', __('Any status', 'onesmtp'), $filters['status']);
-        foreach (['queued', 'retrying', 'retry_scheduled', 'sent', 'failed'] as $status) {
+        foreach (['queued', 'retrying', 'retry_scheduled', 'sent', 'failed', 'simulated'] as $status) {
             $this->renderOption($status, $this->formatStatus($status), $filters['status']);
         }
         echo '</select> ';
@@ -558,8 +663,8 @@ final class LogAdmin
     {
         if (! Capabilities::canViewLogs()) {
             wp_die(
-                esc_html__('You do not have permission to export OneSMTP logs.', 'onesmtp'),
-                esc_html__('OneSMTP access denied', 'onesmtp'),
+                esc_html__('You do not have permission to export Aculect Mail logs.', 'onesmtp'),
+                esc_html__('Aculect Mail access denied', 'onesmtp'),
                 ['response' => 403]
             );
         }
@@ -567,8 +672,8 @@ final class LogAdmin
         $nonce = isset($_GET[self::EXPORT_NONCE_NAME]) ? sanitize_text_field(wp_unslash((string) $_GET[self::EXPORT_NONCE_NAME])) : '';
         if ($nonce === '' || ! wp_verify_nonce($nonce, self::EXPORT_ACTION)) {
             wp_die(
-                esc_html__('The OneSMTP log export link has expired. Refresh the page and try again.', 'onesmtp'),
-                esc_html__('OneSMTP export denied', 'onesmtp'),
+                esc_html__('The Aculect Mail log export link has expired. Refresh the page and try again.', 'onesmtp'),
+                esc_html__('Aculect Mail export denied', 'onesmtp'),
                 ['response' => 403]
             );
         }
@@ -597,7 +702,7 @@ final class LogAdmin
         $this->outputCsv($messages);
 
         if ($this->isTestingRuntime()) {
-            throw new \RuntimeException('OneSMTP log CSV exported.');
+            throw new \RuntimeException('Aculect Mail log CSV exported.');
         }
 
         exit;
@@ -655,6 +760,7 @@ final class LogAdmin
             );
         }
 
+        // phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_fclose -- This closes the php://output CSV stream; no plugin filesystem path is accessed.
         fclose($handle);
     }
 
@@ -697,6 +803,7 @@ final class LogAdmin
         $this->renderDetailRow(__('Selected provider', 'onesmtp'), $this->formatProvider((int) ($message['selected_provider_id'] ?? 0)));
         $this->renderDetailRow(__('Source', 'onesmtp'), $this->formatSourceAttribution($payload));
         $this->renderDetailRow(__('Attempts', 'onesmtp'), (string) count($attempts) . ' / ' . (string) ((int) ($message['max_attempts'] ?? 0)));
+        $this->renderDetailRow(__('Provider switches', 'onesmtp'), (string) $this->countProviderSwitches($attempts));
         $this->renderDetailRow(__('Attachments', 'onesmtp'), $this->formatAttachmentSummary($payload));
         $this->renderDetailRow(__('Recipients', 'onesmtp'), $this->formatRecipientSummary($payload));
         $this->renderDetailRow(__('Next retry', 'onesmtp'), (string) ($message['next_retry_at'] ?? __('None scheduled', 'onesmtp')));
@@ -811,7 +918,7 @@ final class LogAdmin
 
         $to = $this->safeForwardAddress();
         if ($to === '') {
-            echo '<div class="notice notice-warning inline"><p>' . esc_html__('A valid WordPress admin email is required before OneSMTP can forward log summaries.', 'onesmtp') . '</p></div>';
+            echo '<div class="notice notice-warning inline"><p>' . esc_html__('A valid WordPress admin email is required before Aculect Mail can forward log summaries.', 'onesmtp') . '</p></div>';
 
             return;
         }
@@ -849,7 +956,7 @@ final class LogAdmin
         }
 
         echo '<h4>' . esc_html__('Attachment metadata', 'onesmtp') . '</h4>';
-        echo '<p>' . esc_html__('OneSMTP stores metadata only. File contents and raw server paths are not stored or displayed.', 'onesmtp') . '</p>';
+        echo '<p>' . esc_html__('Aculect Mail stores metadata only. File contents and raw server paths are not stored or displayed.', 'onesmtp') . '</p>';
         echo '<table class="widefat striped">';
         echo '<thead><tr>';
         echo '<th scope="col">' . esc_html__('Filename', 'onesmtp') . '</th>';
@@ -1110,7 +1217,7 @@ final class LogAdmin
         $attempts = $messageId > 0 ? $this->attempts->listByMessageId($messageId) : [];
         $lastAttempt = $attempts !== [] ? $attempts[count($attempts) - 1] : [];
         $lines = [
-            'OneSMTP safe log summary',
+            'Aculect Mail safe log summary',
             '',
             'Message ID: #' . (string) $messageId,
             'Lineage UUID: ' . $this->shortCode((string) ($message['message_uuid'] ?? '')),
@@ -1216,9 +1323,26 @@ final class LogAdmin
 
     private function renderActionNotices(): void
     {
+        $this->renderQueueNotice();
         $this->renderResendNotice();
         $this->renderBulkNotice();
         $this->renderForwardNotice();
+    }
+
+    private function renderQueueNotice(): void
+    {
+        $status = isset($_GET['onesmtp_queue_status']) ? sanitize_key(wp_unslash((string) $_GET['onesmtp_queue_status'])) : '';
+        if ($status === '') {
+            return;
+        }
+
+        $messages = [
+            'queued' => __('The message was moved to the front of the queue and will be processed shortly.', 'onesmtp'),
+            'failed' => __('The message could not be moved to the front of the queue. Review scheduler health and the message detail.', 'onesmtp'),
+            'rejected' => __('Only queued or scheduled messages can be moved to the front of the queue.', 'onesmtp'),
+        ];
+
+        $this->renderActionNotice($messages[$status] ?? __('Queue action could not be completed.', 'onesmtp'), $status === 'queued');
     }
 
     private function renderResendNotice(): void
@@ -1300,7 +1424,7 @@ final class LogAdmin
 
         wp_safe_redirect($url);
         if ($this->isTestingRuntime()) {
-            throw new \RuntimeException('OneSMTP log admin redirected.');
+            throw new \RuntimeException('Aculect Mail log admin redirected.');
         }
 
         exit;
@@ -1319,7 +1443,25 @@ final class LogAdmin
 
         wp_safe_redirect($url);
         if ($this->isTestingRuntime()) {
-            throw new \RuntimeException('OneSMTP log admin redirected.');
+            throw new \RuntimeException('Aculect Mail log admin redirected.');
+        }
+
+        exit;
+    }
+
+    private function redirectQueue(string $status, int $messageId): void
+    {
+        $url = add_query_arg(
+            [
+                self::DETAIL_PARAM => max(0, $messageId),
+                'onesmtp_queue_status' => $status,
+            ],
+            admin_url('options-general.php?page=onesmtp#onesmtp-logs')
+        );
+
+        wp_safe_redirect($url);
+        if ($this->isTestingRuntime()) {
+            throw new \RuntimeException('Aculect Mail queue admin redirected.');
         }
 
         exit;
@@ -1337,7 +1479,7 @@ final class LogAdmin
 
         wp_safe_redirect($url);
         if ($this->isTestingRuntime()) {
-            throw new \RuntimeException('OneSMTP log admin redirected.');
+            throw new \RuntimeException('Aculect Mail log admin redirected.');
         }
 
         exit;
@@ -1347,7 +1489,31 @@ final class LogAdmin
     {
         $status = sanitize_key($status);
 
+        if ($status === 'simulated') {
+            return __('Simulated', 'onesmtp');
+        }
+
         return $status !== '' ? str_replace('_', ' ', $status) : __('Unknown', 'onesmtp');
+    }
+
+    /** @param array<int,array<string,mixed>> $attempts */
+    private function countProviderSwitches(array $attempts): int
+    {
+        $switches = 0;
+        $previousProviderId = 0;
+
+        foreach ($attempts as $attempt) {
+            $providerId = (int) ($attempt['provider_id'] ?? 0);
+            if ($providerId > 0 && $previousProviderId > 0 && $providerId !== $previousProviderId) {
+                $switches++;
+            }
+
+            if ($providerId > 0) {
+                $previousProviderId = $providerId;
+            }
+        }
+
+        return $switches;
     }
 
     private function formatError(array $attempt): string

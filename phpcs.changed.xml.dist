@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
-<ruleset name="OneSMTP Changed-File Standards">
-  <description>Actionable changed-file PHPCS gate for the current PSR-style OneSMTP codebase.</description>
+<ruleset name="Aculect Mail Changed-File Standards">
+  <description>Actionable changed-file PHPCS gate for the current PSR-style Aculect Mail codebase.</description>
 
   <arg name="basepath" value="."/>
   <arg name="colors"/>

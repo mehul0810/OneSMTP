@@ -72,12 +72,13 @@ final class DeliverabilitySmokeTest extends TestCase
 
         $emptySetup = $this->renderSetup($wizard);
 
-        self::assertStringContainsString('Needs setup', $emptySetup);
+        self::assertStringContainsString('Complete Aculect Mail setup', $emptySetup);
+        self::assertStringContainsString('Set up sender identity', $emptySetup);
         self::assertStringContainsString('Save first provider', $emptySetup);
         self::assertStringContainsString('Add and activate a provider before sending a setup test email.', $emptySetup);
 
         $this->postSetupProvider();
-        $this->expectRedirect('OneSMTP setup wizard redirected.', static function () use ($wizard): void {
+        $this->expectRedirect('Aculect Mail setup wizard redirected.', static function () use ($wizard): void {
             $wizard->handleRequest();
         });
 
@@ -92,7 +93,7 @@ final class DeliverabilitySmokeTest extends TestCase
         $testWizard = new SetupWizard($providers, $delivery, new EventRepository());
 
         $this->postSetupTestSend((int) $providerRow['id']);
-        $this->expectRedirect('OneSMTP setup wizard redirected.', static function () use ($testWizard): void {
+        $this->expectRedirect('Aculect Mail setup wizard redirected.', static function () use ($testWizard): void {
             $testWizard->handleRequest();
         });
 
@@ -137,7 +138,7 @@ final class DeliverabilitySmokeTest extends TestCase
         self::assertStringNotContainsString('Internal smoke body', $logDetail);
 
         $this->postManualResend((int) $providerRow['id']);
-        $this->expectRedirect('OneSMTP log admin redirected.', static function () use ($logAdmin): void {
+        $this->expectRedirect('Aculect Mail log admin redirected.', static function () use ($logAdmin): void {
             $logAdmin->handleRequest();
         });
 

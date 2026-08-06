@@ -1,4 +1,4 @@
-# OneSMTP Testing Baseline
+# Aculect Mail Testing Baseline
 
 > The release gate and evidence contract lives in the repository-root [`TESTING.md`](../../TESTING.md). This document keeps the detailed behavior matrix and test inventory.
 

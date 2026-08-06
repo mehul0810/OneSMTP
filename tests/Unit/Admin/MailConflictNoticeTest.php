@@ -114,7 +114,7 @@ final class MailConflictNoticeTest extends TestCase
             $notice->dismiss();
             self::fail('Expected redirect exit in test runtime.');
         } catch (RuntimeException $e) {
-            self::assertSame('Exit called', $e->getMessage());
+            self::assertSame('Aculect Mail conflict notice dismissed.', $e->getMessage());
         }
 
         self::assertSame(1, get_transient('onesmtp_mail_conflict_notice_dismissed_1'));

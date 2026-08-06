@@ -96,8 +96,8 @@ final class BrevoAdapter extends AbstractAdapter implements ProviderAdapterInter
     {
         $probe = [
             'to' => [sanitize_email((string) get_option('admin_email'))],
-            'subject' => '[OneSMTP] Brevo Connection Test',
-            'message' => 'Connection test from OneSMTP.',
+            'subject' => '[Aculect Mail] Brevo Connection Test',
+            'message' => 'Connection test from Aculect Mail.',
             'headers' => [],
         ];
 

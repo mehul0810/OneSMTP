@@ -9,7 +9,9 @@ use OneSMTP\Pipeline\SendPipeline;
 use OneSMTP\Providers\ProviderAdapterRegistry;
 use OneSMTP\Providers\ProviderDeliveryManager;
 use OneSMTP\Providers\ProviderTypes;
+use OneSMTP\Providers\ProviderTestService;
 use OneSMTP\Repository\AttemptRepository;
+use OneSMTP\Repository\EventRepository;
 use OneSMTP\Repository\MessageRepository;
 use OneSMTP\Repository\ProviderRepository;
 use OneSMTP\Settings\SenderIdentity;
@@ -29,6 +31,7 @@ final class RestController
     private ProviderAdapterRegistry $registry;
     private ProviderDeliveryManager $deliveryManager;
     private SenderIdentityRepository $senderIdentity;
+    private ProviderTestService $providerTests;
 
     public function __construct(
         ProviderRepository $providers,
@@ -36,7 +39,8 @@ final class RestController
         AttemptRepository $attempts,
         SendPipeline $pipeline,
         ?ProviderAdapterRegistry $registry = null,
-        ?SenderIdentityRepository $senderIdentity = null
+        ?SenderIdentityRepository $senderIdentity = null,
+        ?ProviderTestService $providerTests = null
     ) {
         $this->providers = $providers;
         $this->messages = $messages;
@@ -45,6 +49,13 @@ final class RestController
         $this->registry = $registry ?? new ProviderAdapterRegistry();
         $this->deliveryManager = new ProviderDeliveryManager($this->registry);
         $this->senderIdentity = $senderIdentity ?? new SenderIdentityRepository();
+        $this->providerTests = $providerTests ?? new ProviderTestService(
+            $messages,
+            $attempts,
+            new EventRepository(),
+            $this->deliveryManager,
+            $this->senderIdentity
+        );
     }
 
     public function registerRoutes(): void
@@ -190,7 +201,15 @@ final class RestController
 
         $id = (int) $request->get_param('id');
         if ($id > 0) {
+            $existing = $this->providers->find($id);
+            if (! is_array($existing)) {
+                return new WP_Error('missing_provider', 'Provider not found.', ['status' => 404]);
+            }
+
             $payload['id'] = $id;
+            if (! isset($payload['slug'])) {
+                $payload['slug'] = sanitize_key((string) ($existing['slug'] ?? ''));
+            }
         }
 
         $savedId = $this->providers->save($payload);
@@ -235,7 +254,8 @@ final class RestController
             return $payload;
         }
 
-        $result = $this->deliveryManager->send($provider, $payload);
+        $test = $this->providerTests->send($provider, $payload);
+        $result = $test['result'];
         $providerId = (int) ($provider['id'] ?? $id);
         $adapterType = sanitize_key((string) ($provider['adapter_type'] ?? ''));
 
@@ -248,6 +268,8 @@ final class RestController
                     'provider_id' => $providerId,
                     'adapter_type' => $adapterType,
                     'to' => $payload['to'],
+                    'message_id' => (int) $test['message_id'],
+                    'simulated' => (bool) $test['simulated'],
                 ],
             ],
             $result->isSuccess() ? 200 : 422
@@ -329,7 +351,7 @@ final class RestController
             return new WP_Error('invalid_sender_identity', $exception->getMessage(), ['status' => 400]);
         }
 
-        if (! $this->senderIdentity->save($identity)) {
+        if (! $this->senderIdentity->saveAuthorized($identity)) {
             return new WP_Error('sender_identity_save_failed', 'Unable to save sender identity.', ['status' => 422]);
         }
 
@@ -561,7 +583,7 @@ final class RestController
 
         $subject = sanitize_text_field((string) ($request->get_param('subject') ?? ''));
         if ($subject === '') {
-            $subject = '[OneSMTP] Test email';
+            $subject = '[Aculect Mail] Test email';
         }
 
         $message = (string) ($request->get_param('message') ?? '');
@@ -571,7 +593,7 @@ final class RestController
 
         $message = sanitize_textarea_field($message);
         if ($message === '') {
-            $message = 'This is a test email sent by OneSMTP.';
+            $message = 'This is a test email sent by Aculect Mail.';
         }
 
         return [

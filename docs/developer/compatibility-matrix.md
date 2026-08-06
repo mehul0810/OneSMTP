@@ -1,6 +1,6 @@
 # Compatibility Matrix
 
-This matrix documents the synthetic WordPress email sources used to smoke-test OneSMTP capture, routing, logging, retries, and source attribution behavior for the 0.2.0 operational reliability milestone.
+This matrix documents the synthetic WordPress email sources used to smoke-test Aculect Mail capture, routing, logging, retries, and source attribution behavior for the 0.2.0 operational reliability milestone.
 
 The fixtures are intentionally synthetic. They use reserved `example.test` recipients, generated message identifiers, fixture-only subjects and bodies, and no provider secrets, production payloads, customer data, payment data, or real message content.
 
@@ -22,7 +22,7 @@ vendor/bin/phpunit -c phpunit.xml.dist tests/Integration/Dispatch/CompatibilityM
 
 ## Supported Attribution Contract
 
-OneSMTP 0.2.0 does not add a separate source table or public source schema for compatibility testing. Source attribution in this smoke matrix is intentionally limited to the currently supported capture contract:
+Aculect Mail 0.2.0 does not add a separate source table or public source schema for compatibility testing. Source attribution in this smoke matrix is intentionally limited to the currently supported capture contract:
 
 - fixture metadata included in the captured `wp_mail()` attributes;
 - stable `X-OneSMTP-Message-ID` lineage headers;

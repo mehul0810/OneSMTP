@@ -32,6 +32,17 @@ abstract class AbstractAdapter
         return array_values(array_filter(array_map('strval', $headers), static fn (string $value): bool => $value !== ''));
     }
 
+    protected function extractHeaderValue(array $headers, string $name): string
+    {
+        foreach ($headers as $header) {
+            if (stripos($header, $name . ':') === 0) {
+                return trim(substr($header, strlen($name) + 1));
+            }
+        }
+
+        return '';
+    }
+
     protected function extractFrom(array $headers): array
     {
         foreach ($headers as $header) {
@@ -77,6 +88,11 @@ abstract class AbstractAdapter
     protected function extractBcc(array $headers): array
     {
         return $this->extractAddressHeader($headers, 'bcc');
+    }
+
+    protected function extractCc(array $headers): array
+    {
+        return $this->extractAddressHeader($headers, 'cc');
     }
 
     protected function extractFirstAddress(array $addresses): string

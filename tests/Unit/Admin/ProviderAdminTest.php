@@ -72,18 +72,17 @@ final class ProviderAdminTest extends TestCase
         $output = (string) ob_get_clean();
 
         self::assertStringContainsString('Primary SMTP', $output);
-        self::assertStringContainsString('Provider capability matrix', $output);
-        self::assertStringContainsString('API delivery', $output);
-        self::assertStringContainsString('Unavailable', $output);
+        self::assertStringContainsString('onesmtp-provider-connection-summary', $output);
         self::assertStringContainsString('smtp.example.test', $output);
         self::assertStringContainsString('Circuit open', $output);
         self::assertStringContainsString('Open until 2026-07-01 12:30:00 GMT.', $output);
-        self::assertStringContainsString('DNS authentication readiness', $output);
-        self::assertStringContainsString('example.test', $output);
-        self::assertStringContainsString('TXT evidence found', $output);
+        self::assertStringContainsString('&quot;connections&quot;:[{&quot;id&quot;:7', $output);
         self::assertStringContainsString('[REDACTED]', $output);
         self::assertStringNotContainsString('plain-password', $output);
         self::assertStringNotContainsString('plain-api-key', $output);
+        self::assertStringNotContainsString('onesmtp-provider-connections', $output);
+        self::assertStringNotContainsString('Provider capability matrix', $output);
+        self::assertStringNotContainsString('DNS authentication readiness', $output);
         self::assertStringContainsString('php_mail', $output);
         self::assertStringContainsString('sendgrid', $output);
         self::assertStringContainsString('postmark', $output);
@@ -119,6 +118,31 @@ final class ProviderAdminTest extends TestCase
         self::assertStringNotContainsString('not-a-date', $output);
     }
 
+    public function test_render_shows_quiet_suremail_analysis_card_without_global_notice_actions(): void
+    {
+        update_option('suremails_connections', [
+            'connections' => [
+                'default-id' => [
+                    'id' => 'default-id',
+                    'type' => 'EMAILIT',
+                    'connection_title' => 'Imported Emailit',
+                    'api_key' => rtrim(base64_encode('secret'), '='),
+                ],
+            ],
+            'default_connection' => ['id' => 'default-id', 'type' => 'EMAILIT'],
+        ], false);
+
+        ob_start();
+        (new ProviderAdmin(new ProviderRepository()))->render();
+        $output = (string) ob_get_clean();
+
+        self::assertStringContainsString('SureMail compatibility', $output);
+        self::assertStringContainsString('Only one mail plugin should own live delivery at a time.', $output);
+        self::assertStringContainsString('Analyze SureMail setup', $output);
+        self::assertStringNotContainsString('deactivate', strtolower($output));
+        self::assertStringNotContainsString(rtrim(base64_encode('secret'), '='), $output);
+    }
+
     public function test_render_dns_authentication_handles_missing_lookup_without_claiming_validity(): void
     {
         $GLOBALS['wpdb']->activeProviders = [
@@ -144,7 +168,7 @@ final class ProviderAdminTest extends TestCase
         );
 
         ob_start();
-        $admin->render();
+        $admin->renderAdvancedTools();
         $output = (string) ob_get_clean();
 
         self::assertStringContainsString('DNS TXT lookup is not available in this PHP environment.', $output);
@@ -181,7 +205,7 @@ final class ProviderAdminTest extends TestCase
         $admin->render();
         $output = (string) ob_get_clean();
 
-        self::assertStringContainsString('Credential recovery required. Re-enter affected credentials to restore delivery.', $output);
+        self::assertStringContainsString('Credential update needed. Re-enter the affected credentials to restore delivery.', $output);
         self::assertStringNotContainsString('placeholder-value', $output);
     }
 
@@ -198,7 +222,7 @@ final class ProviderAdminTest extends TestCase
         $admin = new ProviderAdmin(new ProviderRepository());
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('You do not have permission to manage OneSMTP providers.');
+        $this->expectExceptionMessage('You do not have permission to manage Aculect Mail providers.');
 
         $admin->handleRequest();
     }
@@ -246,7 +270,7 @@ final class ProviderAdminTest extends TestCase
         try {
             $admin->handleRequest();
         } catch (RuntimeException $e) {
-            self::assertSame('OneSMTP provider admin redirected.', $e->getMessage());
+            self::assertSame('Aculect Mail provider admin redirected.', $e->getMessage());
         }
 
         self::assertNotEmpty($GLOBALS['wpdb']->updates);
@@ -293,7 +317,7 @@ final class ProviderAdminTest extends TestCase
         try {
             $admin->handleRequest();
         } catch (RuntimeException $e) {
-            self::assertSame('OneSMTP provider admin redirected.', $e->getMessage());
+            self::assertSame('Aculect Mail provider admin redirected.', $e->getMessage());
         }
 
         self::assertSame(1, $GLOBALS['wpdb']->updates[0]['data']['priority']);
@@ -321,7 +345,7 @@ final class ProviderAdminTest extends TestCase
         try {
             (new ProviderAdmin(new ProviderRepository()))->handleRequest();
         } catch (RuntimeException $e) {
-            self::assertSame('OneSMTP provider admin redirected.', $e->getMessage());
+            self::assertSame('Aculect Mail provider admin redirected.', $e->getMessage());
         }
 
         $audit = end($GLOBALS['wpdb']->inserts);
@@ -376,7 +400,7 @@ final class ProviderAdminTest extends TestCase
         try {
             $admin->handleRequest();
         } catch (RuntimeException $e) {
-            self::assertSame('OneSMTP provider admin redirected.', $e->getMessage());
+            self::assertSame('Aculect Mail provider admin redirected.', $e->getMessage());
         }
 
         $updatedConfig = json_decode((string) $GLOBALS['wpdb']->updates[0]['data']['config_json'], true);
@@ -433,7 +457,7 @@ final class ProviderAdminTest extends TestCase
         try {
             $admin->handleRequest();
         } catch (RuntimeException $e) {
-            self::assertSame('OneSMTP provider admin redirected.', $e->getMessage());
+            self::assertSame('Aculect Mail provider admin redirected.', $e->getMessage());
         }
 
         $updatedConfig = json_decode((string) $GLOBALS['wpdb']->updates[0]['data']['config_json'], true);

@@ -1,6 +1,6 @@
 <?php
 /**
- * Generate the OneSMTP POT file from translatable PHP strings.
+ * Generate the Aculect Mail POT file from translatable PHP strings.
  *
  * This small generator keeps the release gate runnable without requiring WP-CLI
  * in every local or CI environment. It intentionally handles literal strings
@@ -220,12 +220,12 @@ function onesmtp_i18n_render_pot(array $strings): string
     $year = gmdate('Y');
     $date = gmdate('Y-m-d H:iO');
     $output = <<<POT
-# Copyright (C) {$year} OneSMTP
-# This file is distributed under the same license as the OneSMTP plugin.
+# Copyright (C) {$year} Aculect Mail
+# This file is distributed under the same license as the Aculect Mail plugin.
 msgid ""
 msgstr ""
-"Project-Id-Version: OneSMTP 0.1.0\\n"
-"Report-Msgid-Bugs-To: https://github.com/mehul0810/OneSMTP/issues\\n"
+"Project-Id-Version: Aculect Mail 0.1.0\\n"
+"Report-Msgid-Bugs-To: https://github.com/mehul0810/aculect-mail/issues\\n"
 "POT-Creation-Date: {$date}\\n"
 "MIME-Version: 1.0\\n"
 "Content-Type: text/plain; charset=UTF-8\\n"

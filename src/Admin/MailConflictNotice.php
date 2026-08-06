@@ -39,8 +39,8 @@ final class MailConflictNotice
         }
 
         echo '<div class="notice notice-warning is-dismissible onesmtp-mail-conflict-notice">';
-        echo '<p><strong>' . esc_html__('OneSMTP found other mail delivery logic on this site.', 'onesmtp') . '</strong></p>';
-        echo '<p>' . esc_html__('This can cause duplicate sends, unexpected transport changes, or confusing delivery results. OneSMTP will not disable or reorder third-party code automatically.', 'onesmtp') . '</p>';
+        echo '<p><strong>' . esc_html__('Aculect Mail found other mail delivery logic on this site.', 'onesmtp') . '</strong></p>';
+        echo '<p>' . esc_html__('This can cause duplicate sends, unexpected transport changes, or confusing delivery results. Aculect Mail will not disable or reorder third-party code automatically.', 'onesmtp') . '</p>';
 
         if ($conflicts['plugins'] !== []) {
             echo '<p>' . esc_html__('Detected active mail plugins:', 'onesmtp') . ' ';
@@ -66,7 +66,7 @@ final class MailConflictNotice
             'secondary',
             'submit',
             false,
-            ['aria-label' => __('Remind me later about the OneSMTP mail conflict notice', 'onesmtp')]
+            ['aria-label' => __('Remind me later about the Aculect Mail conflict notice', 'onesmtp')]
         );
         echo '</form>';
         echo '</div>';
@@ -75,7 +75,7 @@ final class MailConflictNotice
     public function dismiss(): void
     {
         if (! Capabilities::canManage()) {
-            wp_die(esc_html__('You do not have permission to dismiss OneSMTP notices.', 'onesmtp'));
+            wp_die(esc_html__('You do not have permission to dismiss Aculect Mail notices.', 'onesmtp'));
         }
 
         check_admin_referer('onesmtp_dismiss_mail_conflict_notice');
@@ -88,6 +88,9 @@ final class MailConflictNotice
             'remind_after_days' => 7,
         ]);
         wp_safe_redirect(admin_url('options-general.php?page=onesmtp'));
+        if (defined('ONESMTP_TESTING') && (bool) constant('ONESMTP_TESTING')) {
+            throw new \RuntimeException('Aculect Mail conflict notice dismissed.');
+        }
         exit;
     }
 

@@ -1,8 +1,10 @@
-# OneSMTP
+# Aculect Mail
 
 Enterprise-grade WordPress SMTP orchestration plugin focused on reliable email delivery.
 
-OneSMTP routes transactional emails across multiple providers with automatic failover, controlled retries, and operational logging so critical emails keep moving even during provider outages.
+Aculect Mail routes transactional emails across multiple providers with automatic failover, controlled retries, and operational logging so critical emails keep moving even during provider outages.
+
+> Aculect Mail was previously named OneSMTP. Existing installations retain the `onesmtp` plugin slug and internal identifiers so upgrades preserve settings and delivery history.
 
 ## MVP Capabilities
 
@@ -12,18 +14,18 @@ OneSMTP routes transactional emails across multiple providers with automatic fai
 - Action Scheduler-powered retry workflow with auto-switching behavior
 - Admin-visible retry scheduler health warning when Action Scheduler is unavailable
 - Manual resend with provider override
-- Provider support target: PHP mail, Gmail, SendGrid, Postmark, Brevo
+- Provider support: Amazon SES, Brevo, Elastic Email, Gmail, Mailchimp Transactional, MailerSend, Mailgun, Mailjet, PHP mail, Postmark, Resend, SendGrid, SMTP2GO, SparkPost, ZeptoMail, and generic SMTP
 
 ## Delivery + Retry Behavior (MVP)
 
 - First send starts with selected provider strategy (primary/rotation)
-- On 2 consecutive failures for the same message attempt, OneSMTP auto-switches provider
+- On a provider failure, Aculect Mail tries another healthy active provider when one is available
 - Retries continue with provider switching until max 6 attempts
 - Retries are scheduled via Action Scheduler for reliability and non-blocking processing
 
 ## Logging + Retention
 
-- OneSMTP records delivery attempts and provider outcomes in custom database tables
+- Aculect Mail records delivery attempts and provider outcomes in custom database tables
 - Default log retention is 30 days
 - Retention can be extended up to 120 days through a plugin filter
 

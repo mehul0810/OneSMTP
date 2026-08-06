@@ -30,6 +30,9 @@ final class FakeWpdb
     /** @var array<int,array<string,mixed>> */
     public array $recentMessageRows = [];
 
+    /** @var array<int,array<string,mixed>> */
+    public array $queueMessageRows = [];
+
     public int $filteredMessageCount = 0;
 
     /** @var array<string,array<string,mixed>> */
@@ -74,6 +77,9 @@ final class FakeWpdb
 
     /** @var array<string,array<int,array<string,mixed>>> */
     public array $dashboardProviderFailoverRowsBySince = [];
+
+    /** @var array<string,array<int,array<string,mixed>>> */
+    public array $dashboardProviderEventRowsBySince = [];
 
     /** @var array<int,array<string,mixed>> */
     public array $eventRows = [];
@@ -212,6 +218,16 @@ final class FakeWpdb
             $messageId = isset($args[0]) ? (int) $args[0] : 0;
             $history   = $this->attemptHistoryByMessage[$messageId] ?? [];
 
+            if ($history === []) {
+                foreach (array_reverse($this->inserts) as $insert) {
+                    if (! str_ends_with($insert['table'], 'onesmtp_attempts') || (int) ($insert['data']['message_id'] ?? 0) !== $messageId) {
+                        continue;
+                    }
+
+                    return $insert['data'];
+                }
+            }
+
             return $history[0] ?? null;
         }
 
@@ -277,6 +293,17 @@ final class FakeWpdb
 
         if (
             str_contains($query, $this->prefix . 'onesmtp_events')
+            && str_contains($query, 'context_json')
+            && str_contains($query, 'event_type = %s')
+            && ($args[0] ?? '') === 'provider_failover'
+        ) {
+            $since = isset($args[1]) ? (string) $args[1] : '';
+
+            return $this->dashboardProviderEventRowsBySince[$since] ?? [];
+        }
+
+        if (
+            str_contains($query, $this->prefix . 'onesmtp_events')
             && ($args[0] ?? '') === 'audit_alert_acknowledged'
             && str_contains($query, 'ORDER BY id DESC')
         ) {
@@ -300,8 +327,25 @@ final class FakeWpdb
             && str_contains($query, 'ORDER BY id DESC LIMIT 6')
         ) {
             $messageId = isset($args[0]) ? (int) $args[0] : 0;
+            if (isset($this->attemptHistoryByMessage[$messageId])) {
+                return $this->attemptHistoryByMessage[$messageId];
+            }
 
-            return $this->attemptHistoryByMessage[$messageId] ?? [];
+            $rows = [];
+            foreach (array_reverse($this->inserts) as $insert) {
+                if (str_ends_with($insert['table'], 'onesmtp_attempts') && (int) ($insert['data']['message_id'] ?? 0) === $messageId) {
+                    $rows[] = $insert['data'];
+                }
+            }
+
+            return array_slice($rows, 0, 6);
+        }
+
+        if (
+            str_contains($query, $this->prefix . 'onesmtp_messages')
+            && str_contains($query, 'queue_attempt_count')
+        ) {
+            return $this->queueMessageRows;
         }
 
         if (

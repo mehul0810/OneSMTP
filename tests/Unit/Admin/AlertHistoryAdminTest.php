@@ -89,7 +89,7 @@ final class AlertHistoryAdminTest extends TestCase
         $this->postAcknowledge(33);
 
         $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('You do not have permission to acknowledge OneSMTP alerts.');
+        $this->expectExceptionMessage('You do not have permission to acknowledge Aculect Mail alerts.');
 
         (new AlertHistoryAdmin())->handleRequest();
     }
@@ -100,7 +100,7 @@ final class AlertHistoryAdminTest extends TestCase
         $this->postAcknowledge(33);
 
         $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('The OneSMTP alert acknowledgement link has expired.');
+        $this->expectExceptionMessage('The Aculect Mail alert acknowledgement link has expired.');
 
         (new AlertHistoryAdmin())->handleRequest();
     }
@@ -124,7 +124,7 @@ final class AlertHistoryAdminTest extends TestCase
             (new AlertHistoryAdmin())->handleRequest();
             self::fail('Expected testing redirect exception.');
         } catch (\RuntimeException $exception) {
-            self::assertSame('OneSMTP alert history redirected.', $exception->getMessage());
+            self::assertSame('Aculect Mail alert history redirected.', $exception->getMessage());
         }
 
         self::assertCount(1, $GLOBALS['wpdb']->inserts);

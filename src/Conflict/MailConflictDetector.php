@@ -16,6 +16,7 @@ final class MailConflictDetector implements MailConflictDetectorInterface
         'smtp-mailer/main.php' => 'SMTP Mailer',
         'wp-mail-smtp/wp_mail_smtp.php' => 'WP Mail SMTP',
         'wp-smtp/wp-smtp.php' => 'WP SMTP',
+        'suremails/suremails.php' => 'SureMail',
     ];
 
     /**

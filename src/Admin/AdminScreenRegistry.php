@@ -11,7 +11,7 @@ final class AdminScreenRegistry
 
     public function register(AdminScreenDefinition $screen): void
     {
-        $this->screens[$screen->id()] = $screen;
+        $this->screens[ $screen->id() ] = $screen;
     }
 
     /** @return array<int,AdminScreenDefinition> */
@@ -22,8 +22,8 @@ final class AdminScreenRegistry
 
     public function resolve(string $id): ?AdminScreenDefinition
     {
-        if (isset($this->screens[$id])) {
-            return $this->screens[$id];
+        if (isset($this->screens[ $id ])) {
+            return $this->screens[ $id ];
         }
 
         foreach ($this->screens as $screen) {

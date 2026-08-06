@@ -57,4 +57,13 @@ final class MessageRepositoryTest extends TestCase
         self::assertSame('invoice.pdf', $payload[AttachmentLogSanitizer::PAYLOAD_KEY]['items'][0]['filename'] ?? null);
         self::assertStringNotContainsString('/private/tmp', (string) $GLOBALS['wpdb']->updates[0]['data']['payload_json']);
     }
+
+    public function test_mark_simulated_uses_a_distinct_terminal_status_without_a_provider(): void
+    {
+        (new MessageRepository())->markSimulated(55);
+
+        self::assertSame('simulated', $GLOBALS['wpdb']->updates[0]['data']['status']);
+        self::assertNull($GLOBALS['wpdb']->updates[0]['data']['selected_provider_id']);
+        self::assertNull($GLOBALS['wpdb']->updates[0]['data']['next_retry_at']);
+    }
 }

@@ -1,6 +1,6 @@
 {
   "name": "onesmtp/onesmtp",
-  "description": "OneSMTP WordPress plugin",
+  "description": "Aculect Mail WordPress plugin",
   "type": "project",
   "license": "GPL-2.0-or-later",
   "require": {

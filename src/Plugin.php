@@ -5,12 +5,10 @@ declare(strict_types=1);
 namespace OneSMTP;
 
 use OneSMTP\Admin\AdminPage;
-use OneSMTP\Admin\MailConflictNotice;
-use OneSMTP\Admin\SchedulerNotice;
 use OneSMTP\Cli\DiagnosticsCommand;
-use OneSMTP\Conflict\MailConflictDetector;
 use OneSMTP\Api\RestController;
 use OneSMTP\Core\Installer;
+use OneSMTP\Conflict\MailDeliveryOwnership;
 use OneSMTP\Diagnostics\DiagnosticReportGenerator;
 use OneSMTP\Delivery\DeliveryEngine;
 use OneSMTP\Dispatch\DefaultDispatchPolicy;
@@ -29,6 +27,7 @@ use OneSMTP\Repository\MessageRepository;
 use OneSMTP\Repository\ProviderRepository;
 use OneSMTP\Settings\BackgroundSendingSettingsRepository;
 use OneSMTP\Settings\SenderIdentityRepository;
+use OneSMTP\Settings\SimulationModeSettingsRepository;
 use OneSMTP\Summary\WeeklySummaryMailer;
 
 final class Plugin
@@ -38,6 +37,7 @@ final class Plugin
         Installer::maybeUpgrade();
 
         $dispatchPolicy = new DefaultDispatchPolicy();
+        $deliveryOwnership = new MailDeliveryOwnership();
 
         $messages  = new MessageRepository();
         $attempts  = new AttemptRepository();
@@ -48,13 +48,7 @@ final class Plugin
 
         $schedulerHealth = new ActionSchedulerHealth();
         $queueDiagnostics = new QueueDiagnostics($schedulerHealth, $messages);
-        $schedulerNotice = new SchedulerNotice($schedulerHealth, $providers, $queueDiagnostics);
-        $schedulerNotice->registerHooks();
-
-        $mailConflictNotice = new MailConflictNotice(new MailConflictDetector());
-        $mailConflictNotice->registerHooks();
-
-        $retryScheduler = new RetryScheduler($dispatchPolicy, $messages, $attempts, $providers, $events);
+        $retryScheduler = new RetryScheduler($dispatchPolicy, $messages, $attempts, $providers, $events, $deliveryOwnership);
         $retryScheduler->registerHooks();
 
         $weeklySummary = new WeeklySummaryMailer(null, new MetricsRepository());
@@ -64,9 +58,11 @@ final class Plugin
         $rateLimiter = new RateLimiter($attempts);
         $backgroundSending = new BackgroundSendingSettingsRepository();
         $senderIdentity = new SenderIdentityApplier();
-        $senderIdentity->registerHooks();
+        if ($deliveryOwnership->canAculectDeliver()) {
+            $senderIdentity->registerHooks();
+        }
 
-        $sendPipeline = new SendPipeline($messages, $attempts, $providers, $events, $retryScheduler, $deliveryEngine, $rateLimiter, $backgroundSending);
+        $sendPipeline = new SendPipeline($messages, $attempts, $providers, $events, $retryScheduler, $deliveryEngine, $rateLimiter, $backgroundSending, null, new SimulationModeSettingsRepository(), $deliveryOwnership);
         $sendPipeline->registerHooks();
 
         $adminPage = new AdminPage(
@@ -77,11 +73,18 @@ final class Plugin
                 $attempts,
                 $providers,
                 null,
-                static fn (int $messageId, ?int $providerId): bool => $sendPipeline->resendMessage($messageId, $providerId)
+                static fn (int $messageId, ?int $providerId): bool => $sendPipeline->resendMessage($messageId, $providerId),
+                null,
+                null,
+                static fn (int $messageId): bool => $retryScheduler->scheduleImmediateRetry($messageId)
             ),
             null,
             new Admin\QueueDiagnosticsAdmin($queueDiagnostics, new DiagnosticReportGenerator($providers, $queueDiagnostics, $attempts)),
-            new Admin\DashboardAdmin(new MetricsRepository())
+            new Admin\DashboardAdmin(new MetricsRepository()),
+            null,
+            null,
+            null,
+            $deliveryOwnership
         );
         $adminPage->registerHooks();
 

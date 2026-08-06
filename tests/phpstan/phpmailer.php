@@ -51,6 +51,11 @@ class PHPMailer
         return true;
     }
 
+    public function addAttachment(string $path, string $name = ''): bool
+    {
+        return true;
+    }
+
     public function isHTML(bool $isHtml = true): void
     {
     }

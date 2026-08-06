@@ -8,6 +8,14 @@ use OneSMTP\Core\TableNames;
 
 final class AttemptRepository
 {
+    /*
+     * Repository queries use only plugin-owned identifiers from TableNames.
+     * Every runtime value is passed through wpdb::prepare() or a typed wpdb
+     * CRUD method before execution. Plugin Check cannot follow that invariant
+     * across the TableNames helper and intermediate prepared SQL variables.
+     */
+    // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
+
     public function add(array $data): int
     {
         global $wpdb;

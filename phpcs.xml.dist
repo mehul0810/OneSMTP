@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
-<ruleset name="OneSMTP Coding Standards">
-  <description>WPCS rules for the OneSMTP plugin.</description>
+<ruleset name="Aculect Mail Coding Standards">
+  <description>WPCS rules for the Aculect Mail plugin.</description>
 
   <arg name="basepath" value="."/>
   <arg name="colors"/>

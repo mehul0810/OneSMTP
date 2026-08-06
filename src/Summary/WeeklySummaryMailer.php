@@ -72,7 +72,7 @@ final class WeeklySummaryMailer
 
         return wp_mail(
             $settings->getEmailRecipients(),
-            __('OneSMTP weekly delivery summary', 'onesmtp'),
+            __('Aculect Mail weekly delivery summary', 'onesmtp'),
             $this->renderPlainText($summary),
             ['Content-Type: text/plain; charset=UTF-8']
         );
@@ -109,7 +109,7 @@ final class WeeklySummaryMailer
         $providers = is_array($summary['providers'] ?? null) ? $summary['providers'] : [];
 
         $lines = [
-            'OneSMTP weekly delivery summary',
+            'Aculect Mail weekly delivery summary',
             'Site: ' . (string) ($summary['site_name'] ?? ''),
             'Window start (UTC): ' . (string) ($summary['since'] ?? ''),
             'Generated (UTC): ' . (string) ($summary['generated_at'] ?? ''),

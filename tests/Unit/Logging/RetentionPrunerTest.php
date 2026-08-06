@@ -28,6 +28,6 @@ final class RetentionPrunerTest extends TestCase
         self::assertStringContainsString('wp_onesmtp_attempts', $GLOBALS['wpdb']->queries[0]);
         self::assertStringContainsString('wp_onesmtp_events', $GLOBALS['wpdb']->queries[1]);
         self::assertStringContainsString('wp_onesmtp_messages', $GLOBALS['wpdb']->queries[2]);
-        self::assertStringContainsString("status IN ('sent','failed')", $GLOBALS['wpdb']->queries[2]);
+        self::assertStringContainsString("status IN ('sent','failed','simulated')", $GLOBALS['wpdb']->queries[2]);
     }
 }

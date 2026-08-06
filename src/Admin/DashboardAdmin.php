@@ -33,8 +33,8 @@ final class DashboardAdmin
     {
         if (! Capabilities::canViewLogs()) {
             wp_die(
-                esc_html__('You do not have permission to view OneSMTP dashboard metrics.', 'onesmtp'),
-                esc_html__('OneSMTP access denied', 'onesmtp'),
+                esc_html__('You do not have permission to view Aculect Mail dashboard metrics.', 'onesmtp'),
+                esc_html__('Aculect Mail access denied', 'onesmtp'),
                 ['response' => 403]
             );
         }
@@ -46,7 +46,6 @@ final class DashboardAdmin
         $providers = $this->metrics->getProviderBreakdown((string) $providerWindow['since']);
         $empty = $this->isEmpty($windows, $pending, $providers);
 
-        echo '<div data-onesmtp-component="analytics-summary"></div>';
         echo '<div class="onesmtp-analytics-toolbar"><p>' . esc_html__('Understand email delivery performance at a glance.', 'onesmtp') . '</p><form method="get"><input type="hidden" name="page" value="onesmtp"><input type="hidden" name="tab" value="onesmtp-analytics"><label class="screen-reader-text" for="onesmtp-analytics-window">' . esc_html__('Analytics date range', 'onesmtp') . '</label><select id="onesmtp-analytics-window" name="onesmtp_analytics_window" onchange="this.form.submit()">';
         foreach ([self::WINDOW_LAST_7_DAYS => __('Last 7 days', 'onesmtp'), self::WINDOW_LAST_30_DAYS => __('Last 30 days', 'onesmtp')] as $value => $label) {
             echo '<option value="' . esc_attr($value) . '"' . ($selectedWindow === $value ? ' selected="selected"' : '') . '>' . esc_html($label) . '</option>';
@@ -67,12 +66,8 @@ final class DashboardAdmin
 
     private function renderEmptyAnalytics(): void
     {
-        echo '<section class="onesmtp-analytics-empty">' . Heroicons::render('squares') . '<h3>' . esc_html__('Analytics will appear after delivery begins', 'onesmtp') . '</h3><p>' . esc_html__('Connect a provider and send email to start tracking delivery outcomes.', 'onesmtp') . '</p><span class="screen-reader-text">' . esc_html__('Delivery activity. Pending messages. No messages are currently queued, scheduled for retry, or retrying. No delivery activity has been recorded yet.', 'onesmtp') . '</span></section>';
-        echo '<div class="onesmtp-analytics-kpis">';
-        foreach ([['check', __('Delivered', 'onesmtp')], ['x', __('Failed', 'onesmtp')], ['clock', __('Pending', 'onesmtp')]] as [$icon, $label]) {
-            echo '<section class="onesmtp-analytics-kpi"><span class="onesmtp-analytics-kpi-icon">' . Heroicons::render('envelope') . '</span><strong>' . esc_html($label) . '</strong><b>—</b><p>' . esc_html__('No data yet', 'onesmtp') . '</p></section>';
-        }
-        echo '</div>';
+        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Heroicons renders an SVG selected from a private allowlist and escapes its only dynamic attribute.
+        echo '<section class="onesmtp-analytics-empty">' . Heroicons::render('squares') . '<h3>' . esc_html__('No delivery data yet', 'onesmtp') . '</h3><p>' . esc_html__('Connect a provider and send your first message. Delivery trends and provider comparisons will appear here automatically.', 'onesmtp') . '</p><a class="button button-primary" href="' . esc_url(admin_url('options-general.php?page=onesmtp&tab=onesmtp-providers#onesmtp-providers')) . '">' . esc_html__('Connect a provider', 'onesmtp') . '</a></section>';
     }
 
     /** @param array<string,int|string> $window @param array<string,int> $pending */
@@ -177,7 +172,7 @@ final class DashboardAdmin
     }
 
     /**
-     * @param array<int,array{provider_id:int,provider_name:string,adapter_type:string,sent_count:int,failed_count:int,retry_count:int,failover_count:int,total_activity:int}> $providers
+     * @param array<int,array{provider_id:int,provider_name:string,adapter_type:string,sent_count:int,failed_count:int,retry_count:int,failover_count:int,switch_out_count:int,total_activity:int}> $providers
      */
     private function renderProviderTable(array $providers, string $windowLabel): void
     {
@@ -204,7 +199,8 @@ final class DashboardAdmin
         echo '<th scope="col">' . esc_html__('Sent', 'onesmtp') . '</th>';
         echo '<th scope="col">' . esc_html__('Failed', 'onesmtp') . '</th>';
         echo '<th scope="col">' . esc_html__('Retries', 'onesmtp') . '</th>';
-        echo '<th scope="col">' . esc_html__('Failovers', 'onesmtp') . '</th>';
+        echo '<th scope="col">' . esc_html__('Switched to', 'onesmtp') . '</th>';
+        echo '<th scope="col">' . esc_html__('Switched away', 'onesmtp') . '</th>';
         echo '</tr></thead><tbody>';
 
         foreach ($providers as $provider) {
@@ -216,17 +212,18 @@ final class DashboardAdmin
             echo '<td>' . esc_html($this->formatCount((int) $provider['failed_count'])) . '</td>';
             echo '<td>' . esc_html($this->formatCount((int) $provider['retry_count'])) . '</td>';
             echo '<td>' . esc_html($this->formatCount((int) $provider['failover_count'])) . '</td>';
+            echo '<td>' . esc_html($this->formatCount((int) ($provider['switch_out_count'] ?? 0))) . '</td>';
             echo '</tr>';
         }
 
         echo '</tbody></table></details>';
     }
 
-    /** @param array<int,array{provider_id:int,provider_name:string,adapter_type:string,sent_count:int,failed_count:int,retry_count:int,failover_count:int,total_activity:int}> $providers */
+    /** @param array<int,array{provider_id:int,provider_name:string,adapter_type:string,sent_count:int,failed_count:int,retry_count:int,failover_count:int,switch_out_count:int,total_activity:int}> $providers */
     private function renderProviderDataViews(array $providers): void
     {
         $data = array_map(static function (array $provider): array {
-            return ['id' => (int) $provider['provider_id'], 'provider' => (string) $provider['provider_name'], 'type' => (string) $provider['adapter_type'], 'sent' => (int) $provider['sent_count'], 'failed' => (int) $provider['failed_count'], 'retries' => (int) $provider['retry_count'], 'failovers' => (int) $provider['failover_count']];
+            return ['id' => (int) $provider['provider_id'], 'provider' => (string) $provider['provider_name'], 'type' => (string) $provider['adapter_type'], 'sent' => (int) $provider['sent_count'], 'failed' => (int) $provider['failed_count'], 'retries' => (int) $provider['retry_count'], 'failovers' => (int) $provider['failover_count'], 'switchedAway' => (int) $provider['switch_out_count']];
         }, $providers);
         $payload = ['data' => $data, 'fields' => [
             ['id' => 'provider', 'type' => 'text', 'label' => __('Provider', 'onesmtp'), 'enableHiding' => false],
@@ -235,6 +232,7 @@ final class DashboardAdmin
             ['id' => 'failed', 'type' => 'integer', 'label' => __('Failed', 'onesmtp')],
             ['id' => 'retries', 'type' => 'integer', 'label' => __('Retries', 'onesmtp')],
             ['id' => 'failovers', 'type' => 'integer', 'label' => __('Failovers', 'onesmtp')],
+            ['id' => 'switchedAway', 'type' => 'integer', 'label' => __('Switched away', 'onesmtp')],
         ]];
         echo '<div class="onesmtp-dataviews-mount" data-onesmtp-dataviews="analytics-providers"></div>';
         echo '<script type="application/json" data-onesmtp-dataviews-config="analytics-providers">' . wp_json_encode($payload, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) . '</script>';

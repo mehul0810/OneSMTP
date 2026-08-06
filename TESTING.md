@@ -1,4 +1,4 @@
-# OneSMTP Testing Contract
+# Aculect Mail Testing Contract
 
 This is the contributor-facing testing contract. The detailed behavior matrix remains in [`docs/developer/testing.md`](docs/developer/testing.md); this file defines the release gate and the evidence expected for every change.
 

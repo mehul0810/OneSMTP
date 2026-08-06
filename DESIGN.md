@@ -1,10 +1,10 @@
-# OneSMTP Design Contract
+# Aculect Mail Design Contract
 
-This document defines the product design contract for OneSMTP. It is a contributor guide for the Aculect ecosystem admin UI, setup, provider settings, routing, delivery, analytics, docs, and launch assets. It is not a full brand system or a promise of unshipped features.
+This document defines the product design contract for Aculect Mail. It is a contributor guide for the Aculect ecosystem admin UI, setup, provider settings, routing, delivery, analytics, docs, and launch assets. It is not a full brand system or a promise of unshipped features.
 
 ## Aculect Ecosystem Brand
 
-OneSMTP is an Aculect ecosystem plugin. Its admin UI should feel like a focused member of the same product family while retaining native WordPress admin behavior.
+Aculect Mail is an Aculect ecosystem plugin. Its admin UI should feel like a focused member of the same product family while retaining native WordPress admin behavior.
 
 Use these shared tokens as the starting contract:
 
@@ -30,10 +30,10 @@ surface for backward compatibility.
 
 ## WordPress Design System
 
-The [WordPress Design System](https://www.figma.com/community/file/1436359662053949167/wordpress-design-system) is the visual and interaction reference for OneSMTP. Use WordPress core admin patterns and the available `@wordpress/*` packages before inventing custom equivalents.
+The [WordPress Design System](https://www.figma.com/community/file/1436359662053949167/wordpress-design-system) is the visual and interaction reference for Aculect Mail. Use WordPress core admin patterns and the available `@wordpress/*` packages before inventing custom equivalents.
 
 - Prefer `@wordpress/components` for interactive controls, `@wordpress/element` for React rendering, `@wordpress/i18n` for translated strings, `@wordpress/icons` for icons, and `@wordpress/dataviews` for sortable, filterable admin listings when a JavaScript surface is introduced.
-- Use Heroicons outline paths for OneSMTP-specific product icons, rendered accessibly through the shared PHP helper.
+- Use Heroicons outline paths for Aculect Mail-specific product icons, rendered accessibly through the shared PHP helper.
 - Use `@wordpress/data` only when shared client state is needed; keep simple forms and server-rendered screens simple.
 - Do not add a second component library or icon package without an architecture decision recorded in `docs/developer/design-system.md`.
 - Keep the current PHP-rendered admin compatible with WordPress core. Adopt components incrementally at clear interaction boundaries instead of forcing a wholesale rewrite.
@@ -42,7 +42,7 @@ The [WordPress Design System](https://www.figma.com/community/file/1436359662053
 
 ## Product Posture
 
-OneSMTP should feel like a reliable WordPress operations tool: calm, direct, and built for repeat use. Prioritize clear status, fast scanning, predictable controls, and recovery paths over decorative layouts.
+Aculect Mail should feel like a reliable WordPress operations tool: calm, direct, and built for repeat use. Prioritize clear status, fast scanning, predictable controls, and recovery paths over decorative layouts.
 
 - Keep admin screens dense but readable, with plain hierarchy and restrained visual styling.
 - Use WordPress admin patterns first; introduce custom UI only when core controls cannot express the workflow clearly.
@@ -80,7 +80,7 @@ Provider forms should make credential requirements, fallback behavior, and valid
 
 ## Status, Errors, And Recovery
 
-Every failure state should answer what happened, what OneSMTP will do next, and what the admin can do now.
+Every failure state should answer what happened, what Aculect Mail will do next, and what the admin can do now.
 
 - Use success, warning, error, and info states consistently with WordPress admin conventions.
 - Include provider, attempt count, next retry time, and final failure state where available.
@@ -108,7 +108,7 @@ Logs are an operational surface, not a reporting dashboard.
 
 ## Copy And Tone
 
-OneSMTP copy should be clear, operational, and specific.
+Aculect Mail copy should be clear, operational, and specific.
 
 - Prefer short labels: `Test connection`, `Retry now`, `Switch provider`, `View logs`.
 - Use sentence-case UI text unless WordPress conventions require otherwise.

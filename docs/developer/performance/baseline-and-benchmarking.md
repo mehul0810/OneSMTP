@@ -1,6 +1,6 @@
 # Performance Baseline and Benchmarking
 
-This document defines the first performance baseline for OneSMTP MVP and the lightweight harness used to track regressions.
+This document defines the first performance baseline for Aculect Mail MVP and the lightweight harness used to track regressions.
 
 ## Scope
 

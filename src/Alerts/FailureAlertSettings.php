@@ -133,7 +133,7 @@ final class FailureAlertSettings
             throw new InvalidArgumentException('Failure alert webhook URL is too long.');
         }
 
-        $parts = parse_url($url);
+        $parts = wp_parse_url($url);
         if (! is_array($parts) || strtolower((string) ($parts['scheme'] ?? '')) !== 'https' || empty($parts['host'])) {
             throw new InvalidArgumentException('Failure alert webhook URL must be a valid HTTPS URL.');
         }

@@ -19,7 +19,7 @@ final class DeliveryAdmin
 
     public function render(): void
     {
-        if (! Capabilities::canManage()) {
+        if ( ! Capabilities::canManage()) {
             return;
         }
 
@@ -29,16 +29,17 @@ final class DeliveryAdmin
 
         echo '<div class="onesmtp-delivery-workspace">';
         echo '<section class="onesmtp-delivery-card">';
+        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Heroicons renders fixed local SVG paths and escapes the only dynamic attribute.
         echo '<div class="onesmtp-delivery-card-heading"><span class="onesmtp-delivery-icon" aria-hidden="true">' . Heroicons::render('paper-airplane') . '</span><div><h3>' . esc_html__('Send a test email', 'onesmtp') . '</h3><p>' . esc_html__('Verify your provider and sender identity before relying on production email.', 'onesmtp') . '</p></div></div>';
         echo '<form method="post" class="onesmtp-delivery-form">';
         wp_nonce_field(self::ACTION_NAME, self::NONCE_NAME);
         echo '<input type="hidden" name="' . esc_attr(self::ACTION_NAME) . '" value="send_test">';
         echo '<label for="onesmtp-delivery-test-to">' . esc_html__('Send test to', 'onesmtp') . '</label>';
-        echo '<input id="onesmtp-delivery-test-to" class="regular-text" type="email" name="test_to" value="' . esc_attr((string) get_option('admin_email')) . '" placeholder="email@example.com"' . ($enabled ? '' : ' disabled') . ' required>';
+        echo '<input id="onesmtp-delivery-test-to" class="regular-text" type="email" name="test_to" value="' . esc_attr( (string) get_option('admin_email')) . '" placeholder="email@example.com"' . ($enabled ? '' : ' disabled') . ' required>';
         if ($enabled) {
             echo '<label for="onesmtp-delivery-provider" class="screen-reader-text">' . esc_html__('Provider', 'onesmtp') . '</label><select id="onesmtp-delivery-provider" name="provider_id">';
             foreach ($active as $provider) {
-                echo '<option value="' . esc_attr((string) ((int) ($provider['id'] ?? 0))) . '">' . esc_html((string) ($provider['name'] ?? '')) . '</option>';
+                echo '<option value="' . esc_attr( (string) ( (int) ($provider['id'] ?? 0))) . '">' . esc_html( (string) ($provider['name'] ?? '')) . '</option>';
             }
             echo '</select>';
         }

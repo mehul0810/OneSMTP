@@ -56,7 +56,7 @@ final class LogAdminTest extends TestCase
         ];
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('You do not have permission to view OneSMTP logs.');
+        $this->expectExceptionMessage('You do not have permission to view Aculect Mail logs.');
 
         $this->renderLogs();
 
@@ -68,7 +68,86 @@ final class LogAdminTest extends TestCase
         $html = $this->renderLogs();
 
         self::assertStringContainsString('Recent messages', $html);
-        self::assertStringContainsString('No email log entries have been recorded yet.', $html);
+        self::assertStringContainsString('No email activity yet', $html);
+        self::assertStringContainsString('data-onesmtp-dataviews="delivery-messages"', $html);
+    }
+
+    public function test_render_queue_management_shows_pending_status_and_switchovers(): void
+    {
+        $GLOBALS['wpdb']->queueDiagnosticRow = [
+            'queued_count' => 1,
+            'retry_scheduled_count' => 1,
+            'retrying_count' => 0,
+            'failed_count' => 0,
+            'overdue_retry_count' => 0,
+            'next_retry_at' => '2026-06-23 10:30:00',
+        ];
+        $GLOBALS['wpdb']->queueMessageRows = [
+            [
+                'id' => 14,
+                'message_uuid' => 'queue-14',
+                'payload_json' => wp_json_encode(['to' => ['recipient@example.test']]),
+                'status' => 'retry_scheduled',
+                'selected_provider_id' => 3,
+                'current_attempt' => 2,
+                'max_attempts' => 6,
+                'queue_attempt_count' => 2,
+                'switch_count' => 1,
+                'next_retry_at' => '2026-06-23 10:30:00',
+            ],
+        ];
+
+        $html = $this->renderLogs();
+
+        self::assertStringContainsString('Email queue', $html);
+        self::assertStringContainsString('queue-14', $html);
+        self::assertStringContainsString('retry scheduled', $html);
+        self::assertStringContainsString('>1</td>', $html);
+        self::assertStringContainsString('The queue is clear', $this->renderEmptyQueue());
+    }
+
+    public function test_queue_retry_now_action_uses_scheduler_callback(): void
+    {
+        $GLOBALS['onesmtp_test_current_user_caps'][Capabilities::RESEND_EMAILS] = true;
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = [
+            'onesmtp_log_action' => 'queue_retry_now',
+            'onesmtp_log_nonce' => 'test-nonce',
+            'onesmtp_message_id' => '14',
+        ];
+        $GLOBALS['wpdb']->messageRowsById[14] = [
+            'id' => 14,
+            'message_uuid' => 'queue-14',
+            'payload_json' => wp_json_encode(['to' => ['recipient@example.test']]),
+            'status' => 'retry_scheduled',
+            'current_attempt' => 2,
+            'max_attempts' => 6,
+        ];
+        $called = [];
+        $admin = new LogAdmin(
+            new MessageRepository(),
+            new AttemptRepository(),
+            new ProviderRepository(),
+            null,
+            null,
+            null,
+            null,
+            static function (int $messageId) use (&$called): bool {
+                $called[] = $messageId;
+
+                return true;
+            }
+        );
+
+        try {
+            $admin->handleRequest();
+            self::fail('Expected queue redirect.');
+        } catch (RuntimeException $exception) {
+            self::assertSame('Aculect Mail queue admin redirected.', $exception->getMessage());
+        }
+
+        self::assertSame([14], $called);
+        self::assertStringContainsString('onesmtp_queue_status=queued', (string) $GLOBALS['onesmtp_test_redirect']['location']);
     }
 
     public function test_render_list_uses_safe_recipient_metadata_without_payload_content(): void
@@ -167,7 +246,7 @@ final class LogAdminTest extends TestCase
         $html = $this->renderLogs();
 
         self::assertStringContainsString('lineage-42', $html);
-        self::assertStringContainsString('No email log entries matched the current filters.', $this->renderFilteredEmptyLogs());
+        self::assertStringContainsString('No messages match these filters', $this->renderFilteredEmptyLogs());
         self::assertIsArray($GLOBALS['wpdb']->lastPrepared);
         self::assertStringContainsString('m.status = %s', $GLOBALS['wpdb']->lastPrepared['query']);
         self::assertStringContainsString('m.selected_provider_id = %d', $GLOBALS['wpdb']->lastPrepared['query']);
@@ -519,7 +598,7 @@ final class LogAdminTest extends TestCase
         ];
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('You do not have permission to resend OneSMTP emails.');
+        $this->expectExceptionMessage('You do not have permission to resend Aculect Mail emails.');
 
         (new LogAdmin(new MessageRepository(), new AttemptRepository(), new ProviderRepository()))->handleRequest();
     }
@@ -534,7 +613,7 @@ final class LogAdminTest extends TestCase
         ];
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('You do not have permission to bulk resend OneSMTP emails.');
+        $this->expectExceptionMessage('You do not have permission to bulk resend Aculect Mail emails.');
 
         (new LogAdmin(new MessageRepository(), new AttemptRepository(), new ProviderRepository()))->handleRequest();
     }
@@ -586,7 +665,7 @@ final class LogAdminTest extends TestCase
             (new LogAdmin(new MessageRepository(), new AttemptRepository(), new ProviderRepository()))->handleRequest();
             self::fail('Expected capability denial.');
         } catch (RuntimeException $exception) {
-            self::assertStringContainsString('You do not have permission to export OneSMTP logs.', $exception->getMessage());
+            self::assertStringContainsString('You do not have permission to export Aculect Mail logs.', $exception->getMessage());
         }
 
         $GLOBALS['onesmtp_test_current_user_caps'][Capabilities::VIEW_LOGS] = true;
@@ -596,7 +675,7 @@ final class LogAdminTest extends TestCase
             (new LogAdmin(new MessageRepository(), new AttemptRepository(), new ProviderRepository()))->handleRequest();
             self::fail('Expected nonce denial.');
         } catch (RuntimeException $exception) {
-            self::assertStringContainsString('The OneSMTP log export link has expired.', $exception->getMessage());
+            self::assertStringContainsString('The Aculect Mail log export link has expired.', $exception->getMessage());
         }
     }
 
@@ -658,7 +737,7 @@ final class LogAdminTest extends TestCase
             (new LogAdmin(new MessageRepository(), new AttemptRepository(), new ProviderRepository()))->handleRequest();
             self::fail('Expected CSV export exception.');
         } catch (RuntimeException $exception) {
-            self::assertSame('OneSMTP log CSV exported.', $exception->getMessage());
+            self::assertSame('Aculect Mail log CSV exported.', $exception->getMessage());
         }
         $csv = (string) ob_get_clean();
 
@@ -712,7 +791,7 @@ final class LogAdminTest extends TestCase
             $admin->handleRequest();
             self::fail('Expected redirect exception.');
         } catch (RuntimeException $exception) {
-            self::assertSame('OneSMTP log admin redirected.', $exception->getMessage());
+            self::assertSame('Aculect Mail log admin redirected.', $exception->getMessage());
         }
 
         self::assertSame([99, 7], $called);
@@ -771,7 +850,7 @@ final class LogAdminTest extends TestCase
             $admin->handleRequest();
             self::fail('Expected redirect exception.');
         } catch (RuntimeException $exception) {
-            self::assertSame('OneSMTP log admin redirected.', $exception->getMessage());
+            self::assertSame('Aculect Mail log admin redirected.', $exception->getMessage());
         }
 
         self::assertSame([[41, null], [43, null]], $called);
@@ -816,7 +895,7 @@ final class LogAdminTest extends TestCase
             $admin->handleRequest();
             self::fail('Expected redirect exception.');
         } catch (RuntimeException $exception) {
-            self::assertSame('OneSMTP log admin redirected.', $exception->getMessage());
+            self::assertSame('Aculect Mail log admin redirected.', $exception->getMessage());
         }
 
         self::assertFalse($called);
@@ -833,7 +912,7 @@ final class LogAdminTest extends TestCase
         ];
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('You do not have permission to forward OneSMTP log summaries.');
+        $this->expectExceptionMessage('You do not have permission to forward Aculect Mail log summaries.');
 
         (new LogAdmin(new MessageRepository(), new AttemptRepository(), new ProviderRepository()))->handleRequest();
     }
@@ -914,7 +993,7 @@ final class LogAdminTest extends TestCase
             (new LogAdmin(new MessageRepository(), new AttemptRepository(), new ProviderRepository()))->handleRequest();
             self::fail('Expected redirect exception.');
         } catch (RuntimeException $exception) {
-            self::assertSame('OneSMTP log admin redirected.', $exception->getMessage());
+            self::assertSame('Aculect Mail log admin redirected.', $exception->getMessage());
         }
 
         self::assertCount(1, $GLOBALS['onesmtp_test_mail']);
@@ -922,7 +1001,7 @@ final class LogAdminTest extends TestCase
         $body = (string) $mail['message'];
 
         self::assertSame('owner@example.test', $mail['to']);
-        self::assertStringContainsString('OneSMTP safe log summary #55', (string) $mail['subject']);
+        self::assertStringContainsString('Aculect Mail safe log summary #55', (string) $mail['subject']);
         self::assertStringContainsString('Lineage UUID: lineage-55', $body);
         self::assertStringContainsString('Provider: Primary SMTP (smtp)', $body);
         self::assertStringContainsString('Source: Plugin: Contact Forms', $body);
@@ -949,7 +1028,7 @@ final class LogAdminTest extends TestCase
         $html = $this->renderLogs();
 
         self::assertStringContainsString('The requested log entry was not found.', $html);
-        self::assertStringContainsString('No email log entries have been recorded yet.', $html);
+        self::assertStringContainsString('No email activity yet', $html);
     }
 
     private function renderLogs(): string
@@ -976,6 +1055,18 @@ final class LogAdminTest extends TestCase
             return $this->renderLogs();
         } finally {
             $GLOBALS['wpdb']->recentMessageRows = $originalRows;
+        }
+    }
+
+    private function renderEmptyQueue(): string
+    {
+        $originalRows = $GLOBALS['wpdb']->queueMessageRows;
+        $GLOBALS['wpdb']->queueMessageRows = [];
+
+        try {
+            return $this->renderLogs();
+        } finally {
+            $GLOBALS['wpdb']->queueMessageRows = $originalRows;
         }
     }
 

@@ -8,7 +8,7 @@
   beStrictAboutTestsThatDoNotTestAnything="false"
 >
   <testsuites>
-    <testsuite name="OneSMTP Test Suite">
+    <testsuite name="Aculect Mail Test Suite">
       <directory>tests</directory>
     </testsuite>
   </testsuites>

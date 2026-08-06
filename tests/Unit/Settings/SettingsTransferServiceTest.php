@@ -254,7 +254,7 @@ final class SettingsTransferServiceTest extends TestCase
     public function test_import_rejects_payload_without_supported_settings(): void
     {
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Import JSON does not contain supported OneSMTP settings.');
+        $this->expectExceptionMessage('Import JSON does not contain supported Aculect Mail settings.');
 
         (new SettingsTransferService())->importJson((string) wp_json_encode(['settings' => ['unknown' => true]]));
     }

@@ -4,19 +4,29 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project follows Semantic Versioning.
 
-## [Unreleased]
+## [0.3.0] - Unreleased
 
 ### Added
 
+- Quiet in-product SureMail compatibility analysis and opt-in default-connection import, with inactive-by-default providers and AES-GCM credential re-encryption.
+- Zoho Mail, Emailit, and Netcore transactional API adapters.
+- Explicit staging simulation mode that captures outgoing mail as Simulated without contacting a provider.
+- Delivery-ownership enforcement that pauses Aculect scheduled work when SureMail owns the WordPress mail function.
+- Provider test logging, attachment-safe SMTP delivery, Emailit idempotency, and Zoho OAuth refresh-token support.
 - Internal admin alert event history with privacy-safe context previews and nonce-protected acknowledgement tracking.
 - Internal smart-routing evaluator core for deterministic in-memory rule evaluation before default dispatch fallback.
 
 ### Changed
 
+- Provider Connect and Manage flows now advance from concise connection settings directly to an inline provider test email step.
+- Removed the global provider, retry scheduler, and mail-conflict admin notices; their underlying diagnostics remain available in the relevant admin workflows.
+- Renamed the user-facing plugin product from OneSMTP to Aculect Mail while retaining the `onesmtp` slug, text domain, PHP namespace, stored settings, REST routes, and diagnostic headers for upgrade compatibility.
 - Added an enforceable changed-PHP-files PHPCS gate for pull requests while full-tree WPCS cleanup remains advisory.
 - Refined the admin shell into progressive hash-linked workspaces with active navigation, contextual status rails, and responsive form and table constraints.
 - Reorganized the admin IA into Overview, Providers, Routing, Delivery, Analytics, and Settings, and documented the Aculect ecosystem design tokens and release/testing/security contracts.
 - Adopted the WordPress Design System Figma reference and official `@wordpress/*` packages as the standard for future interactive admin surfaces.
+- Simplified configured provider rows: connection health and routing details remain in the row, while Manage opens the inline editor without exposing stored credentials.
+- Lazy-loaded admin modules keep the initial application bundle small while loading DataViews only on screens that need it.
 
 ## [0.2.0] - 2026-06-26
 
@@ -48,7 +58,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Optional site-wide per-minute, hourly, and daily delivery limits with Action Scheduler-backed deferral when capacity is exhausted.
 - Configurable terminal failure alerts for admin email and HTTPS webhook destinations with privacy-safe payloads and throttling.
 - Privacy-safe dashboard metrics for sent, failed, retried, pending, and failover activity with provider breakdowns.
-- Admin accessibility QA coverage and a 0.2.0 keyboard review checklist for OneSMTP admin screens, tables, forms, notices, and long-content states.
+- Admin accessibility QA coverage and a 0.2.0 keyboard review checklist for Aculect Mail admin screens, tables, forms, notices, and long-content states.
 - Compatibility test matrix covering synthetic core notification, form-like, commerce-like, membership-like, and background job email sources.
 - Privacy-safe mail source attribution for plugins, themes, WordPress core, and unknown origins in admin email logs.
 - Large synthetic log-table benchmark coverage for admin log list, filter, export, detail, and schema index regression signals.

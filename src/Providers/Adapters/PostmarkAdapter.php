@@ -93,8 +93,8 @@ final class PostmarkAdapter extends AbstractAdapter implements ProviderAdapterIn
     {
         $probe = [
             'to' => [sanitize_email((string) get_option('admin_email'))],
-            'subject' => '[OneSMTP] Postmark Connection Test',
-            'message' => 'Connection test from OneSMTP.',
+            'subject' => '[Aculect Mail] Postmark Connection Test',
+            'message' => 'Connection test from Aculect Mail.',
             'headers' => [],
         ];
 

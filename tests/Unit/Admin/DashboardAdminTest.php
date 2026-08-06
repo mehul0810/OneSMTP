@@ -48,10 +48,10 @@ final class DashboardAdminTest extends TestCase
 
         $html = $this->render();
 
-        self::assertStringContainsString('No delivery activity has been recorded yet.', $html);
-        self::assertStringContainsString('Delivery activity', $html);
-        self::assertStringContainsString('Pending messages', $html);
-        self::assertStringContainsString('No messages are currently queued, scheduled for retry, or retrying.', $html);
+        self::assertStringContainsString('No delivery data yet', $html);
+        self::assertStringContainsString('Delivery trends and provider comparisons will appear here automatically.', $html);
+        self::assertStringContainsString('Connect a provider', $html);
+        self::assertStringNotContainsString('onesmtp-analytics-kpis', $html);
         self::assertStringNotContainsString('secret body', $html);
         self::assertStringNotContainsString('secret-token', $html);
     }
@@ -118,7 +118,7 @@ final class DashboardAdminTest extends TestCase
         ];
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('You do not have permission to view OneSMTP dashboard metrics.');
+        $this->expectExceptionMessage('You do not have permission to view Aculect Mail dashboard metrics.');
 
         $this->render();
     }

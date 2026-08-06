@@ -1,4 +1,4 @@
-# OneSMTP Security Policy
+# Aculect Mail Security Policy
 
 ## Reporting a vulnerability
 

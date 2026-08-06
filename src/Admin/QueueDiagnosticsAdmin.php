@@ -40,8 +40,8 @@ final class QueueDiagnosticsAdmin
 
         if (! Capabilities::canManage()) {
             wp_die(
-                esc_html__('You do not have permission to download OneSMTP diagnostics.', 'onesmtp'),
-                esc_html__('OneSMTP access denied', 'onesmtp'),
+                esc_html__('You do not have permission to download Aculect Mail diagnostics.', 'onesmtp'),
+                esc_html__('Aculect Mail access denied', 'onesmtp'),
                 ['response' => 403]
             );
         }
@@ -49,8 +49,8 @@ final class QueueDiagnosticsAdmin
         $nonce = isset($_GET[self::NONCE_NAME]) ? sanitize_text_field(wp_unslash((string) $_GET[self::NONCE_NAME])) : '';
         if ($nonce === '' || ! wp_verify_nonce($nonce, self::DOWNLOAD_ACTION)) {
             wp_die(
-                esc_html__('The OneSMTP diagnostic report link has expired. Refresh the page and try again.', 'onesmtp'),
-                esc_html__('OneSMTP diagnostics denied', 'onesmtp'),
+                esc_html__('The Aculect Mail diagnostic report link has expired. Refresh the page and try again.', 'onesmtp'),
+                esc_html__('Aculect Mail diagnostics denied', 'onesmtp'),
                 ['response' => 403]
             );
         }
@@ -66,7 +66,7 @@ final class QueueDiagnosticsAdmin
         echo wp_json_encode($report, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
 
         if ($this->isTestingRuntime()) {
-            throw new \RuntimeException('OneSMTP diagnostic report downloaded.');
+            throw new \RuntimeException('Aculect Mail diagnostic report downloaded.');
         }
 
         exit;
@@ -80,11 +80,11 @@ final class QueueDiagnosticsAdmin
         echo '<p>' . esc_html__('Review aggregate queue health without exposing recipients, message bodies, provider credentials, tokens, or raw payload content.', 'onesmtp') . '</p>';
 
         if ($status === 'attention') {
-            echo '<div class="notice notice-warning inline"><p>' . esc_html__('OneSMTP detected queue conditions that need administrator review.', 'onesmtp') . '</p></div>';
+            echo '<div class="notice notice-warning inline"><p>' . esc_html__('Aculect Mail detected queue conditions that need administrator review.', 'onesmtp') . '</p></div>';
         } elseif ($status === 'empty') {
-            echo '<div class="notice notice-success inline"><p>' . esc_html__('OneSMTP has no queued or retrying messages.', 'onesmtp') . '</p></div>';
+            echo '<div class="notice notice-success inline"><p>' . esc_html__('Aculect Mail has no queued or retrying messages.', 'onesmtp') . '</p></div>';
         } else {
-            echo '<div class="notice notice-success inline"><p>' . esc_html__('OneSMTP retry processing is available and queue activity is within expected bounds.', 'onesmtp') . '</p></div>';
+            echo '<div class="notice notice-success inline"><p>' . esc_html__('Aculect Mail retry processing is available and queue activity is within expected bounds.', 'onesmtp') . '</p></div>';
         }
 
         echo '<table class="widefat striped">';
@@ -131,7 +131,7 @@ final class QueueDiagnosticsAdmin
                 self::ACTION_NAME => self::DOWNLOAD_ACTION,
                 self::NONCE_NAME => wp_create_nonce(self::DOWNLOAD_ACTION),
             ],
-            admin_url('options-general.php?page=onesmtp#onesmtp-diagnostics')
+            admin_url('options-general.php?page=onesmtp&tab=onesmtp-advanced#onesmtp-diagnostics')
         );
 
         echo '<p><a class="button button-secondary" href="' . esc_url($downloadUrl) . '">' . esc_html__('Download diagnostic report', 'onesmtp') . '</a></p>';
@@ -139,7 +139,7 @@ final class QueueDiagnosticsAdmin
         try {
             $report = $this->reportGenerator->generate();
         } catch (\Throwable $e) {
-            echo '<div class="notice notice-error inline"><p>' . esc_html__('OneSMTP could not generate the diagnostic report preview. Refresh the page and try again.', 'onesmtp') . '</p></div>';
+            echo '<div class="notice notice-error inline"><p>' . esc_html__('Aculect Mail could not generate the diagnostic report preview. Refresh the page and try again.', 'onesmtp') . '</p></div>';
 
             return;
         }

@@ -49,7 +49,7 @@ final class QueueDiagnosticsAdminTest extends TestCase
 
         $html = $this->render(true);
 
-        self::assertStringContainsString('OneSMTP has no queued or retrying messages.', $html);
+        self::assertStringContainsString('Aculect Mail has no queued or retrying messages.', $html);
         self::assertStringContainsString('Scheduler availability', $html);
         self::assertStringContainsString('Available', $html);
         self::assertStringContainsString('Overdue retries', $html);
@@ -92,7 +92,7 @@ final class QueueDiagnosticsAdminTest extends TestCase
         ];
 
         $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('You do not have permission to download OneSMTP diagnostics.');
+        $this->expectExceptionMessage('You do not have permission to download Aculect Mail diagnostics.');
 
         $this->admin(true)->handleRequest();
     }
@@ -109,7 +109,7 @@ final class QueueDiagnosticsAdminTest extends TestCase
         $GLOBALS['onesmtp_test_nonce_valid'] = false;
 
         $this->expectException(\RuntimeException::class);
-        $this->expectExceptionMessage('The OneSMTP diagnostic report link has expired.');
+        $this->expectExceptionMessage('The Aculect Mail diagnostic report link has expired.');
 
         $this->admin(true)->handleRequest();
     }
@@ -143,7 +143,7 @@ final class QueueDiagnosticsAdminTest extends TestCase
             $this->admin(true)->handleRequest();
             self::fail('Expected diagnostic report download exception.');
         } catch (\RuntimeException $exception) {
-            self::assertSame('OneSMTP diagnostic report downloaded.', $exception->getMessage());
+            self::assertSame('Aculect Mail diagnostic report downloaded.', $exception->getMessage());
         }
         $json = (string) ob_get_clean();
 

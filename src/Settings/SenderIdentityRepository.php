@@ -28,4 +28,12 @@ final class SenderIdentityRepository
 
         return $this->settings->save($settings, 'onesmtp_settings_nonce');
     }
+
+    public function saveAuthorized(SenderIdentity $identity): bool
+    {
+        $settings = $this->settings->getAll();
+        $settings[self::KEY] = $identity->toArray();
+
+        return $this->settings->saveAuthorized($settings);
+    }
 }

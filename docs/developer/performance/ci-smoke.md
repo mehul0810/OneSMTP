@@ -1,11 +1,11 @@
 # CI Performance Smoke
 
-OneSMTP runs a lightweight performance smoke workflow in GitHub Actions.
+Aculect Mail runs a lightweight performance smoke workflow in GitHub Actions.
 
 ## Workflow
 
 - File: `.github/workflows/performance-smoke.yml`
-- Trigger: pull requests, pushes to `main`, and manual dispatch
+- Trigger: manual dispatch only
 - Purpose: detect regressions in queue/retry and large log-table decision paths before merge
 
 ## What Runs
@@ -16,7 +16,7 @@ The job executes:
 ./scripts/benchmarks/run-baseline.sh smoke
 ```
 
-This command:
+This command remains the local default validation route:
 
 1. Seeds synthetic profile data metadata
 2. Runs queue/retry simulation stubs

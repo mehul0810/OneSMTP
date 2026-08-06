@@ -42,7 +42,7 @@ final class DiagnosticsCommand
     }
 
     /**
-     * Outputs a privacy-safe OneSMTP diagnostic report.
+     * Outputs a privacy-safe Aculect Mail diagnostic report.
      *
      * ## OPTIONS
      *
@@ -58,7 +58,7 @@ final class DiagnosticsCommand
      *     wp onesmtp diagnostics --user=admin --section=queue --format=table
      *
      * Intended for trusted operators running WP-CLI as a WordPress user with
-     * the OneSMTP manage capability or manage_options.
+     * the Aculect Mail manage capability or manage_options.
      *
      * @param array<int,string> $args Positional arguments.
      * @param array<string,mixed> $assocArgs Associated arguments.
@@ -249,7 +249,7 @@ final class DiagnosticsCommand
             return;
         }
 
-        \WP_CLI::error('OneSMTP diagnostics require a WP-CLI user with the manage_onesmtp capability or manage_options.');
+        \WP_CLI::error('Aculect Mail diagnostics require a WP-CLI user with the manage_onesmtp capability or manage_options.');
     }
 
     /**
@@ -260,7 +260,7 @@ final class DiagnosticsCommand
         $format = isset($assocArgs['format']) ? sanitize_key((string) $assocArgs['format']) : self::FORMAT_JSON;
 
         if (! in_array($format, [self::FORMAT_JSON, self::FORMAT_TABLE], true)) {
-            \WP_CLI::error('Invalid OneSMTP diagnostics format. Use json or table.');
+            \WP_CLI::error('Invalid Aculect Mail diagnostics format. Use json or table.');
         }
 
         return $format;
@@ -274,7 +274,7 @@ final class DiagnosticsCommand
         $section = isset($assocArgs['section']) ? sanitize_key((string) $assocArgs['section']) : 'report';
 
         if (! in_array($section, ['report', 'providers', 'queue', 'failures'], true)) {
-            \WP_CLI::error('Invalid OneSMTP diagnostics section. Use report, providers, queue, or failures.');
+            \WP_CLI::error('Invalid Aculect Mail diagnostics section. Use report, providers, queue, or failures.');
         }
 
         return $section;
@@ -287,7 +287,7 @@ final class DiagnosticsCommand
     {
         $encoded = wp_json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
         if (! is_string($encoded) || $encoded === '') {
-            \WP_CLI::error('Unable to encode OneSMTP diagnostics output.');
+            \WP_CLI::error('Unable to encode Aculect Mail diagnostics output.');
         }
 
         \WP_CLI::line($encoded);

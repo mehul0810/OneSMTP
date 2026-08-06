@@ -1,9 +1,9 @@
 # AGENTS.md
 
-Guidance for AI coding agents working in the OneSMTP plugin repository.
+Guidance for AI coding agents working in the Aculect Mail plugin repository.
 
 ## Project Snapshot
-- Plugin: `OneSMTP`
+- Plugin: `Aculect Mail`
 - Stack:
   - PHP 8.1+ WordPress plugin under `OneSMTP\\`
   - PHPUnit, PHPCS/WPCS, PHPStan

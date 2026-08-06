@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OneSMTP\Queue;
 
+use OneSMTP\Conflict\MailDeliveryOwnership;
 use OneSMTP\Dispatch\DispatchPolicyInterface;
 use OneSMTP\Repository\AttemptRepository;
 use OneSMTP\Repository\EventRepository;
@@ -23,19 +24,22 @@ final class RetryScheduler
     private AttemptRepository $attempts;
     private ProviderRepository $providers;
     private EventRepository $events;
+    private MailDeliveryOwnership $deliveryOwnership;
 
     public function __construct(
         DispatchPolicyInterface $dispatchPolicy,
         MessageRepository $messages,
         AttemptRepository $attempts,
         ProviderRepository $providers,
-        EventRepository $events
+        EventRepository $events,
+        ?MailDeliveryOwnership $deliveryOwnership = null
     ) {
         $this->dispatchPolicy = $dispatchPolicy;
         $this->messages       = $messages;
         $this->attempts       = $attempts;
         $this->providers      = $providers;
         $this->events         = $events;
+        $this->deliveryOwnership = $deliveryOwnership ?? new MailDeliveryOwnership();
     }
 
     public function registerHooks(): void
@@ -96,6 +100,61 @@ final class RetryScheduler
         $this->events->add('retry_schedule_failed', ['reason' => 'scheduler_backend_unavailable', 'attempt' => $attempt], $messageId);
 
         return null;
+    }
+
+    /**
+     * Move a queued or scheduled message to the front of the retry queue.
+     *
+     * Existing Action Scheduler jobs are removed when the backend supports it,
+     * then a single retry is scheduled with a short delay. The message remains
+     * in the normal pipeline, so provider selection, logging, failover, and
+     * idempotency rules are applied exactly once.
+     */
+    public function scheduleImmediateRetry(int $messageId): bool
+    {
+        $message = $this->messages->find($messageId);
+        if (! is_array($message)) {
+            return false;
+        }
+
+        $status = (string) ($message['status'] ?? '');
+        if (in_array($status, ['sent', 'failed', 'retrying'], true)) {
+            $this->events->add('queue_retry_now_rejected', ['reason' => 'invalid_status', 'status' => $status], $messageId);
+
+            return false;
+        }
+
+        if ($this->messages->getPayloadForMessage($messageId) === []) {
+            $this->events->add('queue_retry_now_rejected', ['reason' => 'payload_missing'], $messageId);
+
+            return false;
+        }
+
+        $attempt = $status === 'retry_scheduled'
+            ? max(1, (int) ($message['current_attempt'] ?? 1))
+            : max(1, (int) ($message['current_attempt'] ?? 0) + 1);
+        $maxAttempts = $this->getMaxAttempts($message);
+        if ($attempt > $maxAttempts) {
+            $this->events->add('queue_retry_now_rejected', ['reason' => 'max_attempts', 'attempt' => $attempt], $messageId);
+
+            return false;
+        }
+
+        $messageUuid = isset($message['message_uuid']) ? (string) $message['message_uuid'] : null;
+        $args = [$messageId, $attempt, (string) $messageUuid];
+        $this->clearScheduledRetry($messageId, $attempt, $args);
+        $runAt = $this->scheduleRetry($messageId, $attempt, $messageUuid, 1);
+        if (! is_int($runAt) || $runAt <= 0) {
+            return false;
+        }
+
+        $this->events->add(
+            'queue_retry_now_requested',
+            ['attempt' => $attempt, 'run_at' => gmdate('c', $runAt)],
+            $messageId
+        );
+
+        return true;
     }
 
     public function scheduleBackgroundSend(int $messageId, int $attempt = 1, ?string $messageUuid = null): ?int
@@ -210,6 +269,11 @@ final class RetryScheduler
             return;
         }
 
+        if (! $this->deliveryOwnership->canAculectDeliver()) {
+            $this->events->add('delivery_paused', ['reason' => 'external_delivery_owner', 'trigger' => 'retry'], $messageId);
+            return;
+        }
+
         $maxAttempts = $this->getMaxAttempts($message);
         if ($attempt > $maxAttempts) {
             $this->messages->markFailedTerminal($messageId, $maxAttempts);
@@ -239,6 +303,7 @@ final class RetryScheduler
                 'providers'                               => $providers,
                 'last_provider_id'                        => $lastId,
                 'consecutive_failures_for_last_provider'  => $consecutive,
+                'failover_on_first_failure'               => true,
             ]
         );
 
@@ -265,6 +330,11 @@ final class RetryScheduler
         $status = isset($message['status']) ? (string) $message['status'] : 'queued';
         if (in_array($status, ['sent', 'failed'], true)) {
             $this->events->add('background_send_skipped', ['reason' => 'terminal_status', 'attempt' => $attempt], $messageId);
+            return;
+        }
+
+        if (! $this->deliveryOwnership->canAculectDeliver()) {
+            $this->events->add('delivery_paused', ['reason' => 'external_delivery_owner', 'trigger' => 'background'], $messageId);
             return;
         }
 
@@ -351,5 +421,18 @@ final class RetryScheduler
     private function releaseBackgroundScheduleLock(int $messageId, int $attempt): void
     {
         delete_transient($this->backgroundScheduleKey($messageId, $attempt));
+    }
+
+    /**
+     * @param array<int,mixed> $args
+     */
+    private function clearScheduledRetry(int $messageId, int $attempt, array $args): void
+    {
+        delete_transient($this->scheduleKey($messageId, $attempt));
+
+        if (function_exists('as_unschedule_all_actions')) {
+            as_unschedule_all_actions(self::ACTION_HOOK, $args, self::GROUP);
+            as_unschedule_all_actions(self::BACKGROUND_ACTION_HOOK, $args, self::GROUP);
+        }
     }
 }

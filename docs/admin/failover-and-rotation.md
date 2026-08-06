@@ -2,13 +2,18 @@
 
 ## Primary + Secondary
 
-OneSMTP sends via primary first and falls back to secondary when repeated failures are detected.
+Aculect Mail sends through the selected provider first. If that provider fails, it records the failed attempt and immediately tries each other healthy active provider once. This keeps failover within the same message lineage and avoids duplicate message records.
 
 ## Smart Rotation
 
-When more than two providers are configured, OneSMTP rotates through available providers based on configured order/strategy.
+When more than two providers are configured, Aculect Mail rotates through the available healthy providers based on the configured order and routing strategy. Providers with an open circuit are skipped until they become eligible again.
 
-## Failure Switch Rule (MVP)
+## Failure Switch Rule
 
-- After 2 failures for the same email flow, OneSMTP switches provider.
-- It continues switching as needed until success or max retries are reached.
+Each provider request has its own attempt row, while all attempts remain part of one message lineage. A `provider_failover` event records every change from the failed source to the next provider.
+
+Analytics separates failovers **to** a provider from switches **away** from a provider. “Switched away” is the provider reliability signal: it counts how often that provider was the source of a failover during the selected window.
+
+If all healthy providers fail, the message is returned to the Action Scheduler retry queue with exponential backoff. A terminal failure is recorded when no safe alternate or retry path remains. Delivery is best-effort and depends on provider acceptance, recipient-domain policy, DNS, and downstream mailbox availability; no plugin can guarantee 100% inbox delivery.
+
+The normal retry policy can keep a provider for one additional attempt when immediate failover is not requested. Retry processing and background delivery opt into immediate failover so queued messages can move to another provider after the first failure.

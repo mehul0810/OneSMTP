@@ -205,7 +205,7 @@ $admin->render();
 $body = (string) ob_get_clean();
 
 echo '<!doctype html><html lang="en"><head><meta charset="utf-8">';
-echo '<title>OneSMTP Admin Smoke Fixture</title>';
+echo '<title>Aculect Mail Admin Smoke Fixture</title>';
 echo '<style>';
 echo 'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;margin:24px;background:#f0f0f1;color:#1d2327}';
 echo '.wrap{margin:0}';

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OneSMTP\Tests\Unit\Queue;
 
+use OneSMTP\Conflict\MailDeliveryOwnership;
 use OneSMTP\Dispatch\DispatchPolicyInterface;
 use OneSMTP\Queue\RetryScheduler;
 use OneSMTP\Repository\AttemptRepository;
@@ -167,6 +168,33 @@ final class RetrySchedulerTest extends TestCase
         self::assertSame(gmdate('Y-m-d H:i:s', $runAt), $update['data']['next_retry_at']);
     }
 
+    public function test_schedule_immediate_retry_requeues_a_scheduled_message_with_short_delay(): void
+    {
+        $GLOBALS['wpdb']->messageRowsById[46] = [
+            'id' => 46,
+            'message_uuid' => 'uuid-46',
+            'payload_json' => wp_json_encode(['to' => ['recipient@example.test'], 'message' => 'safe']),
+            'status' => 'retry_scheduled',
+            'current_attempt' => 2,
+            'max_attempts' => 6,
+        ];
+
+        $scheduler = $this->buildScheduler();
+        $before = time();
+
+        self::assertTrue($scheduler->scheduleImmediateRetry(46));
+
+        $scheduled = $this->findScheduled(RetryScheduler::ACTION_HOOK, [46, 2, 'uuid-46'], 'onesmtp');
+        self::assertNotNull($scheduled);
+        self::assertGreaterThanOrEqual($before + 1, $scheduled['timestamp']);
+        self::assertLessThanOrEqual(time() + 1, $scheduled['timestamp']);
+
+        $event = $this->findEventInsert('queue_retry_now_requested');
+        self::assertNotNull($event);
+        $context = json_decode((string) $event['data']['context_json'], true);
+        self::assertSame(2, $context['attempt'] ?? null);
+    }
+
     public function test_schedule_retry_does_not_enqueue_terminal_messages(): void
     {
         $GLOBALS['wpdb']->messageRowsById[88] = [
@@ -253,6 +281,38 @@ final class RetrySchedulerTest extends TestCase
         $contextJson = (string) $event['data']['context_json'];
         self::assertStringNotContainsString('recipient@example.test', $contextJson);
         self::assertStringNotContainsString('Private body', $contextJson);
+    }
+
+    public function test_scheduled_work_remains_queued_when_suremail_owns_delivery(): void
+    {
+        $GLOBALS['wpdb']->messageRowsById[91] = [
+            'id' => 91,
+            'status' => 'retry_scheduled',
+            'message_uuid' => 'uuid-91',
+            'max_attempts' => 6,
+            'payload_json' => wp_json_encode(['to' => ['recipient@example.test'], 'message' => 'Private body']),
+        ];
+
+        $dispatch = $this->createMock(DispatchPolicyInterface::class);
+        $dispatch->expects(self::never())->method('chooseNextProvider');
+        $scheduler = new RetryScheduler(
+            $dispatch,
+            new MessageRepository(),
+            new AttemptRepository(),
+            new ProviderRepository(),
+            new EventRepository(),
+            new MailDeliveryOwnership(MailDeliveryOwnership::SUREMAIL)
+        );
+
+        $scheduler->processRetry(91, 2, 'uuid-91');
+
+        self::assertSame([], $GLOBALS['onesmtp_test_fired_actions']);
+        self::assertSame([], $GLOBALS['wpdb']->updates);
+        $event = $this->findEventInsert('delivery_paused');
+        self::assertNotNull($event);
+        $context = json_decode((string) $event['data']['context_json'], true);
+        self::assertSame('external_delivery_owner', $context['reason'] ?? null);
+        self::assertSame('retry', $context['trigger'] ?? null);
     }
 
     private function buildScheduler(): RetryScheduler

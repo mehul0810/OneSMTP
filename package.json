@@ -1,13 +1,13 @@
 {
   "name": "onesmtp",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
-  "description": "Build tooling for OneSMTP WordPress plugin",
+  "description": "Build tooling for the Aculect Mail WordPress plugin",
   "engines": {
-    "node": ">=20"
+    "node": ">=20.19.0"
   },
   "scripts": {
-    "build": "wp-scripts build",
+    "build": "wp-scripts build && cp node_modules/@wordpress/dataviews/build-style/style.css build/dataviews.css",
     "build:prod": "npm run build",
     "start": "wp-scripts start",
     "watch": "npm run start",
@@ -23,6 +23,7 @@
     "@wordpress/element": "^6.0.0",
     "@wordpress/i18n": "^6.0.0",
     "@wordpress/icons": "^10.0.0",
-    "@wordpress/scripts": "^30.0.0"
+    "@wordpress/scripts": "^30.0.0",
+    "typescript": "~5.9.3"
   }
 }

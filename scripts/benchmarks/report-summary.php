@@ -22,7 +22,7 @@ $logTables = $data['metrics']['log_tables'] ?? [];
 $logLat = is_array($logTables) ? ($logTables['latency_ms'] ?? []) : [];
 $schemaChecks = is_array($logTables) ? ($logTables['schema_index_checks'] ?? []) : [];
 $lines = [
-    '# OneSMTP Performance Summary',
+    '# Aculect Mail Performance Summary',
     '',
     '- Profile: ' . ($data['profile'] ?? 'unknown'),
     '- Generated: ' . ($data['generated_at'] ?? gmdate('c')),

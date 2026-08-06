@@ -1,4 +1,4 @@
-# Contributing to OneSMTP
+# Contributing to Aculect Mail
 
 This project aims for low operational overhead with strong reliability and clear docs.
 

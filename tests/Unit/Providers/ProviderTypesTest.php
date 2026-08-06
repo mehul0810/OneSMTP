@@ -19,6 +19,7 @@ final class ProviderTypesTest extends TestCase
         foreach (ProviderTypes::all() as $type) {
             self::assertNotSame('', $metadata[$type]['label']);
             self::assertNotSame('', $metadata[$type]['description']);
+            self::assertNotSame('', $metadata[$type]['icon']);
             self::assertEqualsCanonicalizing($capabilities, array_keys($metadata[$type]['capabilities']));
 
             foreach ($metadata[$type]['capabilities'] as $available) {
@@ -33,6 +34,8 @@ final class ProviderTypesTest extends TestCase
 
         self::assertTrue($metadata[ProviderTypes::SMTP]['capabilities']['smtp']);
         self::assertFalse($metadata[ProviderTypes::SMTP]['capabilities']['api_delivery']);
+        self::assertTrue($metadata[ProviderTypes::AMAZON_SES]['capabilities']['smtp']);
+        self::assertFalse($metadata[ProviderTypes::AMAZON_SES]['capabilities']['api_delivery']);
         self::assertFalse($metadata[ProviderTypes::PHP_MAIL]['capabilities']['smtp']);
         self::assertTrue($metadata[ProviderTypes::GMAIL]['capabilities']['oauth']);
 

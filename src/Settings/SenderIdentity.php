@@ -126,6 +126,7 @@ final class SenderIdentity
         }
 
         if (! self::isValidEmail($email)) {
+            // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Labels are private constants supplied by this value object; presentation layers escape the exception message.
             throw new InvalidArgumentException($label . ' must be a valid email address.');
         }
 
@@ -147,6 +148,7 @@ final class SenderIdentity
             }
 
             if (! self::isValidEmail($email)) {
+                // phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped -- Labels are private constants supplied by this value object; presentation layers escape the exception message.
                 throw new InvalidArgumentException($label . ' contains an invalid email address.');
             }
 

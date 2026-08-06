@@ -1,6 +1,6 @@
-# OneSMTP Release Runbook
+# Aculect Mail Release Runbook
 
-This is the production-release contract for OneSMTP. Release actions remain manual and require maintainer approval.
+This is the production-release contract for Aculect Mail. Release actions remain manual and require maintainer approval.
 
 ## Branch and version flow
 
@@ -20,7 +20,7 @@ This is the production-release contract for OneSMTP. Release actions remain manu
 - `composer lint`, `composer test`, and `composer analyze` pass, or approved baseline exceptions are recorded.
 - `npm run build` passes when assets are present or changed.
 - Performance smoke passes for queue/retry changes.
-- Admin smoke covers the current six-tab IA: Overview, Providers, Routing, Delivery, Analytics, Settings.
+- Admin smoke covers the current seven-tab IA: Overview, Providers, Routing, Activity, Analytics, Settings, Advanced.
 - No secrets, test fixtures, vendor directories, node modules, or repository metadata are in the package.
 - Package installs and activates on the supported PHP/WordPress matrix.
 - Changelog and release notes describe user impact, compatibility, upgrade notes, and known limitations.

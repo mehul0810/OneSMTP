@@ -16,6 +16,11 @@
     margin-top: 0;
 }
 
+.onesmtp-admin,
+.onesmtp-admin * {
+    box-sizing: border-box;
+}
+
 .onesmtp-admin-header {
     margin: 0 -20px 0;
     padding: 0 20px;
@@ -45,10 +50,12 @@
     flex: 0 0 auto;
     width: 44px;
     height: 44px;
-    border-radius: 10px;
-    background: var(--aculect-admin-primary);
-    color: #fff;
-    box-shadow: 0 4px 10px rgb(29 78 216 / 18%);
+}
+
+.onesmtp-admin-brand-mark img {
+    display: block;
+    width: 44px;
+    height: 44px;
 }
 
 .onesmtp-component-card {
@@ -478,6 +485,11 @@
     grid-template-columns: minmax(0, 1fr) minmax(280px, 320px);
     gap: 24px;
     align-items: start;
+}
+
+.onesmtp-setup-shell.is-simplified {
+    display: block;
+    max-width: 980px;
 }
 
 .onesmtp-setup-main {
@@ -1138,21 +1150,90 @@
 .onesmtp-empty-state strong { color:#171b23; font-size:18px; }
 .onesmtp-empty-state p { margin:0 0 8px; }
 .onesmtp-empty-state--inline { flex-direction:row; justify-content:flex-start; text-align:left; min-height:100px; }
-.onesmtp-provider-list { border:1px solid #e0e4eb; border-radius:8px; overflow:hidden; }
-.onesmtp-provider-list-item { display:grid; grid-template-columns:48px 150px 1fr auto; align-items:center; gap:16px; padding:14px 16px; border-bottom:1px solid #e0e4eb; }
+.onesmtp-provider-catalog { margin-bottom: 20px; }
+.onesmtp-provider-catalog-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
+.onesmtp-provider-catalog-heading h3 { margin: 0 0 4px; font-size: 18px; }
+.onesmtp-provider-catalog-heading p { margin: 0; color: #50575e; }
+.onesmtp-provider-list { border:1px solid #dcdcde; border-radius:10px; overflow:hidden; background:#fff; }
+.onesmtp-provider-list-item { display:grid; grid-template-columns:48px minmax(240px, 1fr) auto auto; align-items:center; gap:16px; padding:16px 18px; border-bottom:1px solid #e0e4eb; }
 .onesmtp-provider-list-item:last-child { border-bottom:0; }
-.onesmtp-provider-list-item > span:not(.onesmtp-provider-list-icon) { color:#5d6d86; }
-.onesmtp-provider-list-icon { color:#52627b; }
-.onesmtp-provider-list-icon .onesmtp-heroicon { width:24px; height:24px; }
-.onesmtp-provider-list-item a { color:#0657d9; text-decoration:none; }
+.onesmtp-provider-list-icon { width:40px; height:40px; display:grid; place-items:center; border:1px solid #dcdcde; border-radius:8px; background:#f6f7f7; color:#3858e9; box-sizing:border-box; }
+.onesmtp-provider-list-icon .onesmtp-provider-logo { display:block; width:22px; height:22px; max-width:22px; max-height:22px; }
+.onesmtp-provider-logo-smtp { color:#3858e9; }
+.onesmtp-provider-logo-amazon_ses { color:#ff9900; }
+.onesmtp-provider-logo-php_mail { color:#777bb4; }
+.onesmtp-provider-logo-gmail { color:#ea4335; }
+.onesmtp-provider-logo-sendgrid { color:#1a82e2; }
+.onesmtp-provider-logo-postmark { color:#ffbe0b; }
+.onesmtp-provider-logo-brevo { color:#0b996e; }
+.onesmtp-provider-logo-mailgun { color:#e94b35; }
+.onesmtp-provider-logo-resend { color:#111827; }
+.onesmtp-provider-logo-mailjet { color:#e85d04; }
+.onesmtp-provider-logo-sparkpost { color:#f59e0b; }
+.onesmtp-provider-logo-mailersend { color:#2563eb; }
+.onesmtp-provider-logo-smtp2go { color:#0f766e; }
+.onesmtp-provider-logo-elastic_email { color:#7c3aed; }
+.onesmtp-provider-logo-zeptomail { color:#0f766e; }
+.onesmtp-provider-logo-mailchimp_transactional { color:#2c2c2c; }
+.onesmtp-provider-list-copy { min-width:0; display:flex; flex-direction:column; gap:3px; }
+.onesmtp-provider-list-copy strong { color:#1e1e1e; font-size:14px; }
+.onesmtp-provider-list-copy span { color:#50575e; line-height:1.5; }
+.onesmtp-provider-connection-summary { color:#646970 !important; font-size:12px; }
+.onesmtp-provider-recovery { color:#b32d2e !important; font-size:12px; font-weight:600; }
+.onesmtp-provider-status { display:inline-flex; align-items:center; gap:6px; min-height:26px; padding:0 9px; border-radius:999px; background:#f0f0f1; color:#50575e; font-size:12px; font-weight:600; white-space:nowrap; }
+.onesmtp-provider-status::before { width:7px; height:7px; border-radius:50%; background:#8c8f94; content:""; }
+.onesmtp-provider-status.is-active { background:#edfaef; color:#006b1b; }
+.onesmtp-provider-status.is-active::before { background:#00a32a; }
+.onesmtp-provider-status.is-inactive { background:#fcf9e8; color:#6e4f00; }
+.onesmtp-provider-status.is-inactive::before { background:#dba617; }
+[data-onesmtp-component="provider-inline-settings"] { display:contents; }
+.onesmtp-provider-row-actions { display:flex; flex:0 0 auto; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:6px; justify-self:end; }
+.onesmtp-provider-row-actions .components-button { white-space:nowrap; }
+.onesmtp-provider-inline-settings { grid-column:1 / -1; margin:4px -18px -16px; padding:20px 18px 22px 82px; border-top:1px solid #e0e4eb; background:#f9f9f9; }
+.onesmtp-provider-inline-heading { margin-bottom:18px; }
+.onesmtp-provider-inline-heading h4 { margin:0 0 4px; font-size:16px; }
+.onesmtp-provider-inline-heading p { margin:0; color:#50575e; }
+.onesmtp-provider-inline-settings > .components-base-control { max-width:640px; }
+.onesmtp-provider-field-note { max-width:640px; margin:-4px 0 18px; padding:10px 12px; border-left:3px solid #3858e9; background:#fff; color:#50575e; }
 .onesmtp-provider-form { margin-top:20px; }
 .onesmtp-provider-form > summary { cursor:pointer; font-weight:600; }
+.onesmtp-workspace-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 20px;
+}
+.onesmtp-workspace-actions p { margin: 0; color: #50575e; }
+.onesmtp-workspace-actions .button { flex: 0 0 auto; }
+.onesmtp-provider-advanced-section { padding: 18px 0; }
+.onesmtp-provider-advanced-section + .onesmtp-provider-advanced-section { border-top: 1px solid var(--aculect-admin-border); }
+.onesmtp-provider-advanced-section > h3:first-child { margin-top: 0; }
+.onesmtp-provider-drawer-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.onesmtp-provider-drawer-actions-spacer { flex:1 1 auto; }
+.onesmtp-routing-card-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; text-align: left; }
+.onesmtp-routing-card-heading h3 { margin-bottom: 4px; }
+.onesmtp-routing-card-heading p { margin: 0; color: #50575e; }
+.onesmtp-status-pill { display: inline-flex; align-items: center; min-height: 28px; padding: 0 10px; border-radius: 999px; background: #fcf9e8; color: #6e4f00; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.onesmtp-status-pill.is-ready { background: #edfaef; color: #006b1b; }
+.onesmtp-routing-rules { padding: 0; }
+.onesmtp-routing-rules > summary { cursor: pointer; padding: 14px 16px; font-weight: 600; }
+.onesmtp-routing-rules > p { margin: 0; padding: 0 16px 16px; color: #50575e; }
+.onesmtp-activity-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
+.onesmtp-activity-heading h3 { margin: 0; }
+.onesmtp-activity-filters { position: relative; }
+.onesmtp-activity-filters > summary { cursor: pointer; color: #2271b1; font-weight: 600; }
+.onesmtp-activity-filters[open] { width: 100%; }
+.onesmtp-log-filters { margin: 14px 0; padding: 16px; border: 1px solid var(--aculect-admin-border); border-radius: 6px; background: #fff; }
+.onesmtp-activity-empty { min-height: 260px; margin-top: 12px; border: 1px solid var(--aculect-admin-border); border-radius: 8px; background: #fff; }
+.onesmtp-activity-empty .onesmtp-heroicon { width: 40px; height: 40px; }
 .onesmtp-analytics-toolbar { display:flex; align-items:center; justify-content:space-between; gap:20px; margin-bottom:20px; }
 .onesmtp-analytics-toolbar p { margin:0; color:#5d6d86; font-size:16px; }
 .onesmtp-analytics-empty { border:1px solid #dcdcde; border-radius:12px; background:#fff; min-height:260px; display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center; gap:10px; }
 .onesmtp-analytics-empty .onesmtp-heroicon { width:56px; height:56px; padding:14px; box-sizing:border-box; border-radius:50%; color:#1464e8; background:#e8f0ff; }
 .onesmtp-analytics-empty h3 { margin:0; font-size:24px; }
 .onesmtp-analytics-empty p { margin:0; color:#5d6d86; font-size:16px; }
+.onesmtp-analytics-empty .button { margin-top: 8px; }
 .onesmtp-analytics-kpis { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:20px; margin-top:20px; }
 .onesmtp-analytics-kpi { border:1px solid #dcdcde; border-radius:12px; background:#fff; padding:28px 32px; }
 .onesmtp-analytics-kpi-icon { display:block; color:#1464e8; margin-bottom:14px; }
@@ -1160,6 +1241,50 @@
 .onesmtp-analytics-kpi strong, .onesmtp-analytics-kpi b, .onesmtp-analytics-kpi p { display:block; }
 .onesmtp-analytics-kpi b { font-size:28px; margin-top:24px; }
 .onesmtp-analytics-kpi p { color:#5d6d86; margin-bottom:0; }
+
+.onesmtp-settings-tabs .components-tab-panel__tabs {
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    border-bottom: 1px solid var(--aculect-admin-border);
+}
+
+.onesmtp-settings-tabs .components-tab-panel__tabs-item {
+    min-height: 44px;
+    padding: 0 14px;
+    border-bottom: 3px solid transparent;
+    color: #2c3338;
+    white-space: nowrap;
+}
+
+.onesmtp-settings-tabs .components-tab-panel__tabs-item.is-active {
+    border-bottom-color: var(--aculect-admin-primary);
+    color: var(--aculect-admin-primary);
+}
+
+.onesmtp-settings-group[hidden] { display: none; }
+
+.onesmtp-settings-panel {
+    border: 1px solid var(--aculect-admin-border);
+    border-radius: 8px;
+    box-shadow: none;
+}
+
+.onesmtp-settings-panel .postbox-header { min-height: 48px; }
+
+.onesmtp-dataviews-shell {
+    overflow: hidden;
+    border: 1px solid var(--aculect-admin-border);
+    border-radius: 8px;
+    background: #fff;
+}
+
+.onesmtp-dataviews-mount:empty { display: none; }
+
+.onesmtp-drawer .components-modal__content { padding: 24px 32px 32px; }
+.onesmtp-provider-drawer .components-modal__content { width: min(640px, calc(100vw - 32px)); }
+.onesmtp-drawer-description { margin: 0 0 20px; color: #50575e; }
+.onesmtp-drawer-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--aculect-admin-border); }
 
 @media (max-width: 960px) {
     .onesmtp-admin-workspace-layout {
@@ -1206,7 +1331,7 @@
     .onesmtp-route-diagram { gap:8px; justify-content:space-between; }
     .onesmtp-route-node { min-width:0; flex:1 1 0; }
     .onesmtp-route-line { width:auto; flex:0 0 24px; }
-    .onesmtp-provider-list-item { grid-template-columns:40px 120px 1fr auto; }
+    .onesmtp-provider-list-item { grid-template-columns:48px minmax(180px, 1fr) auto auto; }
     .onesmtp-analytics-kpis { grid-template-columns:1fr; }
 }
 
@@ -1360,6 +1485,28 @@
         max-width: 100%;
         box-sizing: border-box;
     }
+
+    .onesmtp-workspace-actions,
+    .onesmtp-routing-card-heading,
+    .onesmtp-activity-heading {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .onesmtp-provider-list-item {
+        grid-template-columns: 40px minmax(0, 1fr) auto;
+        gap: 10px;
+    }
+
+    .onesmtp-provider-list-icon { width:36px; height:36px; }
+    .onesmtp-provider-list-copy { grid-column:2 / -1; }
+    .onesmtp-provider-status { grid-column:2; justify-self:start; }
+    .onesmtp-provider-row-actions { grid-column:2 / -1; justify-self:start; }
+    .onesmtp-provider-inline-settings { padding-left:58px; }
+
+    .onesmtp-provider-drawer-options { grid-template-columns: 1fr; }
+    .onesmtp-route-node strong { font-size: 12px; text-align: center; }
+    .onesmtp-drawer .components-modal__content { padding: 20px; }
 }
 
 @media (max-width: 480px) {
@@ -1373,7 +1520,7 @@
     }
 }
 
-/* WordPress admin and component styles can apply fluid SVG sizing. Keep OneSMTP
+/* WordPress admin and component styles can apply fluid SVG sizing. Keep Aculect Mail
  * icons optically compact and prevent an SVG from expanding to its container. */
 .onesmtp-admin .onesmtp-heroicon {
     width: 24px !important;
@@ -1437,8 +1584,127 @@
     margin: 0 6px 0 0;
 }
 
+.onesmtp-queue-panel {
+    margin: 0 0 28px;
+    padding: 20px;
+    border: 1px solid var(--aculect-admin-border);
+    border-radius: 12px;
+    background: var(--aculect-admin-surface);
+}
+
+.onesmtp-queue-panel-heading h3 {
+    margin: 0 0 4px;
+}
+
+.onesmtp-queue-panel-heading p {
+    margin: 0;
+    color: var(--aculect-admin-muted);
+}
+
+.onesmtp-queue-summary {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    margin: 18px 0;
+}
+
+.onesmtp-queue-summary-card {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 14px;
+    border: 1px solid var(--aculect-admin-border);
+    border-radius: 8px;
+    background: #fff;
+}
+
+.onesmtp-queue-summary-card span {
+    color: var(--aculect-admin-muted);
+    font-size: 12px;
+}
+
+.onesmtp-queue-summary-card strong {
+    color: var(--aculect-admin-ink);
+    font-size: 18px;
+}
+
+.onesmtp-queue-table-wrap {
+    overflow-x: auto;
+}
+
+.onesmtp-queue-table-wrap table {
+    margin: 0;
+}
+
+.onesmtp-queue-table-wrap form {
+    margin: 0;
+}
+
+.onesmtp-queue-empty {
+    margin: 18px 0 0;
+    color: var(--aculect-admin-muted);
+}
+
 @media (max-width: 480px) {
     .onesmtp-drawer .components-modal__frame {
         width: 100%;
+    }
+
+    .onesmtp-queue-summary {
+        grid-template-columns: 1fr;
+    }
+}
+.onesmtp-compatibility-card {
+    align-items: flex-start;
+    background: #fff;
+    border: 1px solid #dcdcde;
+    border-left: 4px solid #3858e9;
+    border-radius: 4px;
+    display: flex;
+    gap: 24px;
+    justify-content: space-between;
+    margin: 0 0 20px;
+    padding: 20px 24px;
+}
+
+.onesmtp-compatibility-card h3,
+.onesmtp-provider-test-step h5 {
+    margin: 0 0 8px;
+}
+
+.onesmtp-compatibility-card p {
+    margin: 0 0 8px;
+    max-width: 780px;
+}
+
+.onesmtp-compatibility-actions {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 8px;
+}
+
+.onesmtp-compatibility-actions form,
+.onesmtp-compatibility-actions p.submit {
+    margin: 0;
+    padding: 0;
+}
+
+.onesmtp-provider-test-step {
+    background: #f6f7f7;
+    border: 1px solid #dcdcde;
+    border-radius: 4px;
+    margin-top: 20px;
+    padding: 16px;
+}
+
+.onesmtp-provider-test-step p {
+    margin: 0 0 12px;
+}
+
+@media (max-width: 782px) {
+    .onesmtp-compatibility-card,
+    .onesmtp-compatibility-actions {
+        flex-direction: column;
     }
 }

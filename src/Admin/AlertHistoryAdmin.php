@@ -32,8 +32,8 @@ final class AlertHistoryAdmin
 
         if ( ! Capabilities::canManage()) {
             wp_die(
-                esc_html__('You do not have permission to acknowledge OneSMTP alerts.', 'onesmtp'),
-                esc_html__('OneSMTP access denied', 'onesmtp'),
+                esc_html__('You do not have permission to acknowledge Aculect Mail alerts.', 'onesmtp'),
+                esc_html__('Aculect Mail access denied', 'onesmtp'),
                 ['response' => 403]
             );
         }
@@ -42,8 +42,8 @@ final class AlertHistoryAdmin
         $nonce = isset($_POST[ self::NONCE_NAME ]) ? sanitize_text_field(wp_unslash( (string) $_POST[ self::NONCE_NAME ])) : '';
         if ($eventId <= 0 || $nonce === '' || ! wp_verify_nonce($nonce, $this->nonceAction($eventId))) {
             wp_die(
-                esc_html__('The OneSMTP alert acknowledgement link has expired. Refresh the page and try again.', 'onesmtp'),
-                esc_html__('OneSMTP alert acknowledgement denied', 'onesmtp'),
+                esc_html__('The Aculect Mail alert acknowledgement link has expired. Refresh the page and try again.', 'onesmtp'),
+                esc_html__('Aculect Mail alert acknowledgement denied', 'onesmtp'),
                 ['response' => 403]
             );
         }
@@ -134,7 +134,7 @@ final class AlertHistoryAdmin
 
     private function renderAcknowledgeForm(int $eventId): void
     {
-        echo '<form method="post" action="' . esc_url(admin_url('options-general.php?page=onesmtp#onesmtp-alerts')) . '">';
+        echo '<form method="post" action="' . esc_url(admin_url('options-general.php?page=onesmtp&tab=onesmtp-advanced#onesmtp-alerts')) . '">';
         echo '<input type="hidden" name="' . esc_attr(self::ACTION_NAME) . '" value="' . esc_attr(self::ACKNOWLEDGE_ACTION) . '">';
         echo '<input type="hidden" name="' . esc_attr(self::EVENT_ID_NAME) . '" value="' . esc_attr( (string) $eventId) . '">';
         wp_nonce_field($this->nonceAction($eventId), self::NONCE_NAME);
@@ -155,7 +155,7 @@ final class AlertHistoryAdmin
             return;
         }
 
-        echo '<div class="notice notice-error inline"><p>' . esc_html__('OneSMTP could not acknowledge that alert event. Refresh the page and try again.', 'onesmtp') . '</p></div>';
+        echo '<div class="notice notice-error inline"><p>' . esc_html__('Aculect Mail could not acknowledge that alert event. Refresh the page and try again.', 'onesmtp') . '</p></div>';
     }
 
     private function redirect(string $status): void
@@ -163,12 +163,12 @@ final class AlertHistoryAdmin
         wp_safe_redirect(
             add_query_arg(
                 ['onesmtp_alert_history_status' => $status],
-                admin_url('options-general.php?page=onesmtp#onesmtp-alerts')
+                admin_url('options-general.php?page=onesmtp&tab=onesmtp-advanced#onesmtp-alerts')
             )
         );
 
         if ($this->isTestingRuntime()) {
-            throw new \RuntimeException('OneSMTP alert history redirected.');
+            throw new \RuntimeException('Aculect Mail alert history redirected.');
         }
 
         exit;

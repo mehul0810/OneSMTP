@@ -1,6 +1,6 @@
 # Data Model
 
-OneSMTP uses custom database tables for operational email records.
+Aculect Mail uses custom database tables for operational email records.
 
 ## Table Intent (MVP)
 

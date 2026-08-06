@@ -50,8 +50,8 @@ final class SetupWizard
 
         if (! Capabilities::canManage()) {
             wp_die(
-                esc_html__('You do not have permission to run the OneSMTP setup wizard.', 'onesmtp'),
-                esc_html__('OneSMTP access denied', 'onesmtp'),
+                esc_html__('You do not have permission to run the Aculect Mail setup wizard.', 'onesmtp'),
+                esc_html__('Aculect Mail access denied', 'onesmtp'),
                 ['response' => 403]
             );
         }
@@ -87,7 +87,7 @@ final class SetupWizard
     {
         $providers = $this->providers->getAllSafe();
 
-        echo '<div id="onesmtp-delivery" class="onesmtp-setup-shell">';
+        echo '<div id="onesmtp-delivery" class="onesmtp-setup-shell is-simplified">';
         echo '<div class="onesmtp-setup-main">';
         echo '<div class="onesmtp-setup-notices">';
         $this->renderNotice();
@@ -103,12 +103,6 @@ final class SetupWizard
             $this->renderCompletion($providers);
         }
         echo '</div>';
-
-        echo '<aside class="onesmtp-setup-rail" aria-label="' . esc_attr__('Setup guidance', 'onesmtp') . '">';
-        $this->renderOverviewStatusCard($providers);
-        $this->renderOverviewActivityCard();
-        $this->renderOverviewHelpCard();
-        echo '</aside>';
         echo '</div>';
     }
 
@@ -134,10 +128,12 @@ final class SetupWizard
         }
 
         echo '<section class="onesmtp-overview-setup-card">';
-        echo '<div class="onesmtp-overview-setup-heading"><span class="onesmtp-overview-setup-icon" aria-hidden="true">' . Heroicons::render('envelope') . '</span><div><h3>' . esc_html__('Finish your setup', 'onesmtp') . '</h3><p>' . esc_html__('Follow these three simple steps to get your site ready to send email reliably.', 'onesmtp') . '</p></div></div>';
+        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Heroicons renders an SVG selected from a private allowlist and escapes its only dynamic attribute.
+        echo '<div class="onesmtp-overview-setup-heading"><span class="onesmtp-overview-setup-icon" aria-hidden="true">' . Heroicons::render('envelope') . '</span><div><h3>' . esc_html($firstIncomplete >= count($steps) ? __('Setup complete', 'onesmtp') : __('Complete Aculect Mail setup', 'onesmtp')) . '</h3><p>' . esc_html__('Three essentials make WordPress email ready for production.', 'onesmtp') . '</p></div></div>';
         echo '<ol class="onesmtp-overview-steps">';
         foreach ($steps as $index => [$title, $description, $complete, $icon]) {
             $state = $complete ? 'is-complete' : ($index === $firstIncomplete ? 'is-current' : 'is-pending');
+            // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Heroicons renders an SVG selected from a private allowlist and escapes its only dynamic attribute.
             echo '<li class="onesmtp-overview-step ' . esc_attr($state) . '"><span class="onesmtp-overview-step-number">' . esc_html((string) ($index + 1)) . '</span><span class="onesmtp-overview-step-icon" aria-hidden="true">' . Heroicons::render($icon) . '</span><span class="onesmtp-overview-step-copy"><strong>' . esc_html($title) . '</strong><span>' . esc_html($description) . '</span></span></li>';
         }
         echo '</ol>';
@@ -145,8 +141,11 @@ final class SetupWizard
         $ctaTarget = $firstIncomplete === 0 ? 'onesmtp-sender-identity-fallback' : 'onesmtp-sender-identity';
         $ctaUrl = $firstIncomplete === 0 ? '#' . $ctaTarget : admin_url('options-general.php?page=onesmtp&tab=onesmtp-providers#onesmtp-providers');
         $ctaLabel = $firstIncomplete === 0 ? __('Set up sender identity', 'onesmtp') : ($firstIncomplete === 1 ? __('Connect a provider', 'onesmtp') : __('Send a test email', 'onesmtp'));
-        $trigger = $firstIncomplete === 0 ? ' data-onesmtp-drawer-trigger="sender-identity"' : '';
-        echo '<a class="button button-primary" data-onesmtp-reveal="' . esc_attr($ctaTarget) . '"' . $trigger . ' href="' . esc_url($ctaUrl) . '">' . esc_html($ctaLabel) . '</a>';
+        echo '<a class="button button-primary" data-onesmtp-reveal="' . esc_attr($ctaTarget) . '"';
+        if ($firstIncomplete === 0) {
+            echo ' data-onesmtp-drawer-trigger="sender-identity"';
+        }
+        echo ' href="' . esc_url($ctaUrl) . '">' . esc_html($ctaLabel) . '</a>';
         echo '<a class="onesmtp-overview-secondary-action" href="' . esc_url(admin_url('options-general.php?page=onesmtp&tab=onesmtp-providers#onesmtp-providers')) . '">' . esc_html__('View providers', 'onesmtp') . '</a>';
         echo '</div>';
         echo '</section>';
@@ -156,7 +155,7 @@ final class SetupWizard
     {
         $values = $this->senderIdentity->get()->toArray();
         echo '<details id="onesmtp-sender-identity-fallback" class="onesmtp-overview-inline-form"><summary>' . esc_html__('Sender identity', 'onesmtp') . '</summary>';
-        echo '<p class="description">' . esc_html__('Choose the name and email address OneSMTP should use when sending WordPress email.', 'onesmtp') . '</p>';
+        echo '<p class="description">' . esc_html__('Choose the name and email address Aculect Mail should use when sending WordPress email.', 'onesmtp') . '</p>';
         echo '<form method="post" action="' . esc_url(admin_url('options-general.php?page=onesmtp&tab=onesmtp-overview#onesmtp-sender-identity-fallback')) . '">';
         echo '<input type="hidden" name="onesmtp_settings_action" value="save_sender_identity"><input type="hidden" name="onesmtp_return_tab" value="onesmtp-overview">';
         wp_nonce_field('onesmtp_save_settings', 'onesmtp_settings_nonce');
@@ -183,107 +182,6 @@ final class SetupWizard
         return trim((string) ($values['from_email'] ?? '')) !== '' && trim((string) ($values['from_name'] ?? '')) !== '';
     }
 
-    /** @param array<int,array<string,mixed>> $providers */
-    private function renderOverviewStatusCard(array $providers): void
-    {
-        $active = $this->activeProviderCount($providers);
-        $label = $active > 0 ? sprintf(/* translators: %d: active provider count. */ __('%d active provider(s)', 'onesmtp'), $active) : __('No active provider', 'onesmtp');
-        $description = $active > 0 ? __('Email delivery is connected and ready for verification.', 'onesmtp') : __('No provider is connected. Set up a provider to enable email delivery.', 'onesmtp');
-        echo '<section class="onesmtp-overview-side-card"><h3>' . esc_html__('Delivery status', 'onesmtp') . '</h3><p class="onesmtp-overview-status-value"><span class="onesmtp-overview-status-dot ' . esc_attr($active > 0 ? 'is-ready' : 'is-pending') . '" aria-hidden="true"></span><strong>' . esc_html($label) . '</strong></p><p>' . esc_html($description) . '</p><span class="screen-reader-text">' . esc_html($active > 0 ? __('Setup ready', 'onesmtp') : __('Needs setup', 'onesmtp')) . '</span></section>';
-    }
-
-    private function renderOverviewActivityCard(): void
-    {
-        echo '<section class="onesmtp-overview-side-card onesmtp-overview-activity-card"><h3>' . esc_html__('Recent activity', 'onesmtp') . '</h3><div class="onesmtp-overview-empty-icon" aria-hidden="true">' . Heroicons::render('inbox') . '</div><strong>' . esc_html__('No activity yet', 'onesmtp') . '</strong><p>' . esc_html__('Your recent email delivery activity will appear here.', 'onesmtp') . '</p></section>';
-    }
-
-    private function renderOverviewHelpCard(): void
-    {
-        echo '<section class="onesmtp-overview-side-card onesmtp-overview-help-card"><h3>' . esc_html__('Help & documentation', 'onesmtp') . '</h3><div class="onesmtp-overview-help-row"><span class="onesmtp-overview-help-icon" aria-hidden="true">' . Heroicons::render('question') . '</span><p>' . esc_html__('Find guides and documentation to help you set up and troubleshoot OneSMTP.', 'onesmtp') . '</p></div><a href="https://github.com/mehul0810/onesmtp" target="_blank" rel="noopener noreferrer">' . esc_html__('View documentation', 'onesmtp') . ' <span aria-hidden="true">↗</span></a></section>';
-    }
-
-    /** @param array<int,array<string,mixed>> $providers */
-    private function renderProviderCallToAction(array $providers): void
-    {
-        $this->renderPanelOpen(
-            $this->hasActiveProvider($providers) ? __('Manage your delivery stack', 'onesmtp') : __('Connect your first provider', 'onesmtp'),
-            $this->hasActiveProvider($providers)
-                ? __('Add a backup provider, review capability support, or tune an existing provider from the Providers workspace.', 'onesmtp')
-                : __('Choose a provider and configure secure credentials in the Providers workspace before sending a test email.', 'onesmtp')
-        );
-        echo '<div class="onesmtp-setup-next-action">';
-        echo '<span class="onesmtp-setup-next-action-icon" aria-hidden="true">' . Heroicons::render('squares') . '</span>';
-        echo '<div><strong>' . esc_html($this->hasActiveProvider($providers) ? __('Provider management is ready', 'onesmtp') : __('Provider setup belongs in Providers', 'onesmtp')) . '</strong><p>' . esc_html__('The Providers tab contains the full capability matrix, configuration form, health state, and provider actions.', 'onesmtp') . '</p></div>';
-        echo '<a class="button button-primary" href="' . esc_url(admin_url('options-general.php?page=onesmtp&tab=onesmtp-providers#onesmtp-providers')) . '">' . esc_html__('Open Providers', 'onesmtp') . '</a>';
-        echo '</div>';
-        $this->renderPanelClose();
-    }
-
-    /**
-     * @param array<int,array<string,mixed>> $providers Providers.
-     */
-    private function renderProgress(array $providers): void
-    {
-        $hasProvider = $this->hasActiveProvider($providers);
-        $backupReady = $this->activeProviderCount($providers) > 1;
-        $testReady = $this->latestStatus() === 'test_sent';
-        $logReady = $hasProvider;
-        $completed = (int) $hasProvider + (int) $backupReady + (int) $testReady + (int) $logReady;
-
-        echo '<div class="onesmtp-setup-progress-header"><div><span class="onesmtp-setup-progress-eyebrow">' . esc_html__('Onboarding progress', 'onesmtp') . '</span><h4>' . esc_html__('Get reliable delivery running', 'onesmtp') . '</h4></div><strong>' . esc_html(sprintf(
-            /* translators: 1: completed steps, 2: total steps. */
-            __('%1$d of %2$d complete', 'onesmtp'),
-            $completed,
-            4
-        )) . '</strong></div>';
-        echo '<div class="onesmtp-setup-progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="4" aria-valuenow="' . esc_attr((string) $completed) . '" aria-label="' . esc_attr__('Setup progress', 'onesmtp') . '"><span style="width:' . esc_attr((string) (($completed / 4) * 100)) . '%"></span></div>';
-        echo '<ol class="onesmtp-setup-summary-list">';
-        $steps = [
-            [__('Sender identity and first provider', 'onesmtp'), $hasProvider, $hasProvider ? __('Complete', 'onesmtp') : __('Needs setup', 'onesmtp')],
-            [__('Backup provider', 'onesmtp'), $backupReady, $backupReady ? __('Complete', 'onesmtp') : __('Recommended next', 'onesmtp')],
-            [__('Test email verification', 'onesmtp'), $testReady, $testReady ? __('Complete', 'onesmtp') : __('Pending', 'onesmtp')],
-            [__('Setup log confirmation', 'onesmtp'), $logReady, $logReady ? __('Recording setup events', 'onesmtp') : __('Pending provider save', 'onesmtp')],
-        ];
-        foreach ($steps as [$label, $complete, $status]) {
-            echo '<li class="' . esc_attr($complete ? 'is-complete' : 'is-pending') . '"><span class="onesmtp-setup-step-marker" aria-hidden="true">' . esc_html($complete ? '✓' : '•') . '</span><span>' . esc_html($label) . '</span><strong>' . esc_html($status) . '</strong></li>';
-        }
-        echo '</ol>';
-
-        if (! $hasProvider) {
-            echo '<div class="notice notice-warning inline"><p>' . esc_html__('Complete the first provider form to enable delivery testing.', 'onesmtp') . '</p></div>';
-        }
-    }
-
-    /**
-     * @param array<int,array<string,mixed>> $providers Providers.
-     */
-    private function renderProviderForm(array $providers): void
-    {
-        $this->renderPanelOpen(
-            __('First provider', 'onesmtp'),
-            __('Choose the delivery provider that will carry normal WordPress mail after setup is complete.')
-        );
-        echo '<form method="post">';
-        wp_nonce_field(self::ACTION_NAME, self::NONCE_NAME);
-        echo '<input type="hidden" name="' . esc_attr(self::ACTION_NAME) . '" value="save_provider">';
-
-        echo '<table class="form-table" role="presentation"><tbody>';
-        $this->renderTextInput('from_email', __('Sender email', 'onesmtp'), (string) get_option('admin_email'), 'email');
-        $this->renderTextInput('from_name', __('Sender name', 'onesmtp'), (string) get_bloginfo('name'));
-        $this->renderTextInput('name', __('Provider name', 'onesmtp'), __('Primary delivery provider', 'onesmtp'));
-        $this->renderSelectInput('adapter_type', __('Provider type', 'onesmtp'), ProviderTypes::all());
-        $this->renderTextInput('host', __('SMTP host', 'onesmtp'));
-        $this->renderTextInput('port', __('SMTP port', 'onesmtp'), '', 'number');
-        $this->renderTextInput('username', __('Username', 'onesmtp'));
-        $this->renderTextInput('password', __('Password', 'onesmtp'), '', 'password');
-        $this->renderTextInput('api_key', __('API key', 'onesmtp'), '', 'password');
-        echo '</tbody></table>';
-        echo '<p class="description">' . esc_html__('Secrets are stored through the provider repository and are not printed back in the wizard.', 'onesmtp') . '</p>';
-        submit_button($providers === [] ? __('Save first provider', 'onesmtp') : __('Save another provider', 'onesmtp'));
-        echo '</form>';
-        $this->renderPanelClose();
-    }
-
     /**
      * @param array<int,array<string,mixed>> $providers Providers.
      */
@@ -291,7 +189,7 @@ final class SetupWizard
     {
         $this->renderPanelOpen(
             __('Test email', 'onesmtp'),
-            __('Use a live provider from this workspace to confirm outbound delivery before you leave setup.')
+            __('Use a live provider from this workspace to confirm outbound delivery before you leave setup.', 'onesmtp')
         );
 
         if (! $this->hasActiveProvider($providers)) {
@@ -333,7 +231,7 @@ final class SetupWizard
             echo '<p>' . esc_html__('A backup provider is recommended for failover. You can add one now or return later from Providers.', 'onesmtp') . '</p>';
         }
 
-        echo '<p>' . esc_html__('Setup actions are written to the OneSMTP event log so administrators can confirm the setup path is being recorded.', 'onesmtp') . '</p>';
+        echo '<p>' . esc_html__('Setup actions are written to the Aculect Mail event log so administrators can confirm the setup path is being recorded.', 'onesmtp') . '</p>';
         echo '</div>';
     }
 
@@ -354,8 +252,8 @@ final class SetupWizard
             $provider,
             [
                 'to' => [$to],
-                'subject' => '[OneSMTP] Setup test email',
-                'message' => 'This is a setup test email sent by OneSMTP.',
+                'subject' => '[Aculect Mail] Setup test email',
+                'message' => 'This is a setup test email sent by Aculect Mail.',
                 'headers' => [],
                 'meta' => [
                     'source' => 'setup_wizard',
@@ -411,20 +309,6 @@ final class SetupWizard
     {
         echo '<tr><th scope="row"><label for="' . esc_attr($this->fieldId($name)) . '">' . esc_html($label) . '</label></th><td>';
         echo '<input class="regular-text" id="' . esc_attr($this->fieldId($name)) . '" name="' . esc_attr($name) . '" type="' . esc_attr($type) . '" value="' . esc_attr($value) . '">';
-        echo '</td></tr>';
-    }
-
-    /**
-     * @param array<int,string> $options Options.
-     */
-    private function renderSelectInput(string $name, string $label, array $options): void
-    {
-        echo '<tr><th scope="row"><label for="' . esc_attr($this->fieldId($name)) . '">' . esc_html($label) . '</label></th><td>';
-        echo '<select id="' . esc_attr($this->fieldId($name)) . '" name="' . esc_attr($name) . '">';
-        foreach ($options as $option) {
-            echo '<option value="' . esc_attr($option) . '">' . esc_html($option) . '</option>';
-        }
-        echo '</select>';
         echo '</td></tr>';
     }
 
@@ -563,55 +447,6 @@ final class SetupWizard
         echo '</div></section>';
     }
 
-    private function renderRailCard(string $title, string $value, string $description, string $linkLabel = '', string $linkTarget = ''): void
-    {
-        echo '<section class="onesmtp-context-card">';
-        echo '<div class="onesmtp-context-card-copy">';
-        echo '<p class="onesmtp-context-card-title">' . esc_html($title) . '</p>';
-        echo '<p class="onesmtp-context-card-value">' . esc_html($value) . '</p>';
-        echo '<p class="onesmtp-context-card-description">' . esc_html($description) . '</p>';
-        echo '</div>';
-
-        if ($linkLabel !== '' && $linkTarget !== '') {
-            echo '<a class="button button-secondary" href="' . esc_url(admin_url('options-general.php?page=onesmtp' . $linkTarget)) . '">' . esc_html($linkLabel) . '</a>';
-        }
-
-        echo '</section>';
-    }
-
-    /**
-     * @param array<int,array<string,mixed>> $providers Providers.
-     */
-    private function setupStateSummary(array $providers): string
-    {
-        $providerCount = $this->activeProviderCount($providers);
-        $providerLabel = $providerCount === 1
-            ? __('1 active provider', 'onesmtp')
-            : sprintf(
-                /* translators: %d: active provider count. */
-                __('%d active providers', 'onesmtp'),
-                $providerCount
-            );
-
-        if (! $this->hasActiveProvider($providers)) {
-            return __('No active provider yet. Save the first provider to unlock test email verification.', 'onesmtp');
-        }
-
-        if ($this->latestStatus() === 'test_sent') {
-            return sprintf(
-                /* translators: 1: provider summary, 2: setup completion string. */
-                __('%1$s and setup verification is complete.', 'onesmtp'),
-                $providerLabel
-            );
-        }
-
-        return sprintf(
-            /* translators: 1: provider summary, 2: setup completion string. */
-            __('%1$s and the test email step is still pending.', 'onesmtp'),
-            $providerLabel
-        );
-    }
-
     private function latestStatus(): string
     {
         return isset($_GET['onesmtp_setup_status']) ? sanitize_key(wp_unslash((string) $_GET['onesmtp_setup_status'])) : '';
@@ -626,7 +461,7 @@ final class SetupWizard
 
         wp_safe_redirect($url);
         if (defined('ONESMTP_TESTING') && (bool) constant('ONESMTP_TESTING')) {
-            throw new \RuntimeException('OneSMTP setup wizard redirected.');
+            throw new \RuntimeException('Aculect Mail setup wizard redirected.');
         }
 
         exit;

@@ -103,4 +103,30 @@ final class MetricsRepositoryTest extends TestCase
         self::assertSame(0, $breakdown[2]['sent_count']);
         self::assertSame(2, $breakdown[2]['failover_count']);
     }
+
+    public function test_provider_breakdown_counts_switches_away_from_failed_provider(): void
+    {
+        $GLOBALS['wpdb']->dashboardProviderAttemptRowsBySince[self::SINCE] = [
+            [
+                'provider_id' => 10,
+                'provider_name' => 'Primary SMTP',
+                'adapter_type' => 'smtp',
+                'sent_count' => 1,
+                'failed_count' => 1,
+                'retry_count' => 0,
+            ],
+        ];
+        $GLOBALS['wpdb']->dashboardProviderEventRowsBySince[self::SINCE] = [
+            ['context_json' => wp_json_encode(['from_provider_id' => 10, 'to_provider_id' => 20])],
+            ['context_json' => wp_json_encode(['from_provider_id' => 10, 'to_provider_id' => 30])],
+        ];
+        $GLOBALS['wpdb']->activeProviders = [
+            ['id' => 10, 'name' => 'Primary SMTP', 'adapter_type' => 'smtp'],
+        ];
+
+        $breakdown = (new MetricsRepository())->getProviderBreakdown(self::SINCE);
+
+        self::assertSame(2, $breakdown[0]['switch_out_count']);
+        self::assertSame(4, $breakdown[0]['total_activity']);
+    }
 }

@@ -1,150 +1,187 @@
-(function () {
-    'use strict';
+( function () {
+	'use strict';
 
-    var root = document.querySelector('[data-onesmtp-workspaces]');
-    if (! root) {
-        return;
-    }
+	const root = document.querySelector( '[data-onesmtp-workspaces]' );
+	if ( ! root ) {
+		return;
+	}
 
-    var sections = Array.prototype.slice.call(root.querySelectorAll('[data-onesmtp-workspace]'));
-    var links = Array.prototype.slice.call(root.querySelectorAll('[data-onesmtp-workspace-link]'));
-    var aliases = {
-        'onesmtp-general': 'onesmtp-overview',
-        'onesmtp-dashboard': 'onesmtp-analytics',
-        'onesmtp-setup': 'onesmtp-overview',
-        'onesmtp-delivery': 'onesmtp-overview',
-        'onesmtp-settings': 'onesmtp-settings',
-        'onesmtp-logs': 'onesmtp-activity',
-        'onesmtp-diagnostics': 'onesmtp-settings',
-        'onesmtp-alerts': 'onesmtp-settings',
-        'onesmtp-tools': 'onesmtp-settings'
-    };
+	const sections = Array.prototype.slice.call(
+		root.querySelectorAll( '[data-onesmtp-workspace]' )
+	);
+	const aliases = {
+		'onesmtp-general': 'onesmtp-overview',
+		'onesmtp-dashboard': 'onesmtp-analytics',
+		'onesmtp-setup': 'onesmtp-overview',
+		'onesmtp-delivery': 'onesmtp-overview',
+		'onesmtp-settings': 'onesmtp-settings',
+		'onesmtp-logs': 'onesmtp-activity',
+		'onesmtp-diagnostics': 'onesmtp-advanced',
+		'onesmtp-alerts': 'onesmtp-advanced',
+		'onesmtp-tools': 'onesmtp-advanced',
+		'onesmtp-provider-tools': 'onesmtp-advanced',
+		'onesmtp-settings-advanced': 'onesmtp-advanced',
+	};
 
-    function resolveWorkspace() {
-        var queryTab = new URLSearchParams(window.location.search).get('tab');
-        var target = window.location.hash.replace(/^#/, '');
-        var resolved = queryTab || aliases[target] || target;
-        var exists = sections.some(function (section) {
-            return section.dataset.onesmtpWorkspace === resolved;
-        });
+	function resolveWorkspace() {
+		const queryTab = new URLSearchParams( window.location.search ).get(
+			'tab'
+		);
+		const target = window.location.hash.replace( /^#/, '' );
+		const resolved =
+			aliases[ queryTab ] || queryTab || aliases[ target ] || target;
+		const exists = sections.some( function ( section ) {
+			return section.dataset.onesmtpWorkspace === resolved;
+		} );
 
-        return exists ? resolved : 'onesmtp-overview';
-    }
+		return exists ? resolved : 'onesmtp-overview';
+	}
 
-    // Fragment-only links from pre-0.3.0 URLs need a server-rendered screen.
-    var legacyTarget = aliases[window.location.hash.replace(/^#/, '')];
-    var hasTab = new URLSearchParams(window.location.search).has('tab');
-    if (legacyTarget && ! hasTab && legacyTarget !== 'onesmtp-overview') {
-        var legacyUrl = new URL(window.location.href);
-        legacyUrl.searchParams.set('tab', legacyTarget);
-        window.location.replace(legacyUrl.toString());
-        return;
-    }
+	// Fragment-only links from pre-0.3.0 URLs need a server-rendered screen.
+	const legacyTarget = aliases[ window.location.hash.replace( /^#/, '' ) ];
+	const hasTab = new URLSearchParams( window.location.search ).has( 'tab' );
+	if ( legacyTarget && ! hasTab && legacyTarget !== 'onesmtp-overview' ) {
+		const legacyUrl = new URL( window.location.href );
+		legacyUrl.searchParams.set( 'tab', legacyTarget );
+		if (
+			window.location.hash.replace( /^#/, '' ) ===
+			'onesmtp-settings-advanced'
+		) {
+			legacyUrl.hash = 'onesmtp-advanced';
+		}
+		window.location.replace( legacyUrl.toString() );
+		return;
+	}
 
-    function activateWorkspace(workspaceId, moveFocus) {
-        var activeSection = null;
-        var activeLink = null;
+	const links = Array.prototype.slice.call(
+		root.querySelectorAll( '[data-onesmtp-workspace-link]' )
+	);
 
-        sections.forEach(function (section) {
-            var isActive = section.dataset.onesmtpWorkspace === workspaceId;
-            section.hidden = ! isActive;
-            section.setAttribute('aria-hidden', isActive ? 'false' : 'true');
+	function activateWorkspace( workspaceId, moveFocus ) {
+		let activeSection = null;
+		let activeLink = null;
 
-            if (isActive) {
-                activeSection = section;
-            }
-        });
+		sections.forEach( function ( section ) {
+			const isActive = section.dataset.onesmtpWorkspace === workspaceId;
+			section.hidden = ! isActive;
+			section.setAttribute( 'aria-hidden', isActive ? 'false' : 'true' );
 
-        links.forEach(function (link) {
-            var isActive = link.dataset.onesmtpWorkspaceLink === workspaceId;
-            link.classList.toggle('nav-tab-active', isActive);
+			if ( isActive ) {
+				activeSection = section;
+			}
+		} );
 
-            if (isActive) {
-                link.setAttribute('aria-current', 'page');
-                activeLink = link;
-            } else {
-                link.removeAttribute('aria-current');
-            }
-        });
+		links.forEach( function ( link ) {
+			const isActive = link.dataset.onesmtpWorkspaceLink === workspaceId;
+			link.classList.toggle( 'nav-tab-active', isActive );
 
-        root.setAttribute('data-onesmtp-workspaces-ready', 'true');
+			if ( isActive ) {
+				link.setAttribute( 'aria-current', 'page' );
+				activeLink = link;
+			} else {
+				link.removeAttribute( 'aria-current' );
+			}
+		} );
 
-        var navigation = root.querySelector('.onesmtp-admin-nav');
-        if (navigation && activeLink && navigation.scrollWidth > navigation.clientWidth) {
-            navigation.scrollLeft = Math.max(
-                0,
-                activeLink.offsetLeft - ((navigation.clientWidth - activeLink.offsetWidth) / 2)
-            );
-        }
+		root.setAttribute( 'data-onesmtp-workspaces-ready', 'true' );
+		document.dispatchEvent(
+			new CustomEvent( 'onesmtp:workspace-activated', {
+				detail: { workspaceId },
+			} )
+		);
 
-        if (! moveFocus || ! activeSection) {
-            return;
-        }
+		const navigation = root.querySelector( '.onesmtp-admin-nav' );
+		if (
+			navigation &&
+			activeLink &&
+			navigation.scrollWidth > navigation.clientWidth
+		) {
+			navigation.scrollLeft = Math.max(
+				0,
+				activeLink.offsetLeft -
+					( navigation.clientWidth - activeLink.offsetWidth ) / 2
+			);
+		}
 
-        var targetId = window.location.hash.replace(/^#/, '');
-        if (targetId && targetId !== workspaceId) {
-            var target = document.getElementById(targetId);
-            if (target) {
-                target.scrollIntoView({ block: 'start' });
-                return;
-            }
-        }
+		if ( ! moveFocus || ! activeSection ) {
+			return;
+		}
 
-        var heading = activeSection.querySelector('h2[tabindex="-1"]');
-        if (heading) {
-            heading.focus();
-        }
-    }
+		const targetId = window.location.hash.replace( /^#/, '' );
+		if ( targetId && targetId !== workspaceId ) {
+			const target = document.getElementById( targetId );
+			if ( target ) {
+				target.scrollIntoView( { block: 'start' } );
+				return;
+			}
+		}
 
-    function openHashTarget() {
-        var targetId = window.location.hash.replace(/^#/, '');
-        if (! targetId) {
-            return;
-        }
-        var target = document.getElementById(targetId);
-        if (target && target.tagName.toLowerCase() === 'details') {
-            target.open = true;
-        }
-    }
+		const heading = activeSection.querySelector( 'h2[tabindex="-1"]' );
+		if ( heading ) {
+			heading.focus();
+		}
+	}
 
-    links.forEach(function (link) {
-        link.addEventListener('click', function (event) {
-            var workspaceId = link.dataset.onesmtpWorkspaceLink;
-            if (! workspaceId || ! sections.some(function (section) {
-                return section.dataset.onesmtpWorkspace === workspaceId;
-            })) {
-                return;
-            }
+	function openHashTarget() {
+		const targetId = window.location.hash.replace( /^#/, '' );
+		if ( ! targetId ) {
+			return;
+		}
+		const target = document.getElementById( targetId );
+		if ( target && target.tagName.toLowerCase() === 'details' ) {
+			target.open = true;
+		}
+	}
 
-            event.preventDefault();
-            var url = new URL(link.href, window.location.href);
-            url.hash = workspaceId;
-            url.searchParams.set('tab', workspaceId);
-            window.history.pushState({ onesmtpWorkspace: workspaceId }, '', url.toString());
-            activateWorkspace(workspaceId, true);
-        });
-    });
+	links.forEach( function ( link ) {
+		link.addEventListener( 'click', function ( event ) {
+			const workspaceId = link.dataset.onesmtpWorkspaceLink;
+			if (
+				! workspaceId ||
+				! sections.some( function ( section ) {
+					return section.dataset.onesmtpWorkspace === workspaceId;
+				} )
+			) {
+				return;
+			}
 
-    root.querySelectorAll('[data-onesmtp-provider-type]').forEach(function (link) {
-        link.addEventListener('click', function () {
-            window.setTimeout(function () {
-                var select = document.getElementById('onesmtp-provider-adapter_type');
-                if (select) {
-                    select.value = link.dataset.onesmtpProviderType || '';
-                }
-            }, 0);
-        });
-    });
+			event.preventDefault();
+			const url = new URL( link.href, window.location.href );
+			url.hash = workspaceId;
+			url.searchParams.set( 'tab', workspaceId );
+			window.history.pushState(
+				{ onesmtpWorkspace: workspaceId },
+				'',
+				url.toString()
+			);
+			activateWorkspace( workspaceId, true );
+		} );
+	} );
 
-    activateWorkspace(resolveWorkspace(), false);
-    openHashTarget();
+	root.querySelectorAll( '[data-onesmtp-provider-type]' ).forEach(
+		function ( link ) {
+			link.addEventListener( 'click', function () {
+				window.setTimeout( function () {
+					const select = document.getElementById(
+						'onesmtp-provider-adapter_type'
+					);
+					if ( select ) {
+						select.value = link.dataset.onesmtpProviderType || '';
+					}
+				}, 0 );
+			} );
+		}
+	);
 
-    window.addEventListener('hashchange', function () {
-        activateWorkspace(resolveWorkspace(), true);
-        openHashTarget();
-    });
+	activateWorkspace( resolveWorkspace(), false );
+	openHashTarget();
 
-    window.addEventListener('popstate', function () {
-        activateWorkspace(resolveWorkspace(), true);
-    });
-}());
+	window.addEventListener( 'hashchange', function () {
+		activateWorkspace( resolveWorkspace(), true );
+		openHashTarget();
+	} );
+
+	window.addEventListener( 'popstate', function () {
+		activateWorkspace( resolveWorkspace(), true );
+	} );
+} )();

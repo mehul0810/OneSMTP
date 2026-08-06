@@ -37,4 +37,18 @@ final class FailureCategory
             true
         );
     }
+
+    public static function canFailover(?string $category): bool
+    {
+        return in_array(
+            self::normalize($category),
+            [self::RETRYABLE, self::AUTHENTICATION, self::QUOTA, self::TIMEOUT],
+            true
+        );
+    }
+
+    public static function affectsProviderHealth(?string $category): bool
+    {
+        return self::canFailover($category);
+    }
 }

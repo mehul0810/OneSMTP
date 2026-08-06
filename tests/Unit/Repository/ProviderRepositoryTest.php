@@ -16,6 +16,7 @@ final class ProviderRepositoryTest extends TestCase
         parent::setUp();
 
         $GLOBALS['wpdb'] = new FakeWpdb();
+        $GLOBALS['onesmtp_test_options'] = [];
     }
 
     public function test_save_encrypts_sensitive_config_and_find_decrypts_for_internal_use(): void
@@ -170,6 +171,48 @@ final class ProviderRepositoryTest extends TestCase
 
         self::assertSame('open', $GLOBALS['wpdb']->updates[0]['data']['circuit_state']);
         self::assertSame('2026-07-01 12:30:00', $GLOBALS['wpdb']->updates[0]['data']['circuit_until']);
+    }
+
+    public function test_save_rejects_a_second_connection_for_the_same_provider_type(): void
+    {
+        $GLOBALS['wpdb']->activeProviders = [[
+            'id' => 7,
+            'slug' => 'emailit-primary',
+            'name' => 'Emailit primary',
+            'adapter_type' => 'emailit',
+            'priority' => 100,
+            'weight' => 1,
+            'is_active' => 1,
+            'circuit_state' => 'closed',
+            'config_json' => '{}',
+        ]];
+
+        $providerId = (new ProviderRepository())->save([
+            'name' => 'Emailit duplicate',
+            'adapter_type' => 'emailit',
+            'config' => ['api_key' => 'secret'],
+        ]);
+
+        self::assertSame(0, $providerId);
+        self::assertSame([], $GLOBALS['wpdb']->inserts);
+    }
+
+    public function test_update_cannot_change_provider_to_an_already_configured_type(): void
+    {
+        $GLOBALS['wpdb']->activeProviders = [
+            ['id' => 7, 'adapter_type' => 'emailit', 'priority' => 100, 'weight' => 1, 'is_active' => 1, 'circuit_state' => 'closed', 'config_json' => '{}'],
+            ['id' => 8, 'adapter_type' => 'smtp', 'priority' => 100, 'weight' => 1, 'is_active' => 1, 'circuit_state' => 'closed', 'config_json' => '{}'],
+        ];
+
+        $providerId = (new ProviderRepository())->save([
+            'id' => 8,
+            'name' => 'Changed type',
+            'adapter_type' => 'emailit',
+            'config' => ['api_key' => 'secret'],
+        ]);
+
+        self::assertSame(0, $providerId);
+        self::assertSame([], $GLOBALS['wpdb']->updates);
     }
 
     private function undecryptableSecretValue(): string

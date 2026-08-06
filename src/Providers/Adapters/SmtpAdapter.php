@@ -54,6 +54,18 @@ class SmtpAdapter extends AbstractAdapter implements ProviderAdapterInterface
                 $mailer->addBCC($bcc);
             }
 
+            $attachments = $message['attachments'] ?? [];
+            if (is_string($attachments)) {
+                $attachments = $attachments !== '' ? [$attachments] : [];
+            }
+            foreach (is_array($attachments) ? $attachments : [] as $attachment) {
+                $path = is_scalar($attachment) ? trim((string) $attachment) : '';
+                if ($path === '' || ! is_file($path) || ! is_readable($path)) {
+                    return new SendResult(false, 'invalid_attachment', 'An email attachment is missing or unreadable.');
+                }
+                $mailer->addAttachment($path);
+            }
+
             $mailer->Subject = $this->getSubject($message);
             $mailer->Body = $this->getBody($message);
             $mailer->isHTML((bool) $config->get('is_html', false));
@@ -70,8 +82,8 @@ class SmtpAdapter extends AbstractAdapter implements ProviderAdapterInterface
     {
         $probe = [
             'to' => [sanitize_email((string) get_option('admin_email'))],
-            'subject' => '[OneSMTP] SMTP Connection Test',
-            'message' => 'Connection test from OneSMTP.',
+            'subject' => '[Aculect Mail] SMTP Connection Test',
+            'message' => 'Connection test from Aculect Mail.',
             'headers' => [],
         ];
 

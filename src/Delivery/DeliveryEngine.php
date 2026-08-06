@@ -6,6 +6,8 @@ namespace OneSMTP\Delivery;
 
 use OneSMTP\Dispatch\DispatchPolicyInterface;
 use OneSMTP\Providers\ProviderDeliveryManager;
+use OneSMTP\Providers\FailureCategory;
+use OneSMTP\Providers\ProviderTypes;
 use OneSMTP\Repository\AttemptRepository;
 use OneSMTP\Repository\EventRepository;
 use OneSMTP\Repository\ProviderRepository;
@@ -32,9 +34,15 @@ final class DeliveryEngine
         $this->events = $events ?? new EventRepository();
     }
 
-    public function deliver(int $messageId, int $attemptNo, array $payload, ?int $forcedProviderId = null): DeliveryOutcome
+    public function deliver(
+        int $messageId,
+        int $attemptNo,
+        array $payload,
+        ?int $forcedProviderId = null,
+        bool $failoverOnFirstFailure = false
+    ): DeliveryOutcome
     {
-        if ($forcedProviderId !== null && $forcedProviderId > 0 && ! $this->isEligibleForcedProvider($forcedProviderId)) {
+        if ($forcedProviderId !== null && $forcedProviderId > 0 && ! $this->isEligibleForcedProvider($forcedProviderId, $payload)) {
             $this->events->add(
                 'manual_resend_rejected',
                 ['attempt' => $attemptNo, 'reason' => 'ineligible_provider'],
@@ -45,7 +53,7 @@ final class DeliveryEngine
             return new DeliveryOutcome(false, $forcedProviderId, 'ineligible_provider', 'Selected provider is not eligible for resend.');
         }
 
-        $providerId = $this->resolveProviderId($messageId, $attemptNo, $forcedProviderId);
+        $providerId = $this->resolveProviderId($messageId, $attemptNo, $payload, $forcedProviderId, $failoverOnFirstFailure);
         if ($providerId <= 0) {
             $this->events->add('terminal_failure', ['attempt' => $attemptNo, 'reason' => 'provider_pool_exhausted'], $messageId);
 
@@ -63,7 +71,7 @@ final class DeliveryEngine
 
         if ($result->isSuccess()) {
             $this->providers->markState($providerId, 'closed', null);
-        } else {
+        } elseif (FailureCategory::affectsProviderHealth($result->getFailureCategory())) {
             $this->providers->markState($providerId, 'open', gmdate('Y-m-d H:i:s', time() + 300));
         }
 
@@ -77,9 +85,15 @@ final class DeliveryEngine
         );
     }
 
-    private function resolveProviderId(int $messageId, int $attemptNo, ?int $forcedProviderId): int
+    private function resolveProviderId(
+        int $messageId,
+        int $attemptNo,
+        array $payload,
+        ?int $forcedProviderId,
+        bool $failoverOnFirstFailure = false
+    ): int
     {
-        $providers = $this->providers->getActiveProviders();
+        $providers = $this->eligibleProviders($this->providers->getActiveProviders(), $payload);
         $lastAttempt = $this->attempts->getLastAttemptForMessage($messageId);
         $lastProviderId = is_array($lastAttempt) ? (int) ($lastAttempt['provider_id'] ?? 0) : 0;
         $consecutive = $lastProviderId > 0
@@ -94,6 +108,7 @@ final class DeliveryEngine
                 'last_provider_id' => $lastProviderId,
                 'consecutive_failures_for_last_provider' => $consecutive,
                 'forced_provider_id' => $forcedProviderId ?? 0,
+                'failover_on_first_failure' => $failoverOnFirstFailure,
             ]
         );
 
@@ -102,9 +117,9 @@ final class DeliveryEngine
         return (int) $providerId;
     }
 
-    private function isEligibleForcedProvider(int $providerId): bool
+    private function isEligibleForcedProvider(int $providerId, array $payload): bool
     {
-        foreach ($this->providers->getActiveProviders() as $provider) {
+        foreach ($this->eligibleProviders($this->providers->getActiveProviders(), $payload) as $provider) {
             if ((int) ($provider['id'] ?? 0) !== $providerId) {
                 continue;
             }
@@ -123,6 +138,24 @@ final class DeliveryEngine
         }
 
         return false;
+    }
+
+    /** @param array<int,array<string,mixed>> $providers */
+    private function eligibleProviders(array $providers, array $payload): array
+    {
+        $attachments = $payload['attachments'] ?? [];
+        $hasAttachments = is_array($attachments) ? $attachments !== [] : trim((string) $attachments) !== '';
+        if (! $hasAttachments) {
+            return $providers;
+        }
+
+        return array_values(array_filter(
+            $providers,
+            static fn (array $provider): bool => ProviderTypes::supportsCapability(
+                (string) ($provider['adapter_type'] ?? ''),
+                'attachments'
+            )
+        ));
     }
 
     private function recordProviderSwitch(int $messageId, int $attemptNo, int $fromProviderId, int $toProviderId): void

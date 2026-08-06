@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 /**
- * Shared bootstrap for OneSMTP tests.
+ * Shared bootstrap for Aculect Mail tests.
  */
 $autoloadPaths = [
     __DIR__ . '/../vendor/autoload.php',
@@ -39,6 +39,18 @@ if (! defined('DAY_IN_SECONDS')) {
 
 if (! defined('WEEK_IN_SECONDS')) {
     define('WEEK_IN_SECONDS', 604800);
+}
+
+if (! function_exists('wp_parse_url')) {
+    /**
+     * Minimal WordPress URL parser shim for isolated unit tests.
+     *
+     * @return array<string,int|string>|false
+     */
+    function wp_parse_url(string $url, int $component = -1): array|int|string|false|null
+    {
+        return parse_url($url, $component);
+    }
 }
 
 if (! class_exists('WP_Error')) {
@@ -287,6 +299,15 @@ if (! function_exists('add_action')) {
             'priority' => $priority,
             'accepted_args' => $acceptedArgs,
         ];
+
+        return true;
+    }
+}
+
+if (! function_exists('remove_all_actions')) {
+    function remove_all_actions(string $hook): bool
+    {
+        $GLOBALS['onesmtp_test_removed_actions'][] = $hook;
 
         return true;
     }
@@ -721,6 +742,10 @@ if (! function_exists('wp_remote_post')) {
             'args' => $args,
         ];
 
+        if (! empty($GLOBALS['onesmtp_test_remote_response_queue']) && is_array($GLOBALS['onesmtp_test_remote_response_queue'])) {
+            return array_shift($GLOBALS['onesmtp_test_remote_response_queue']);
+        }
+
         return $GLOBALS['onesmtp_test_remote_response'] ?? [
             'response' => ['code' => 202],
             'body' => '{}',
@@ -874,6 +899,6 @@ if (
 ) {
     fwrite(
         STDERR,
-        "[OneSMTP tests] Composer autoload not found. Run 'composer install' before executing PHPUnit.\n"
+        "[Aculect Mail tests] Composer autoload not found. Run 'composer install' before executing PHPUnit.\n"
     );
 }

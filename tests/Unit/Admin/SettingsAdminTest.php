@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace OneSMTP\Tests\Unit\Admin;
 
 use OneSMTP\Admin\SettingsAdmin;
+use OneSMTP\Conflict\MailDeliveryOwnership;
 use OneSMTP\Tests\Support\FakeWpdb;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
@@ -74,16 +75,7 @@ final class SettingsAdminTest extends TestCase
         self::assertStringContainsString('reply@example.test', $output);
         self::assertStringContainsString('audit@example.test', $output);
         self::assertStringContainsString('Save sender identity', $output);
-        self::assertStringContainsString('Delivery rate limits', $output);
-        self::assertStringContainsString('value="10"', $output);
-        self::assertStringContainsString('value="100"', $output);
-        self::assertStringContainsString('value="500"', $output);
-        self::assertStringContainsString('Background sending', $output);
-        self::assertStringContainsString('name="background_sending_enabled"', $output);
         self::assertStringContainsString('checked="checked"', $output);
-        self::assertStringContainsString('Attachment logging', $output);
-        self::assertStringContainsString('name="attachment_logging_enabled"', $output);
-        self::assertStringContainsString('metadata only', $output);
         self::assertStringContainsString('Failure alerts', $output);
         self::assertStringContainsString('ops@example.test', $output);
         self::assertStringContainsString('https://hooks.example.test/long-path-', $output);
@@ -94,6 +86,85 @@ final class SettingsAdminTest extends TestCase
         self::assertStringContainsString('summary@example.test', $output);
         self::assertStringContainsString('Save weekly delivery summary', $output);
         self::assertStringNotContainsString('Weekly delivery summaries are disabled', $output);
+        self::assertStringNotContainsString('Delivery rate limits', $output);
+        self::assertStringNotContainsString('Background sending', $output);
+        self::assertStringNotContainsString('Attachment logging', $output);
+        self::assertStringNotContainsString('Settings import/export', $output);
+    }
+
+    public function test_render_advanced_outputs_delivery_controls_and_safe_data_transfer(): void
+    {
+        update_option('onesmtp_settings', [
+            'rate_limits' => [
+                'per_minute' => 10,
+                'per_hour' => 100,
+                'per_day' => 500,
+            ],
+            'background_sending' => [
+                'enabled' => true,
+            ],
+            'attachment_logging' => [
+                'enabled' => true,
+            ],
+        ], false);
+
+        ob_start();
+        (new SettingsAdmin())->renderAdvanced();
+        $output = (string) ob_get_clean();
+
+        self::assertStringContainsString('Delivery rate limits', $output);
+        self::assertStringContainsString('value="10"', $output);
+        self::assertStringContainsString('value="100"', $output);
+        self::assertStringContainsString('value="500"', $output);
+        self::assertStringContainsString('Background sending', $output);
+        self::assertStringContainsString('name="background_sending_enabled"', $output);
+        self::assertStringContainsString('Attachment logging', $output);
+        self::assertStringContainsString('name="attachment_logging_enabled"', $output);
+        self::assertStringContainsString('metadata only', $output);
+        self::assertStringContainsString('Settings import/export', $output);
+        self::assertStringContainsString('Download safe settings export', $output);
+        self::assertStringContainsString('name="onesmtp_settings_import_json"', $output);
+        self::assertStringContainsString('tab=onesmtp-advanced', $output);
+        self::assertStringContainsString('name="onesmtp_return_tab" value="onesmtp-advanced"', $output);
+        self::assertStringNotContainsString('data-onesmtp-component="settings-navigation"', $output);
+    }
+
+    public function test_simulation_mode_is_blocked_when_suremail_owns_delivery(): void
+    {
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = [
+            'onesmtp_settings_action' => 'save_simulation_mode',
+            'onesmtp_settings_nonce' => 'test-nonce',
+            'simulation_mode_enabled' => '1',
+            'onesmtp_return_tab' => 'onesmtp-advanced',
+        ];
+
+        $admin = new SettingsAdmin(
+            deliveryOwnership: new MailDeliveryOwnership(MailDeliveryOwnership::SUREMAIL)
+        );
+
+        try {
+            $admin->handleRequest();
+        } catch (RuntimeException $e) {
+            self::assertSame('Aculect Mail settings admin redirected.', $e->getMessage());
+        }
+
+        self::assertFalse((bool) (get_option('onesmtp_settings', [])['simulation_mode']['enabled'] ?? false));
+        self::assertStringContainsString('onesmtp_settings_status=simulation_mode_owner_conflict', (string) $GLOBALS['onesmtp_test_redirect']['location']);
+    }
+
+    public function test_render_advanced_explains_simulation_ownership_conflict(): void
+    {
+        $admin = new SettingsAdmin(
+            deliveryOwnership: new MailDeliveryOwnership(MailDeliveryOwnership::SUREMAIL)
+        );
+
+        ob_start();
+        $admin->renderAdvanced();
+        $output = (string) ob_get_clean();
+
+        self::assertStringContainsString('SureMail currently owns live WordPress delivery', $output);
+        self::assertStringContainsString('cannot guarantee that messages are captured instead of sent', $output);
     }
 
     public function test_handle_request_saves_valid_sender_identity(): void
@@ -115,7 +186,7 @@ final class SettingsAdminTest extends TestCase
         try {
             $admin->handleRequest();
         } catch (RuntimeException $e) {
-            self::assertSame('OneSMTP settings admin redirected.', $e->getMessage());
+            self::assertSame('Aculect Mail settings admin redirected.', $e->getMessage());
         }
 
         $settings = get_option('onesmtp_settings', []);
@@ -142,7 +213,7 @@ final class SettingsAdminTest extends TestCase
         try {
             $admin->handleRequest();
         } catch (RuntimeException $e) {
-            self::assertSame('OneSMTP settings admin redirected.', $e->getMessage());
+            self::assertSame('Aculect Mail settings admin redirected.', $e->getMessage());
         }
 
         $settings = get_option('onesmtp_settings', []);
@@ -174,7 +245,7 @@ final class SettingsAdminTest extends TestCase
         try {
             $admin->handleRequest();
         } catch (RuntimeException $e) {
-            self::assertSame('OneSMTP settings admin redirected.', $e->getMessage());
+            self::assertSame('Aculect Mail settings admin redirected.', $e->getMessage());
         }
 
         $settings = get_option('onesmtp_settings', []);
@@ -198,7 +269,7 @@ final class SettingsAdminTest extends TestCase
         try {
             (new SettingsAdmin())->handleRequest();
         } catch (RuntimeException $e) {
-            self::assertSame('OneSMTP settings admin redirected.', $e->getMessage());
+            self::assertSame('Aculect Mail settings admin redirected.', $e->getMessage());
         }
 
         $settings = get_option('onesmtp_settings', []);
@@ -217,7 +288,7 @@ final class SettingsAdminTest extends TestCase
         try {
             (new SettingsAdmin())->handleRequest();
         } catch (RuntimeException $e) {
-            self::assertSame('OneSMTP settings admin redirected.', $e->getMessage());
+            self::assertSame('Aculect Mail settings admin redirected.', $e->getMessage());
         }
 
         $settings = get_option('onesmtp_settings', []);
@@ -241,7 +312,7 @@ final class SettingsAdminTest extends TestCase
         try {
             (new SettingsAdmin())->handleRequest();
         } catch (RuntimeException $e) {
-            self::assertSame('OneSMTP settings admin redirected.', $e->getMessage());
+            self::assertSame('Aculect Mail settings admin redirected.', $e->getMessage());
         }
 
         $settings = get_option('onesmtp_settings', []);
@@ -282,7 +353,7 @@ final class SettingsAdminTest extends TestCase
         try {
             $admin->handleRequest();
         } catch (RuntimeException $e) {
-            self::assertSame('OneSMTP settings admin redirected.', $e->getMessage());
+            self::assertSame('Aculect Mail settings admin redirected.', $e->getMessage());
         }
 
         $settings = get_option('onesmtp_settings', []);
@@ -318,7 +389,7 @@ final class SettingsAdminTest extends TestCase
         try {
             $admin->handleRequest();
         } catch (RuntimeException $e) {
-            self::assertSame('OneSMTP settings admin redirected.', $e->getMessage());
+            self::assertSame('Aculect Mail settings admin redirected.', $e->getMessage());
         }
 
         self::assertSame([], get_option('onesmtp_settings', []));
@@ -341,7 +412,7 @@ final class SettingsAdminTest extends TestCase
         try {
             $admin->handleRequest();
         } catch (RuntimeException $e) {
-            self::assertSame('OneSMTP settings admin redirected.', $e->getMessage());
+            self::assertSame('Aculect Mail settings admin redirected.', $e->getMessage());
         }
 
         $settings = get_option('onesmtp_settings', []);
@@ -368,7 +439,7 @@ final class SettingsAdminTest extends TestCase
         try {
             (new SettingsAdmin())->handleRequest();
         } catch (RuntimeException $e) {
-            self::assertSame('OneSMTP settings admin redirected.', $e->getMessage());
+            self::assertSame('Aculect Mail settings admin redirected.', $e->getMessage());
         }
 
         $settings = get_option('onesmtp_settings', []);
@@ -389,7 +460,7 @@ final class SettingsAdminTest extends TestCase
         try {
             (new SettingsAdmin())->handleRequest();
         } catch (RuntimeException $e) {
-            self::assertSame('OneSMTP settings admin redirected.', $e->getMessage());
+            self::assertSame('Aculect Mail settings admin redirected.', $e->getMessage());
         }
 
         self::assertSame([], get_option('onesmtp_settings', []));
@@ -413,7 +484,7 @@ final class SettingsAdminTest extends TestCase
         try {
             $admin->handleRequest();
         } catch (RuntimeException $e) {
-            self::assertSame('OneSMTP settings admin redirected.', $e->getMessage());
+            self::assertSame('Aculect Mail settings admin redirected.', $e->getMessage());
         }
 
         $settings = get_option('onesmtp_settings', []);
@@ -436,7 +507,7 @@ final class SettingsAdminTest extends TestCase
         try {
             $admin->handleRequest();
         } catch (RuntimeException $e) {
-            self::assertSame('OneSMTP settings admin redirected.', $e->getMessage());
+            self::assertSame('Aculect Mail settings admin redirected.', $e->getMessage());
         }
 
         self::assertSame([], get_option('onesmtp_settings', []));
@@ -454,7 +525,7 @@ final class SettingsAdminTest extends TestCase
         $GLOBALS['onesmtp_test_current_user_can'] = false;
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('You are not allowed to manage OneSMTP settings.');
+        $this->expectExceptionMessage('You are not allowed to manage Aculect Mail settings.');
 
         (new SettingsAdmin())->handleRequest();
     }
@@ -464,7 +535,7 @@ final class SettingsAdminTest extends TestCase
         $admin = new SettingsAdmin();
 
         ob_start();
-        $admin->render();
+        $admin->renderAdvanced();
         $output = (string) ob_get_clean();
 
         self::assertStringContainsString('Settings import/export', $output);
@@ -472,6 +543,27 @@ final class SettingsAdminTest extends TestCase
         self::assertStringContainsString('name="onesmtp_settings_import_json"', $output);
         self::assertStringContainsString('Import safe settings', $output);
         self::assertStringContainsString('provider secrets', strtolower($output));
+    }
+
+    public function test_advanced_settings_actions_save_with_the_existing_rate_limit_contract(): void
+    {
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = [
+            'onesmtp_settings_action' => 'save_rate_limits',
+            'onesmtp_settings_nonce' => 'test-nonce',
+            'onesmtp_return_tab' => 'onesmtp-advanced',
+            'rate_limit_per_minute' => '5',
+            'rate_limit_per_hour' => '60',
+            'rate_limit_per_day' => '700',
+        ];
+
+        try {
+            (new SettingsAdmin())->handleRequest();
+        } catch (RuntimeException $e) {
+            self::assertSame('Aculect Mail settings admin redirected.', $e->getMessage());
+        }
+
+        self::assertStringContainsString('onesmtp_settings_status=rate_limits_saved', (string) $GLOBALS['onesmtp_test_redirect']['location']);
     }
 
     public function test_export_requires_manage_capability_and_valid_nonce(): void
@@ -490,7 +582,7 @@ final class SettingsAdminTest extends TestCase
             (new SettingsAdmin())->handleRequest();
             self::fail('Expected settings export capability denial.');
         } catch (RuntimeException $exception) {
-            self::assertStringContainsString('You do not have permission to export OneSMTP settings.', $exception->getMessage());
+            self::assertStringContainsString('You do not have permission to export Aculect Mail settings.', $exception->getMessage());
         }
 
         $GLOBALS['onesmtp_test_current_user_caps'] = [
@@ -503,7 +595,7 @@ final class SettingsAdminTest extends TestCase
             (new SettingsAdmin())->handleRequest();
             self::fail('Expected settings export nonce denial.');
         } catch (RuntimeException $exception) {
-            self::assertStringContainsString('The OneSMTP settings export link has expired.', $exception->getMessage());
+            self::assertStringContainsString('The Aculect Mail settings export link has expired.', $exception->getMessage());
         }
     }
 
@@ -555,7 +647,7 @@ final class SettingsAdminTest extends TestCase
             (new SettingsAdmin())->handleRequest();
             self::fail('Expected settings export exception.');
         } catch (RuntimeException $exception) {
-            self::assertSame('OneSMTP settings exported.', $exception->getMessage());
+            self::assertSame('Aculect Mail settings exported.', $exception->getMessage());
         }
         $json = (string) ob_get_clean();
 
@@ -598,7 +690,7 @@ final class SettingsAdminTest extends TestCase
             (new SettingsAdmin())->handleRequest();
             self::fail('Expected settings import capability denial.');
         } catch (RuntimeException $exception) {
-            self::assertStringContainsString('You do not have permission to import OneSMTP settings.', $exception->getMessage());
+            self::assertStringContainsString('You do not have permission to import Aculect Mail settings.', $exception->getMessage());
         }
 
         $GLOBALS['onesmtp_test_current_user_caps'] = [
@@ -611,7 +703,7 @@ final class SettingsAdminTest extends TestCase
             (new SettingsAdmin())->handleRequest();
             self::fail('Expected settings import nonce denial.');
         } catch (RuntimeException $exception) {
-            self::assertStringContainsString('The OneSMTP settings import form has expired.', $exception->getMessage());
+            self::assertStringContainsString('The Aculect Mail settings import form has expired.', $exception->getMessage());
         }
     }
 
@@ -633,7 +725,7 @@ final class SettingsAdminTest extends TestCase
         try {
             (new SettingsAdmin())->handleRequest();
         } catch (RuntimeException $exception) {
-            self::assertSame('OneSMTP settings admin redirected.', $exception->getMessage());
+            self::assertSame('Aculect Mail settings admin redirected.', $exception->getMessage());
         }
 
         self::assertSame(60, get_option('onesmtp_settings', [])['rate_limits']['per_hour']);
@@ -645,7 +737,7 @@ final class SettingsAdminTest extends TestCase
         try {
             (new SettingsAdmin())->handleRequest();
         } catch (RuntimeException $exception) {
-            self::assertSame('OneSMTP settings admin redirected.', $exception->getMessage());
+            self::assertSame('Aculect Mail settings admin redirected.', $exception->getMessage());
         }
 
         self::assertStringContainsString('onesmtp_settings_status=invalid', (string) $GLOBALS['onesmtp_test_redirect']['location']);

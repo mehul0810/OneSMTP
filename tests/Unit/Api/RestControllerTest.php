@@ -9,8 +9,10 @@ use OneSMTP\Core\Capabilities;
 use OneSMTP\Providers\ProviderAdapterInterface;
 use OneSMTP\Providers\ProviderAdapterRegistry;
 use OneSMTP\Providers\ProviderConfig;
+use OneSMTP\Providers\ProviderTypes;
 use OneSMTP\Providers\SendResult;
 use OneSMTP\Repository\ProviderRepository;
+use OneSMTP\Security\SecretVault;
 use OneSMTP\Settings\SenderIdentityRepository;
 use OneSMTP\Tests\Support\FakeWpdb;
 use PHPUnit\Framework\TestCase;
@@ -25,6 +27,7 @@ final class RestControllerTest extends TestCase
 
         $GLOBALS['onesmtp_test_rest_routes'] = [];
         $GLOBALS['onesmtp_test_options'] = [];
+        $GLOBALS['onesmtp_test_transients'] = [];
         unset($GLOBALS['onesmtp_test_current_user_caps'], $GLOBALS['onesmtp_test_current_user_can']);
     }
 
@@ -40,7 +43,7 @@ final class RestControllerTest extends TestCase
         $providerWriteRoute = $routes[0]['args'][1];
         self::assertArrayHasKey('args', $providerWriteRoute);
         self::assertArrayHasKey('adapter_type', $providerWriteRoute['args']);
-        self::assertSame(['smtp', 'php_mail', 'gmail', 'sendgrid', 'postmark', 'brevo'], $providerWriteRoute['args']['adapter_type']['enum']);
+        self::assertSame(ProviderTypes::all(), $providerWriteRoute['args']['adapter_type']['enum']);
 
         $testRoute = $routes[2]['args'][0];
         self::assertSame([RestController::class, 'canManage'], $testRoute['permission_callback']);
@@ -284,6 +287,54 @@ final class RestControllerTest extends TestCase
         self::assertStringNotContainsString('plain-api-key', wp_json_encode($response->data));
     }
 
+    public function test_save_provider_updates_an_existing_connection_without_replacing_its_omitted_credentials(): void
+    {
+        $vault = new SecretVault();
+        $storedPassword = $vault->encrypt('existing-password');
+        $GLOBALS['wpdb'] = new FakeWpdb();
+        $GLOBALS['wpdb']->providerRowsById[7] = [
+            'id' => 7,
+            'slug' => 'primary_smtp',
+            'name' => 'Primary SMTP',
+            'adapter_type' => 'smtp',
+            'priority' => 10,
+            'weight' => 1,
+            'is_active' => 1,
+            'circuit_state' => 'closed',
+            'config_json' => wp_json_encode([
+                'host' => 'smtp.old.test',
+                'password' => $storedPassword,
+            ]),
+        ];
+
+        $controller = $this->controllerWithoutConstructor();
+        $this->setControllerProperty($controller, 'providers', new ProviderRepository());
+
+        $response = $controller->saveProvider(new WP_REST_Request(
+            ['id' => 7],
+            [
+                'name' => 'Primary SMTP',
+                'adapter_type' => 'smtp',
+                'priority' => 5,
+                'weight' => 2,
+                'is_active' => true,
+                'config' => ['host' => 'smtp.new.test'],
+            ]
+        ));
+
+        self::assertSame(201, $response->status);
+        self::assertCount(1, $GLOBALS['wpdb']->updates);
+        self::assertSame('primary_smtp', $GLOBALS['wpdb']->updates[0]['data']['slug']);
+
+        $updatedConfig = json_decode((string) $GLOBALS['wpdb']->updates[0]['data']['config_json'], true);
+        self::assertIsArray($updatedConfig);
+        self::assertSame('smtp.new.test', $updatedConfig['host']);
+        self::assertSame('existing-password', $vault->decrypt((string) $updatedConfig['password']));
+        self::assertSame(5, $GLOBALS['wpdb']->updates[0]['data']['priority']);
+        self::assertSame(2, $GLOBALS['wpdb']->updates[0]['data']['weight']);
+        self::assertSame(1, $GLOBALS['wpdb']->updates[0]['data']['is_active']);
+    }
+
     public function test_provider_test_email_sends_through_selected_adapter_with_safe_response(): void
     {
         $adapter = new TestEmailAdapter(new SendResult(true, 'accepted', 'Accepted by provider.', 'provider-message-id'));
@@ -302,6 +353,8 @@ final class RestControllerTest extends TestCase
                         [
                             'api_key' => 'secret-api-key',
                             'timeout' => 10,
+                            'from_email' => 'provider@example.test',
+                            'from_name' => 'Provider Sender',
                         ]
                     ),
                 ],
@@ -325,15 +378,49 @@ final class RestControllerTest extends TestCase
                 'provider_id' => 7,
                 'adapter_type' => 'sendgrid',
                 'to' => ['recipient@example.test'],
+                'message_id' => 1,
+                'simulated' => false,
             ],
             $response->data['test']
         );
         self::assertSame(['recipient@example.test'], $adapter->lastMessage['to'] ?? []);
         self::assertSame('Test subject', $adapter->lastMessage['subject'] ?? '');
-        self::assertSame('This is a test email sent by OneSMTP.', $adapter->lastMessage['message'] ?? '');
+        self::assertSame('This is a test email sent by Aculect Mail.', $adapter->lastMessage['message'] ?? '');
         self::assertSame('secret-api-key', $adapter->lastConfig['api_key'] ?? null);
+        self::assertContains('From: Provider Sender <provider@example.test>', $adapter->lastMessage['headers'] ?? []);
+        self::assertNotNull($this->findInsert('onesmtp_attempts'));
+        self::assertNotNull($this->findUpdate('onesmtp_messages', 'sent'));
         self::assertStringNotContainsString('secret-api-key', wp_json_encode($response->data));
         self::assertStringNotContainsString('provider-message-id', wp_json_encode($response->data));
+    }
+
+    public function test_provider_test_is_logged_as_simulated_without_contacting_adapter(): void
+    {
+        update_option('onesmtp_settings', ['simulation_mode' => ['enabled' => true]], false);
+        $adapter = new TestEmailAdapter(new SendResult(true, 'accepted', 'Must not run.'));
+        $controller = $this->controllerWithProviders([
+            8 => [
+                'id' => 8,
+                'slug' => 'simulated',
+                'name' => 'Simulated provider',
+                'adapter_type' => 'sendgrid',
+                'priority' => 1,
+                'weight' => 1,
+                'is_active' => 1,
+                'circuit_state' => 'closed',
+                'config_json' => wp_json_encode(['api_key' => 'secret']),
+            ],
+        ], ['sendgrid' => $adapter]);
+
+        $response = $controller->testProvider(new WP_REST_Request(['id' => 8, 'to' => 'recipient@example.test'], null));
+
+        self::assertSame(200, $response->status);
+        self::assertTrue($response->data['ok']);
+        self::assertTrue($response->data['test']['simulated']);
+        self::assertSame('simulated', $response->data['code']);
+        self::assertNull($adapter->lastMessage);
+        self::assertNull($this->findInsert('onesmtp_attempts'));
+        self::assertNotNull($this->findUpdate('onesmtp_messages', 'simulated'));
     }
 
     public function test_provider_test_email_returns_safe_failure_details(): void
@@ -512,6 +599,28 @@ final class RestControllerTest extends TestCase
             $this->instanceWithoutConstructor(\OneSMTP\Pipeline\SendPipeline::class),
             new ProviderAdapterRegistry($adapters)
         );
+    }
+
+    private function findInsert(string $tableSuffix): ?array
+    {
+        foreach ($GLOBALS['wpdb']->inserts as $insert) {
+            if (str_ends_with($insert['table'], $tableSuffix)) {
+                return $insert;
+            }
+        }
+
+        return null;
+    }
+
+    private function findUpdate(string $tableSuffix, string $status): ?array
+    {
+        foreach ($GLOBALS['wpdb']->updates as $update) {
+            if (str_ends_with($update['table'], $tableSuffix) && ($update['data']['status'] ?? '') === $status) {
+                return $update;
+            }
+        }
+
+        return null;
     }
 
     /**

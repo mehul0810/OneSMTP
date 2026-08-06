@@ -57,8 +57,12 @@ final class DefaultDispatchPolicy implements DispatchPolicyInterface
             return (int) $weightedPool[$startIndex]['id'];
         }
 
-        // Invariant: after 2 consecutive failures, switch away from the current provider.
-        if ($consecutive >= 2) {
+        // Normal retries keep the current provider for one additional attempt so
+        // transient provider blips do not rotate the pool unnecessarily. The
+        // delivery pipeline can opt into immediate failover when a provider has
+        // already failed and another healthy provider is available.
+        $failureThreshold = ! empty($context['failover_on_first_failure']) ? 1 : 2;
+        if ($consecutive >= $failureThreshold) {
             return $this->nextProviderInOrder($weightedPool, $lastProviderId);
         }
 

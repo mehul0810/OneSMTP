@@ -52,7 +52,7 @@ final class FailureAlertDispatcher
 
         wp_mail(
             $recipients,
-            __('OneSMTP terminal failure alert', 'onesmtp'),
+            __('Aculect Mail terminal failure alert', 'onesmtp'),
             (string) wp_json_encode($payload, JSON_PRETTY_PRINT),
             ['Content-Type: text/plain; charset=UTF-8']
         );

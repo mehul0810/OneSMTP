@@ -76,6 +76,76 @@ final class SendPipelineIntegrationTest extends TestCase
         self::assertSame(10, $sentEvent['data']['provider_id']);
     }
 
+    public function test_retryable_failure_immediately_switches_to_secondary_provider_and_logs_failover(): void
+    {
+        $this->seedProviders([
+            ['id' => 10, 'adapter_type' => 'sequence', 'priority' => 1],
+            ['id' => 20, 'adapter_type' => 'sequence', 'priority' => 2],
+        ]);
+        $adapter = new SequenceAdapter('sequence', [
+            new SendResult(false, 'provider_timeout', 'Primary timed out.', null, FailureCategory::TIMEOUT),
+            new SendResult(true, 'sent', 'Secondary accepted the message.', 'secondary-message-id'),
+        ]);
+
+        $pipeline = $this->buildPipeline($adapter);
+
+        $result = $pipeline->handlePreWpMail(null, [
+            'to' => ['qa@example.com'],
+            'subject' => 'Immediate failover',
+            'message' => 'Hello',
+            'headers' => [],
+        ]);
+
+        self::assertTrue($result);
+        $attempts = array_values(array_filter(
+            $GLOBALS['wpdb']->inserts,
+            static fn (array $insert): bool => str_ends_with($insert['table'], 'onesmtp_attempts')
+        ));
+        self::assertCount(2, $attempts);
+        self::assertSame(20, $attempts[0]['data']['provider_id']);
+        self::assertSame('fail', $attempts[0]['data']['result']);
+        self::assertSame(10, $attempts[1]['data']['provider_id']);
+        self::assertSame('failover', $attempts[1]['data']['trigger_type']);
+        self::assertSame('sent', $attempts[1]['data']['result']);
+        self::assertSame([], $GLOBALS['onesmtp_test_scheduled_actions']);
+
+        $failover = $this->findEventInsert('provider_failover');
+        self::assertNotNull($failover);
+        self::assertSame(10, $failover['data']['provider_id']);
+        $context = json_decode((string) $failover['data']['context_json'], true);
+        self::assertSame(20, $context['from_provider_id'] ?? null);
+        self::assertSame(10, $context['to_provider_id'] ?? null);
+    }
+
+    public function test_provider_scoped_failure_on_secondary_continues_to_third_provider(): void
+    {
+        $this->seedProviders([
+            ['id' => 10, 'adapter_type' => 'sequence', 'priority' => 1],
+            ['id' => 20, 'adapter_type' => 'sequence', 'priority' => 2],
+            ['id' => 30, 'adapter_type' => 'sequence', 'priority' => 3],
+        ]);
+        $adapter = new SequenceAdapter('sequence', [
+            new SendResult(false, 'provider_timeout', 'Primary timed out.', null, FailureCategory::TIMEOUT),
+            new SendResult(false, 'invalid_api_key', 'Secondary credentials expired.', null, FailureCategory::AUTHENTICATION),
+            new SendResult(true, 'sent', 'Third provider accepted the message.'),
+        ]);
+
+        $result = $this->buildPipeline($adapter)->handlePreWpMail(null, [
+            'to' => ['qa@example.com'],
+            'subject' => 'Three-provider failover',
+            'message' => 'Hello',
+            'headers' => [],
+        ]);
+
+        self::assertTrue($result);
+        $attempts = array_values(array_filter(
+            $GLOBALS['wpdb']->inserts,
+            static fn (array $insert): bool => str_ends_with($insert['table'], 'onesmtp_attempts')
+        ));
+        self::assertCount(3, $attempts);
+        self::assertSame(['fail', 'fail', 'sent'], array_column(array_column($attempts, 'data'), 'result'));
+    }
+
     public function test_handle_pre_wp_mail_persists_failed_attempt_and_schedules_retry(): void
     {
         $this->seedProvider(20, 'test_failure');
@@ -255,6 +325,28 @@ final class SendPipelineIntegrationTest extends TestCase
         self::assertSame(FailureCategory::AUTHENTICATION, $context['failure_category'] ?? null);
     }
 
+    public function test_message_scoped_terminal_failure_does_not_open_provider_circuit(): void
+    {
+        $this->seedProvider(27, 'terminal_message');
+        $pipeline = $this->buildPipeline(new StaticAdapter(
+            'terminal_message',
+            new SendResult(false, 'invalid_recipient', 'Recipient is invalid.', null, FailureCategory::TERMINAL)
+        ));
+
+        self::assertFalse($pipeline->handlePreWpMail(null, [
+            'to' => ['invalid@example.com'],
+            'subject' => 'Invalid recipient',
+            'message' => 'Hello',
+            'headers' => [],
+        ]));
+
+        $providerUpdates = array_filter(
+            $GLOBALS['wpdb']->updates,
+            static fn (array $update): bool => str_ends_with($update['table'], 'onesmtp_providers')
+        );
+        self::assertSame([], array_values($providerUpdates));
+    }
+
     public function test_terminal_failure_triggers_privacy_safe_alerts(): void
     {
         $this->seedProvider(26, 'test_alert_terminal');
@@ -409,7 +501,77 @@ final class SendPipelineIntegrationTest extends TestCase
         self::assertSame([602, 2, 'background-602'], $scheduled['args']);
     }
 
-    private function buildPipeline(StaticAdapter $adapter, ?callable $clock = null): SendPipeline
+    public function test_simulation_mode_captures_without_selecting_or_contacting_a_provider(): void
+    {
+        update_option('onesmtp_settings', ['simulation_mode' => ['enabled' => true]], false);
+        $pipeline = $this->buildPipeline(new StaticAdapter('unused', new SendResult(true, 'sent', 'should not run')));
+
+        $result = $pipeline->handlePreWpMail(null, [
+            'to' => ['qa@example.com'],
+            'subject' => 'Simulation only',
+            'message' => 'Hello',
+            'headers' => [],
+        ]);
+
+        self::assertTrue($result);
+        self::assertNotNull($this->findUpdate('onesmtp_messages', 'simulated'));
+        self::assertNotNull($this->findEventInsert('message_simulated'));
+        self::assertNull($this->findInsert('onesmtp_attempts'));
+    }
+
+    public function test_simulation_mode_stops_queued_retry_background_and_manual_delivery(): void
+    {
+        update_option('onesmtp_settings', ['simulation_mode' => ['enabled' => true]], false);
+        $this->seedProvider(10, 'smtp');
+        $payload = [
+            'to' => ['qa@example.com'],
+            'subject' => 'Queued before simulation',
+            'message' => 'Hello',
+            'headers' => [],
+        ];
+        $GLOBALS['wpdb']->messageRowsById[700] = [
+            'id' => 700,
+            'message_uuid' => 'simulation-700',
+            'payload_json' => wp_json_encode($payload),
+            'status' => 'retry_scheduled',
+            'max_attempts' => 6,
+        ];
+        $adapter = new CountingAdapter('smtp', new SendResult(true, 'sent', 'Must not run.'));
+        $pipeline = $this->buildPipeline($adapter);
+
+        $pipeline->handleRetryAttempt(700, 2, 10);
+        $pipeline->handleBackgroundSendAttempt(700, 2);
+        self::assertTrue($pipeline->resendMessage(700, 10));
+
+        self::assertSame(0, $adapter->sendCount);
+        self::assertCount(3, array_filter(
+            $GLOBALS['wpdb']->updates,
+            static fn (array $update): bool => ($update['data']['status'] ?? '') === 'simulated'
+        ));
+    }
+
+    public function test_attachment_mail_is_sent_synchronously_and_never_queued_for_lossy_retry(): void
+    {
+        update_option('onesmtp_settings', ['background_sending' => ['enabled' => true]], false);
+        $this->seedProvider(10, 'smtp');
+        $adapter = new CountingAdapter('smtp', new SendResult(false, 'provider_timeout', 'Timed out.', null, FailureCategory::TIMEOUT));
+        $pipeline = $this->buildPipeline($adapter);
+
+        $result = $pipeline->handlePreWpMail(null, [
+            'to' => ['qa@example.com'],
+            'subject' => 'Attachment safety',
+            'message' => 'Hello',
+            'headers' => [],
+            'attachments' => ['/tmp/invoice.pdf'],
+        ]);
+
+        self::assertFalse($result);
+        self::assertSame(1, $adapter->sendCount);
+        self::assertSame([], $GLOBALS['onesmtp_test_scheduled_actions']);
+        self::assertNotNull($this->findEventInsert('terminal_failure'));
+    }
+
+    private function buildPipeline(ProviderAdapterInterface $adapter, ?callable $clock = null): SendPipeline
     {
         $dispatch = new DefaultDispatchPolicy();
         $messages = new MessageRepository();
@@ -437,6 +599,21 @@ final class SendPipelineIntegrationTest extends TestCase
 
         $GLOBALS['wpdb']->activeProviders = [$provider];
         $GLOBALS['wpdb']->providerRowsById[$id] = $provider;
+    }
+
+    /** @param array<int,array{id:int,adapter_type:string,priority:int}> $providers */
+    private function seedProviders(array $providers): void
+    {
+        $GLOBALS['wpdb']->activeProviders = [];
+        foreach ($providers as $provider) {
+            $row = $provider + [
+                'is_active' => 1,
+                'weight' => 1,
+                'config_json' => '{}',
+            ];
+            $GLOBALS['wpdb']->activeProviders[] = $row;
+            $GLOBALS['wpdb']->providerRowsById[(int) $row['id']] = $row;
+        }
     }
 
     private function findInsert(string $tableSuffix): ?array
@@ -517,5 +694,33 @@ final class CountingAdapter extends StaticAdapter
         $this->sendCount++;
 
         return parent::send($message, $config);
+    }
+}
+
+final class SequenceAdapter implements ProviderAdapterInterface
+{
+    private int $index = 0;
+
+    /** @param array<int,SendResult> $results */
+    public function __construct(private string $slug, private array $results)
+    {
+    }
+
+    public function getSlug(): string
+    {
+        return $this->slug;
+    }
+
+    public function send(array $message, ProviderConfig $config): SendResult
+    {
+        $result = $this->results[min($this->index, count($this->results) - 1)];
+        $this->index++;
+
+        return $result;
+    }
+
+    public function testConnection(ProviderConfig $config): SendResult
+    {
+        return $this->results[0];
     }
 }

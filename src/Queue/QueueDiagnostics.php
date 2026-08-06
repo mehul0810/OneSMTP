@@ -82,7 +82,7 @@ final class QueueDiagnostics
         $actions = [];
 
         if (! $schedulerAvailable) {
-            $actions[] = __('Load or repair Action Scheduler so OneSMTP can enqueue background retries.', 'onesmtp');
+            $actions[] = __('Load or repair Action Scheduler so Aculect Mail can enqueue background retries.', 'onesmtp');
         }
 
         if ($overdueRetries > 0) {

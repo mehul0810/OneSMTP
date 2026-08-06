@@ -81,8 +81,8 @@ final class SendGridAdapter extends AbstractAdapter implements ProviderAdapterIn
     {
         $probe = [
             'to' => [sanitize_email((string) get_option('admin_email'))],
-            'subject' => '[OneSMTP] SendGrid Connection Test',
-            'message' => 'Connection test from OneSMTP.',
+            'subject' => '[Aculect Mail] SendGrid Connection Test',
+            'message' => 'Connection test from Aculect Mail.',
             'headers' => [],
         ];
 

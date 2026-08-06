@@ -1,8 +1,8 @@
-# OneSMTP Design System Adoption
+# Aculect Mail Design System Adoption
 
 ## Source of truth
 
-Use the [WordPress Design System community file](https://www.figma.com/community/file/1436359662053949167/wordpress-design-system) for component intent, interaction patterns, states, and layout guidance. Use [`DESIGN.md`](../../DESIGN.md) for OneSMTP’s product posture, Aculect tokens, information architecture, and copy rules.
+Use the [WordPress Design System community file](https://www.figma.com/community/file/1436359662053949167/wordpress-design-system) for component intent, interaction patterns, states, and layout guidance. Use [`DESIGN.md`](../../DESIGN.md) for Aculect Mail’s product posture, Aculect tokens, information architecture, and copy rules.
 
 ## Package policy
 
@@ -13,14 +13,14 @@ When a client-side interface is introduced, prefer the smallest set of official 
 - `@wordpress/i18n` for translatable client-side strings.
 - `@wordpress/icons` for accessible WordPress iconography.
 - `@wordpress/dataviews` for admin listings with search, sorting, filters, layout controls, and pagination. Plugin builds import the WordPress bundle from `@wordpress/dataviews/wp`.
-- Heroicons outline paths for OneSMTP-specific product iconography via the shared PHP helper.
+- Heroicons outline paths for Aculect Mail-specific product iconography via the shared PHP helper.
 - `@wordpress/data` only for shared state that cannot remain local to a component or server-rendered request.
 
 Do not add a competing component system, icon library, or ad hoc design-token layer. If a required component is not available, document the gap and keep the fallback visually and behaviorally aligned with WordPress admin conventions.
 
 ## Adoption strategy
 
-OneSMTP currently has a PHP-rendered admin surface with a small JavaScript workspace controller. Keep that architecture stable while introducing the design system in bounded areas:
+Aculect Mail currently has a PHP-rendered admin surface with a small JavaScript workspace controller. Keep that architecture stable while introducing the design system in bounded areas:
 
 1. Use WordPress core markup and classes for server-rendered forms, tables, notices, and navigation.
 2. Use `@wordpress/components` for new interactive islands or a deliberately migrated screen.

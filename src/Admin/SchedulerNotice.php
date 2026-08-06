@@ -38,7 +38,7 @@ final class SchedulerNotice
             $this->renderLinkedNotice(
                 'notice-error',
                 __(
-                    'OneSMTP has no active email provider. Outbound email cannot be delivered until at least one provider is configured and active.',
+                    'Aculect Mail has no active email provider. Outbound email cannot be delivered until at least one provider is configured and active.',
                     'onesmtp'
                 ),
                 admin_url('options-general.php?page=onesmtp#onesmtp-providers'),
@@ -50,10 +50,10 @@ final class SchedulerNotice
             $this->renderLinkedNotice(
                 'notice-error',
                 __(
-                    'OneSMTP retry scheduling is unavailable because Action Scheduler is not loaded. Failed messages will not be queued for background retry until the scheduler is available.',
+                    'Aculect Mail retry scheduling is unavailable because Action Scheduler is not loaded. Failed messages will not be queued for background retry until the scheduler is available.',
                     'onesmtp'
                 ),
-                admin_url('options-general.php?page=onesmtp#onesmtp-diagnostics'),
+                admin_url('options-general.php?page=onesmtp&tab=onesmtp-advanced#onesmtp-diagnostics'),
                 __('Review diagnostics', 'onesmtp')
             );
 
@@ -68,10 +68,10 @@ final class SchedulerNotice
         $this->renderLinkedNotice(
             'notice-warning',
             __(
-                'OneSMTP has overdue retry jobs, so queue processing may be blocked. Review diagnostics before resending or changing provider settings.',
+                'Aculect Mail has overdue retry jobs, so queue processing may be blocked. Review diagnostics before resending or changing provider settings.',
                 'onesmtp'
             ),
-            admin_url('options-general.php?page=onesmtp#onesmtp-diagnostics'),
+            admin_url('options-general.php?page=onesmtp&tab=onesmtp-advanced#onesmtp-diagnostics'),
             __('Review queue diagnostics', 'onesmtp')
         );
     }

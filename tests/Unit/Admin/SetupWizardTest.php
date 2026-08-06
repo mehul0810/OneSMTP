@@ -48,9 +48,9 @@ final class SetupWizardTest extends TestCase
         $output = (string) ob_get_clean();
 
         self::assertStringContainsString('onesmtp-setup-shell', $output);
-        self::assertStringContainsString('onesmtp-setup-rail', $output);
-        self::assertStringContainsString('Delivery status', $output);
-        self::assertStringContainsString('No active provider', $output);
+        self::assertStringContainsString('is-simplified', $output);
+        self::assertStringNotContainsString('onesmtp-setup-rail', $output);
+        self::assertStringContainsString('Complete Aculect Mail setup', $output);
         self::assertStringContainsString('View providers', $output);
         self::assertStringNotContainsString('plain-password', $output);
     }
@@ -68,7 +68,7 @@ final class SetupWizardTest extends TestCase
         $wizard->render();
         $output = (string) ob_get_clean();
 
-        self::assertStringContainsString('1 active provider(s)', $output);
+        self::assertStringContainsString('is-complete', $output);
         self::assertStringContainsString('backup provider', $output);
         self::assertStringContainsString('is-pending', $output);
         self::assertStringContainsString('A backup provider is recommended for failover.', $output);
@@ -83,7 +83,7 @@ final class SetupWizardTest extends TestCase
         $output = (string) ob_get_clean();
 
         self::assertStringContainsString('onesmtp-overview-setup-card', $output);
-        self::assertStringContainsString('Setup guidance', $output);
+        self::assertStringNotContainsString('Setup guidance', $output);
         self::assertStringContainsString('Connect a provider', $output);
         self::assertStringContainsString('Set up sender identity', $output);
         self::assertStringNotContainsString('Provider capability matrix', $output);
@@ -115,7 +115,7 @@ final class SetupWizardTest extends TestCase
         $wizard = new SetupWizard(new ProviderRepository());
 
         $this->expectException(RuntimeException::class);
-        $this->expectExceptionMessage('You do not have permission to run the OneSMTP setup wizard.');
+        $this->expectExceptionMessage('You do not have permission to run the Aculect Mail setup wizard.');
 
         $wizard->handleRequest();
     }
@@ -140,7 +140,7 @@ final class SetupWizardTest extends TestCase
         try {
             $wizard->handleRequest();
         } catch (RuntimeException $e) {
-            self::assertSame('OneSMTP setup wizard redirected.', $e->getMessage());
+            self::assertSame('Aculect Mail setup wizard redirected.', $e->getMessage());
         }
 
         self::assertCount(3, $GLOBALS['wpdb']->inserts);
@@ -203,7 +203,7 @@ final class SetupWizardTest extends TestCase
         try {
             $wizard->handleRequest();
         } catch (RuntimeException $e) {
-            self::assertSame('OneSMTP setup wizard redirected.', $e->getMessage());
+            self::assertSame('Aculect Mail setup wizard redirected.', $e->getMessage());
         }
 
         self::assertSame(['recipient@example.test'], $adapter->lastMessage['to'] ?? []);
@@ -254,7 +254,7 @@ final class SetupWizardTest extends TestCase
         try {
             $wizard->handleRequest();
         } catch (RuntimeException $e) {
-            self::assertSame('OneSMTP setup wizard redirected.', $e->getMessage());
+            self::assertSame('Aculect Mail setup wizard redirected.', $e->getMessage());
         }
 
         self::assertArrayNotHasKey('api_key', $adapter->lastConfig);

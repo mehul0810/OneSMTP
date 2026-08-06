@@ -24,25 +24,25 @@ If a normal message stays queued, confirm Action Scheduler is loaded, WP-Cron or
 
 ## Configured Delivery Limits
 
-If mail is accepted by OneSMTP but does not immediately leave the queue, check whether per-minute, hourly, or daily delivery limits are configured in Settings.
+If mail is accepted by Aculect Mail but does not immediately leave the queue, check whether per-minute, hourly, or daily delivery limits are configured in Settings.
 
-When a configured limit is exhausted, OneSMTP defers the message through Action Scheduler. This is expected backpressure behavior and does not indicate a provider failure.
+When a configured limit is exhausted, Aculect Mail defers the message through Action Scheduler. This is expected backpressure behavior and does not indicate a provider failure.
 
-## Retry Scheduler Unavailable Notice
+## Retry Scheduler Unavailable
 
-OneSMTP treats Action Scheduler as the MVP retry backend. If Action Scheduler is not loaded, OneSMTP fails closed instead of pretending a retry was queued.
+Aculect Mail treats Action Scheduler as the MVP retry backend. If Action Scheduler is not loaded, Aculect Mail fails closed instead of pretending a retry was queued.
 
-Admins who can manage OneSMTP see a dashboard notice when the scheduler backend is unavailable. Before packaging or approving a release build, confirm the notice is absent on a normal WordPress admin request and that retry scheduling tests pass.
+The admin surface does not interrupt page navigation with a global scheduler notice. Use Queue Diagnostics or the diagnostic report to confirm scheduler availability, and check the retry scheduling failure event before assuming a message will retry automatically.
 
 ## Failure Alerts
 
-Failure alerts can be enabled from the OneSMTP settings screen for terminal delivery failures. Admin email alerts require at least one recipient, and webhook alerts require an HTTPS URL.
+Failure alerts can be enabled from the Aculect Mail settings screen for terminal delivery failures. Admin email alerts require at least one recipient, and webhook alerts require an HTTPS URL.
 
-Alert payloads are limited to operational metadata: event ID, timestamp, message ID/UUID, safe hashes, provider summary, failure reason, and failure category. OneSMTP does not send raw recipients, message bodies, raw headers, stored payload JSON, provider credentials, tokens, or provider configuration in alert payloads.
+Alert payloads are limited to operational metadata: event ID, timestamp, message ID/UUID, safe hashes, provider summary, failure reason, and failure category. Aculect Mail does not send raw recipients, message bodies, raw headers, stored payload JSON, provider credentials, tokens, or provider configuration in alert payloads.
 
 ## Diagnostic Report
 
-Administrators with OneSMTP management access can download a privacy-safe diagnostic report from the Diagnostics section. The report includes environment and plugin metadata, provider summaries, queue and scheduler state, recent failure category counts, and redaction metadata.
+Administrators with Aculect Mail management access can download a privacy-safe diagnostic report from the Diagnostics section. The report includes environment and plugin metadata, provider summaries, queue and scheduler state, recent failure category counts, and redaction metadata.
 
 The diagnostic report excludes raw recipients, message subjects, message bodies, raw headers, stored payload JSON, webhook URLs, provider error messages, provider message IDs, tokens, credentials, secrets, and provider configuration values.
 

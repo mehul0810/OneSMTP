@@ -179,7 +179,7 @@ final class SettingsTransferService
         }
 
         if ($summary['settings_groups'] === [] && $providerImports === []) {
-            throw new InvalidArgumentException('Import JSON does not contain supported OneSMTP settings.');
+            throw new InvalidArgumentException('Import JSON does not contain supported Aculect Mail settings.');
         }
 
         if ($summary['settings_groups'] !== []) {

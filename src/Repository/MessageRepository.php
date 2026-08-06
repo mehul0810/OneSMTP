@@ -9,6 +9,14 @@ use OneSMTP\Logging\AttachmentLogSanitizer;
 
 final class MessageRepository
 {
+    /*
+     * Repository queries use only plugin-owned identifiers from TableNames.
+     * Every runtime value is passed through wpdb::prepare() or a typed wpdb
+     * CRUD method before execution. Plugin Check cannot follow that invariant
+     * across the TableNames helper and intermediate prepared SQL variables.
+     */
+    // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
+
     private AttachmentLogSanitizer $attachmentLogSanitizer;
 
     public function __construct(?AttachmentLogSanitizer $attachmentLogSanitizer = null)
@@ -132,6 +140,24 @@ final class MessageRepository
         );
     }
 
+    public function markSimulated(int $messageId): void
+    {
+        global $wpdb;
+
+        $wpdb->update(
+            TableNames::messages(),
+            [
+                'status' => 'simulated',
+                'selected_provider_id' => null,
+                'next_retry_at' => null,
+                'updated_at' => current_time('mysql', true),
+            ],
+            ['id' => $messageId],
+            ['%s', '%d', '%s', '%s'],
+            ['%d']
+        );
+    }
+
     public function markRetryScheduled(int $messageId, int $attempt, int $retryTimestamp): void
     {
         global $wpdb;
@@ -208,14 +234,21 @@ final class MessageRepository
         $limit = max(1, min(200, $limit));
         $messagesTable = TableNames::messages();
         $attemptsTable = TableNames::attempts();
+        $eventsTable = TableNames::events();
         $sql = $wpdb->prepare(
-            "SELECT m.id, m.message_uuid, m.recipients_hash, m.payload_json, m.status, m.selected_provider_id, m.current_attempt, m.max_attempts, m.next_retry_at, m.created_at, m.updated_at, COALESCE(a.attempt_count, 0) AS attempt_count
+            "SELECT m.id, m.message_uuid, m.recipients_hash, m.payload_json, m.status, m.selected_provider_id, m.current_attempt, m.max_attempts, m.next_retry_at, m.created_at, m.updated_at, COALESCE(a.attempt_count, 0) AS attempt_count, COALESCE(e.switch_count, 0) AS switch_count
             FROM {$messagesTable} m
             LEFT JOIN (
                 SELECT message_id, COUNT(id) AS attempt_count
                 FROM {$attemptsTable}
                 GROUP BY message_id
             ) a ON a.message_id = m.id
+            LEFT JOIN (
+                SELECT message_id, COUNT(id) AS switch_count
+                FROM {$eventsTable}
+                WHERE event_type = 'provider_failover'
+                GROUP BY message_id
+            ) e ON e.message_id = m.id
             ORDER BY m.id DESC
             LIMIT %d",
             $limit
@@ -234,15 +267,22 @@ final class MessageRepository
         $offset = ($page - 1) * $perPage;
         $messagesTable = TableNames::messages();
         $attemptsTable = TableNames::attempts();
+        $eventsTable = TableNames::events();
         [$whereSql, $args] = $this->buildLogFilterWhere($filters, 'm');
 
-        $sql = "SELECT m.id, m.message_uuid, m.recipients_hash, m.payload_json, m.status, m.selected_provider_id, m.current_attempt, m.max_attempts, m.next_retry_at, m.created_at, m.updated_at, COALESCE(a.attempt_count, 0) AS attempt_count
+        $sql = "SELECT m.id, m.message_uuid, m.recipients_hash, m.payload_json, m.status, m.selected_provider_id, m.current_attempt, m.max_attempts, m.next_retry_at, m.created_at, m.updated_at, COALESCE(a.attempt_count, 0) AS attempt_count, COALESCE(e.switch_count, 0) AS switch_count
             FROM {$messagesTable} m
             LEFT JOIN (
                 SELECT message_id, COUNT(id) AS attempt_count
                 FROM {$attemptsTable}
                 GROUP BY message_id
             ) a ON a.message_id = m.id
+            LEFT JOIN (
+                SELECT message_id, COUNT(id) AS switch_count
+                FROM {$eventsTable}
+                WHERE event_type = 'provider_failover'
+                GROUP BY message_id
+            ) e ON e.message_id = m.id
             {$whereSql}
             ORDER BY m.id DESC
             LIMIT %d OFFSET %d";
@@ -265,6 +305,46 @@ final class MessageRepository
         $prepared = $args === [] ? $sql : $wpdb->prepare($sql, ...$args);
 
         return max(0, (int) $wpdb->get_var($prepared));
+    }
+
+    /**
+     * Return the messages currently waiting for an initial send or retry.
+     * Queue rows intentionally use the same redacted payload and attempt
+     * metadata as the activity log; message bodies and raw recipients never
+     * leave the repository boundary.
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    public function listQueueWithAttemptCounts(int $limit = 25): array
+    {
+        global $wpdb;
+
+        $limit = max(1, min(100, $limit));
+        $messagesTable = TableNames::messages();
+        $attemptsTable = TableNames::attempts();
+        $eventsTable = TableNames::events();
+        $sql = $wpdb->prepare(
+            "SELECT m.id, m.message_uuid, m.payload_json, m.status, m.selected_provider_id, m.current_attempt, m.max_attempts, m.next_retry_at, m.created_at, m.updated_at, COALESCE(a.attempt_count, 0) AS queue_attempt_count, COALESCE(e.switch_count, 0) AS switch_count
+            FROM {$messagesTable} m
+            LEFT JOIN (
+                SELECT message_id, COUNT(id) AS attempt_count
+                FROM {$attemptsTable}
+                GROUP BY message_id
+            ) a ON a.message_id = m.id
+            LEFT JOIN (
+                SELECT message_id, COUNT(id) AS switch_count
+                FROM {$eventsTable}
+                WHERE event_type = 'provider_failover'
+                GROUP BY message_id
+            ) e ON e.message_id = m.id
+            WHERE m.status IN ('queued', 'retry_scheduled', 'retrying')
+            ORDER BY CASE WHEN m.next_retry_at IS NULL THEN 0 ELSE 1 END ASC, m.next_retry_at ASC, m.id ASC
+            LIMIT %d",
+            $limit
+        );
+        $rows = $wpdb->get_results($sql, ARRAY_A);
+
+        return is_array($rows) ? $rows : [];
     }
 
     /**

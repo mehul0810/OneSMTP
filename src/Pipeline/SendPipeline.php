@@ -4,16 +4,20 @@ declare(strict_types=1);
 
 namespace OneSMTP\Pipeline;
 
+use OneSMTP\Conflict\MailDeliveryOwnership;
 use OneSMTP\Delivery\DeliveryEngine;
 use OneSMTP\Delivery\DeliveryOutcome;
 use OneSMTP\Queue\RetryScheduler;
 use OneSMTP\RateLimit\RateLimitDecision;
 use OneSMTP\RateLimit\RateLimiter;
+use OneSMTP\Providers\FailureCategory;
+use OneSMTP\Providers\ProviderTypes;
 use OneSMTP\Repository\AttemptRepository;
 use OneSMTP\Repository\EventRepository;
 use OneSMTP\Repository\MessageRepository;
 use OneSMTP\Repository\ProviderRepository;
 use OneSMTP\Settings\BackgroundSendingSettingsRepository;
+use OneSMTP\Settings\SimulationModeSettingsRepository;
 
 final class SendPipeline
 {
@@ -29,6 +33,8 @@ final class SendPipeline
     private RateLimiter $rateLimiter;
     private BackgroundSendingSettingsRepository $backgroundSending;
     private MailSourceAttributor $sourceAttributor;
+    private SimulationModeSettingsRepository $simulationMode;
+    private MailDeliveryOwnership $deliveryOwnership;
 
     /**
      * @var array<string,int>
@@ -44,7 +50,9 @@ final class SendPipeline
         DeliveryEngine $deliveryEngine,
         ?RateLimiter $rateLimiter = null,
         ?BackgroundSendingSettingsRepository $backgroundSending = null,
-        ?MailSourceAttributor $sourceAttributor = null
+        ?MailSourceAttributor $sourceAttributor = null,
+        ?SimulationModeSettingsRepository $simulationMode = null,
+        ?MailDeliveryOwnership $deliveryOwnership = null
     ) {
         $this->messages = $messages;
         $this->attempts = $attempts;
@@ -55,12 +63,16 @@ final class SendPipeline
         $this->rateLimiter = $rateLimiter ?? new RateLimiter($attempts);
         $this->backgroundSending = $backgroundSending ?? new BackgroundSendingSettingsRepository();
         $this->sourceAttributor = $sourceAttributor ?? new MailSourceAttributor();
+        $this->simulationMode = $simulationMode ?? new SimulationModeSettingsRepository();
+        $this->deliveryOwnership = $deliveryOwnership ?? new MailDeliveryOwnership();
     }
 
     public function registerHooks(): void
     {
-        add_filter('pre_wp_mail', [$this, 'handlePreWpMail'], 10, 2);
-        add_filter('wp_mail', [$this, 'captureMessage'], 1, 1);
+        if ($this->deliveryOwnership->canAculectDeliver()) {
+            add_filter('pre_wp_mail', [$this, 'handlePreWpMail'], 10, 2);
+            add_filter('wp_mail', [$this, 'captureMessage'], 1, 1);
+        }
         add_action('onesmtp_retry_attempt', [$this, 'handleRetryAttempt'], 10, 5);
         add_action('onesmtp_background_send_attempt', [$this, 'handleBackgroundSendAttempt'], 10, 5);
         add_action('onesmtp_manual_resend', [$this, 'handleManualResend'], 10, 2);
@@ -70,6 +82,22 @@ final class SendPipeline
     {
         if ($pre !== null) {
             return $pre;
+        }
+
+        if (! $this->deliveryOwnership->canAculectDeliver()) {
+            return null;
+        }
+
+        if ($this->isSimulationEnabled()) {
+            $captured = $this->captureMessage($atts);
+            $messageId = $this->resolveMessageId($captured);
+            if ($messageId <= 0) {
+                return false;
+            }
+            $this->messages->markSimulated($messageId);
+            $this->events->add('message_simulated', ['reason' => 'simulation_mode'], $messageId);
+
+            return true;
         }
 
         if ($this->providers->getActiveProviders() === []) {
@@ -104,6 +132,15 @@ final class SendPipeline
     {
         $messageId = (int) $messageId;
         if ($messageId <= 0 || $attemptNo <= 0) {
+            return;
+        }
+
+        if (! $this->deliveryOwnership->canAculectDeliver()) {
+            $this->events->add('delivery_paused', ['reason' => 'external_mail_owner', 'trigger' => 'background'], $messageId);
+            return;
+        }
+
+        if ($this->simulateExistingMessage($messageId, 'background')) {
             return;
         }
 
@@ -163,6 +200,15 @@ final class SendPipeline
             return;
         }
 
+        if (! $this->deliveryOwnership->canAculectDeliver()) {
+            $this->events->add('delivery_paused', ['reason' => 'external_mail_owner', 'trigger' => 'retry'], $messageId, $providerId);
+            return;
+        }
+
+        if ($this->simulateExistingMessage($messageId, 'retry')) {
+            return;
+        }
+
         $payload = $payload !== [] ? $payload : $this->messages->getPayloadForMessage($messageId);
         if ($payload === []) {
             $this->messages->markFailedTerminal($messageId, $attemptNo);
@@ -187,6 +233,15 @@ final class SendPipeline
 
     public function resendMessage(int $messageId, ?int $forcedProviderId = null): bool
     {
+        if (! $this->deliveryOwnership->canAculectDeliver()) {
+            $this->events->add('delivery_paused', ['reason' => 'external_mail_owner', 'trigger' => 'manual_resend'], $messageId, $forcedProviderId);
+            return false;
+        }
+
+        if ($this->simulateExistingMessage($messageId, 'manual_resend')) {
+            return true;
+        }
+
         $payload = $this->messages->getPayloadForMessage($messageId);
         if ($payload === []) {
             return false;
@@ -232,9 +287,7 @@ final class SendPipeline
                 return false;
             }
 
-            $this->persistOutcome($messageId, $attemptNo, $triggerType, $payload, $outcome, $messageUuid);
-
-            return $outcome->isSuccess();
+            return $this->persistOutcome($messageId, $attemptNo, $triggerType, $payload, $outcome, $messageUuid);
         } finally {
             $this->rateLimiter->releaseSendLock();
         }
@@ -293,7 +346,65 @@ final class SendPipeline
         array $payload,
         DeliveryOutcome $outcome,
         ?string $messageUuid = null
-    ): void {
+    ): bool {
+        $this->recordAttempt($messageId, $attemptNo, $triggerType, $outcome);
+
+        if ($outcome->isSuccess()) {
+            $this->messages->markSent($messageId, $outcome->getProviderId());
+            $this->events->add('message_sent', ['attempt' => $attemptNo, 'trigger' => $triggerType], $messageId, $outcome->getProviderId());
+            return true;
+        }
+
+        if ($attemptNo >= self::MAX_RETRIES) {
+            $this->messages->markFailedTerminal($messageId, $attemptNo);
+            $this->events->add(
+                'terminal_failure',
+                ['attempt' => $attemptNo, 'reason' => $outcome->getCode(), 'failure_category' => $outcome->getFailureCategory()],
+                $messageId,
+                $outcome->getProviderId()
+            );
+            return false;
+        }
+
+        // A provider-specific authentication, quota, or policy error can still
+        // be isolated to that provider. Try healthy alternates before treating
+        // the logical message as terminal; only the final outcome determines
+        // whether the queue continues.
+        if (FailureCategory::canFailover($outcome->getFailureCategory())) {
+            $failoverResult = $this->attemptImmediateFailover($messageId, $attemptNo, $triggerType, $payload, $outcome, $messageUuid);
+            if ($failoverResult !== null) {
+                return $failoverResult;
+            }
+        }
+
+        if (! $outcome->shouldRetry()) {
+            $this->messages->markFailedTerminal($messageId, $attemptNo);
+            $this->events->add(
+                'terminal_failure',
+                ['attempt' => $attemptNo, 'reason' => $outcome->getCode(), 'failure_category' => $outcome->getFailureCategory()],
+                $messageId,
+                $outcome->getProviderId()
+            );
+            return false;
+        }
+
+        if ($this->hasAttachments($payload)) {
+            $this->messages->markFailedTerminal($messageId, $attemptNo);
+            $this->events->add(
+                'terminal_failure',
+                ['attempt' => $attemptNo, 'reason' => 'attachment_retry_not_persisted'],
+                $messageId,
+                $outcome->getProviderId()
+            );
+
+            return false;
+        }
+
+        return $this->scheduleNextRetry($messageId, $attemptNo, $triggerType, $payload, $outcome, $messageUuid);
+    }
+
+    private function recordAttempt(int $messageId, int $attemptNo, string $triggerType, DeliveryOutcome $outcome): void
+    {
         $this->attempts->add([
             'message_id' => $messageId,
             'attempt_no' => $attemptNo,
@@ -305,34 +416,95 @@ final class SendPipeline
             'failure_category' => $outcome->isSuccess() ? null : $outcome->getFailureCategory(),
             'provider_message_id' => $outcome->getProviderMessageId(),
         ]);
+    }
 
-        if ($outcome->isSuccess()) {
-            $this->messages->markSent($messageId, $outcome->getProviderId());
-            $this->events->add('message_sent', ['attempt' => $attemptNo, 'trigger' => $triggerType], $messageId, $outcome->getProviderId());
-            return;
+    /**
+     * Try each other active provider once before falling back to the normal
+     * delayed retry schedule. A null result means no alternate provider is
+     * available and the caller should schedule the next retry.
+     */
+    private function attemptImmediateFailover(
+        int $messageId,
+        int $attemptNo,
+        string $triggerType,
+        array $payload,
+        DeliveryOutcome $initialOutcome,
+        ?string $messageUuid
+    ): ?bool {
+        if ($initialOutcome->getProviderId() <= 0) {
+            return null;
         }
 
-        if ($attemptNo >= self::MAX_RETRIES) {
-            $this->messages->markFailedTerminal($messageId, $attemptNo);
+        $activeProviders = $this->eligibleProvidersForPayload($this->providers->getActiveProviders(), $payload);
+        $fallbackBudget = min(
+            max(0, count($activeProviders) - 1),
+            max(0, self::MAX_RETRIES - $attemptNo)
+        );
+        if ($fallbackBudget <= 0) {
+            return null;
+        }
+
+        $nextAttempt = $attemptNo + 1;
+        $lastOutcome = $initialOutcome;
+        for ($index = 0; $index < $fallbackBudget; $index++, $nextAttempt++) {
+            $fallback = $this->deliveryEngine->deliver(
+                $messageId,
+                $nextAttempt,
+                $payload,
+                null,
+                true
+            );
+            $this->recordAttempt($messageId, $nextAttempt, 'failover', $fallback);
+            $lastOutcome = $fallback;
+
+            if ($fallback->isSuccess()) {
+                $this->messages->markSent($messageId, $fallback->getProviderId());
+                $this->events->add(
+                    'message_sent',
+                    ['attempt' => $nextAttempt, 'trigger' => 'failover', 'failed_attempt' => $attemptNo],
+                    $messageId,
+                    $fallback->getProviderId()
+                );
+
+                return true;
+            }
+
+            if (! FailureCategory::canFailover($fallback->getFailureCategory())) {
+                $this->messages->markFailedTerminal($messageId, $nextAttempt);
+                $this->events->add(
+                    'terminal_failure',
+                    ['attempt' => $nextAttempt, 'reason' => $fallback->getCode(), 'failure_category' => $fallback->getFailureCategory()],
+                    $messageId,
+                    $fallback->getProviderId()
+                );
+
+                return false;
+            }
+        }
+
+        if ($this->hasAttachments($payload)) {
+            $this->messages->markFailedTerminal($messageId, $nextAttempt - 1);
             $this->events->add(
                 'terminal_failure',
-                ['attempt' => $attemptNo, 'reason' => $outcome->getCode(), 'failure_category' => $outcome->getFailureCategory()],
+                ['attempt' => $nextAttempt - 1, 'reason' => 'attachment_retry_not_persisted'],
                 $messageId,
-                $outcome->getProviderId()
+                $lastOutcome->getProviderId()
             );
-            return;
+
+            return false;
         }
 
-        if (! $outcome->shouldRetry()) {
-            $this->messages->markFailedTerminal($messageId, $attemptNo);
-            $this->events->add(
-                'terminal_failure',
-                ['attempt' => $attemptNo, 'reason' => $outcome->getCode(), 'failure_category' => $outcome->getFailureCategory()],
-                $messageId,
-                $outcome->getProviderId()
-            );
-            return;
-        }
+        return $this->scheduleNextRetry($messageId, $nextAttempt - 1, $triggerType, $payload, $lastOutcome, $messageUuid);
+    }
+
+    private function scheduleNextRetry(
+        int $messageId,
+        int $attemptNo,
+        string $triggerType,
+        array $payload,
+        DeliveryOutcome $outcome,
+        ?string $messageUuid
+    ): bool {
 
         $nextAttempt = $attemptNo + 1;
         if ($messageUuid === null || $messageUuid === '') {
@@ -342,11 +514,13 @@ final class SendPipeline
 
         $runAt = $this->retryScheduler->scheduleRetry($messageId, $nextAttempt, $messageUuid);
         if (is_int($runAt) && $runAt > 0) {
-            return;
+            return false;
         }
 
         $this->messages->markFailedTerminal($messageId, $attemptNo);
         $this->events->add('terminal_failure', ['attempt' => $attemptNo, 'reason' => 'retry_backend_unavailable'], $messageId, $outcome->getProviderId());
+
+        return false;
     }
 
     private function resolveMessageId(array $mailData): int
@@ -366,6 +540,10 @@ final class SendPipeline
 
     private function shouldQueueInitialSend(array $payload): bool
     {
+        if ($this->hasAttachments($payload)) {
+            return false;
+        }
+
         if (! $this->backgroundSending->get()->isEnabled()) {
             return false;
         }
@@ -385,6 +563,46 @@ final class SendPipeline
         }
 
         return $mode !== 'sync' && $mode !== 'synchronous';
+    }
+
+    private function isSimulationEnabled(): bool
+    {
+        return $this->simulationMode->get()->isEnabled();
+    }
+
+    private function simulateExistingMessage(int $messageId, string $trigger): bool
+    {
+        if ($messageId <= 0 || ! $this->isSimulationEnabled()) {
+            return false;
+        }
+
+        $this->messages->markSimulated($messageId);
+        $this->events->add('message_simulated', ['reason' => 'simulation_mode', 'trigger' => $trigger], $messageId);
+
+        return true;
+    }
+
+    private function hasAttachments(array $payload): bool
+    {
+        $attachments = $payload['attachments'] ?? [];
+
+        return is_array($attachments) ? $attachments !== [] : trim((string) $attachments) !== '';
+    }
+
+    /** @param array<int,array<string,mixed>> $providers */
+    private function eligibleProvidersForPayload(array $providers, array $payload): array
+    {
+        if (! $this->hasAttachments($payload)) {
+            return $providers;
+        }
+
+        return array_values(array_filter(
+            $providers,
+            static fn (array $provider): bool => ProviderTypes::supportsCapability(
+                (string) ($provider['adapter_type'] ?? ''),
+                'attachments'
+            )
+        ));
     }
 
     private function buildFingerprint(array $mailData): string
