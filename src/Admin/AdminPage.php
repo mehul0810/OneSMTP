@@ -9,6 +9,7 @@ use OneSMTP\Conflict\MailDeliveryOwnership;
 use OneSMTP\Repository\AttemptRepository;
 use OneSMTP\Repository\MessageRepository;
 use OneSMTP\Repository\ProviderRepository;
+use OneSMTP\Product\FeatureGate;
 use OneSMTP\Settings\SenderIdentityRepository;
 use OneSMTP\Settings\SimulationModeSettingsRepository;
 
@@ -35,6 +36,7 @@ final class AdminPage
     private AdminScreenRegistry $screenRegistry;
     private MailDeliveryOwnership $deliveryOwnership;
     private SimulationModeSettingsRepository $simulationMode;
+    private FeatureGate $featureGate;
 
     public function __construct(
         ?ProviderAdmin $providers = null,
@@ -47,13 +49,15 @@ final class AdminPage
         ?ProviderRepository $providerRepository = null,
         ?SenderIdentityRepository $senderIdentityRepository = null,
         ?MailDeliveryOwnership $deliveryOwnership = null,
-        ?SimulationModeSettingsRepository $simulationMode = null
+        ?SimulationModeSettingsRepository $simulationMode = null,
+        ?FeatureGate $featureGate = null
     )
     {
         $this->providerRepository = $providerRepository ?? new ProviderRepository();
         $this->senderIdentityRepository = $senderIdentityRepository ?? new SenderIdentityRepository();
         $this->deliveryOwnership = $deliveryOwnership ?? new MailDeliveryOwnership();
         $this->simulationMode = $simulationMode ?? new SimulationModeSettingsRepository();
+        $this->featureGate = $featureGate ?? new FeatureGate();
         $this->dashboard = $dashboard ?? new DashboardAdmin();
         $this->providers = $providers ?? new ProviderAdmin($this->providerRepository);
         $this->setupWizard = $setupWizard ?? new SetupWizard($this->providerRepository);
@@ -443,6 +447,7 @@ final class AdminPage
             __('Advanced', 'onesmtp'),
             __('Manage delivery controls, provider administration, and operational diagnostics.', 'onesmtp'),
             function (): void {
+                (new ProCapabilitiesPanel($this->featureGate))->render();
                 $this->settings->renderAdvanced();
                 echo '<details id="onesmtp-provider-tools" class="onesmtp-admin-secondary-panel"><summary>' . esc_html__('Provider administration', 'onesmtp') . '</summary>';
                 $this->providers->renderAdvancedTools();

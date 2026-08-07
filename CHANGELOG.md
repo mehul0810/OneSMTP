@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on Keep a Changelog and this project follows Semantic Versioning.
 
+## [0.4.0] - Unreleased
+
+### Added
+
+- Default-deny Pro capability gates with separate entitlement and rollout checks.
+- Clear disabled states for upcoming Pro modules without blocking core delivery workflows.
+
 ## [0.3.0] - Unreleased
 
 ### Added
