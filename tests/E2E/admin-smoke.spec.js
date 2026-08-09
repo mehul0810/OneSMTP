@@ -264,6 +264,17 @@ test.describe( 'Aculect Mail admin browser smoke', () => {
 
 		await openWorkspace( page, 'Advanced', 'onesmtp-advanced' );
 		const advanced = page.locator( '#onesmtp-advanced' );
+		const proCapabilities = advanced.locator( '.onesmtp-pro-capabilities' );
+		await expect( proCapabilities ).toContainText( 'Pro capabilities' );
+		await expect( proCapabilities ).toContainText( 'Available with Pro' );
+		await expect(
+			proCapabilities.getByRole( 'button', { name: 'Requires Pro' } )
+		).toHaveCount( 5 );
+		await expect(
+			proCapabilities
+				.getByRole( 'button', { name: 'Requires Pro' } )
+				.first()
+		).toBeDisabled();
 		await advanced.locator( 'details#onesmtp-diagnostics summary' ).click();
 		await expect( advanced ).toContainText( 'Scheduler availability' );
 		await expect( advanced ).toContainText( 'Unavailable' );

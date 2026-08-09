@@ -8,6 +8,7 @@ Core modules:
 - Logging subsystem (custom DB tables)
 - Admin settings + controls
 - Bounded third-party migration services that analyze before importing and never mutate the source plugin
+- Default-deny Pro capability gates that require both entitlement and an internal rollout flag
 
 ## Reliability Design
 
@@ -18,3 +19,4 @@ Core modules:
 - REST routes declare argument schemas and reject unsupported provider payload fields before persistence.
 - Simulation mode terminates the pipeline after capture with a distinct `simulated` status and `message_simulated` event; it never constructs a provider attempt.
 - SureMail migration re-reads and fingerprints the source default connection, then delegates credential persistence to `ProviderRepository` so values are encrypted by `SecretVault` rather than copied as source ciphertext.
+- Optional Pro modules use the central `FeatureGate`. Free installations deny every Pro feature, an entitlement alone does not enable unfinished behavior, and unknown feature IDs fail closed.
