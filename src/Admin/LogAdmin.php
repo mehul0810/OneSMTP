@@ -7,6 +7,8 @@ namespace OneSMTP\Admin;
 use OneSMTP\Audit\AdminAuditLogger;
 use OneSMTP\Core\Capabilities;
 use OneSMTP\Logging\AttachmentLogSanitizer;
+use OneSMTP\Logging\LogExportProfile;
+use OneSMTP\Product\FeatureGate;
 use OneSMTP\Repository\AttemptRepository;
 use OneSMTP\Repository\MessageRepository;
 use OneSMTP\Repository\ProviderRepository;
@@ -28,6 +30,7 @@ final class LogAdmin
     private const MAX_BULK_MESSAGES = 50;
     private const EXPORT_LIMIT = 1000;
     private const ERROR_LIMIT = 220;
+    private const CSV_FORMULA_PREFIXES = ['=', '+', '-', '@', "\t", "\r"];
 
     private MessageRepository $messages;
     private AttemptRepository $attempts;
@@ -35,6 +38,7 @@ final class LogAdmin
     private Redactor $redactor;
     private AdminAuditLogger $auditLogger;
     private AdminRequest $request;
+    private FeatureGate $features;
     /** @var callable(int,?int):bool|null */
     private $resendHandler;
     /** @var callable(int):bool|null */
@@ -48,7 +52,8 @@ final class LogAdmin
         ?callable $resendHandler = null,
         ?AdminAuditLogger $auditLogger = null,
         ?AdminRequest $request = null,
-        ?callable $queueRetryHandler = null
+        ?callable $queueRetryHandler = null,
+        ?FeatureGate $features = null
     ) {
         $this->messages = $messages;
         $this->attempts = $attempts;
@@ -58,6 +63,7 @@ final class LogAdmin
         $this->queueRetryHandler = $queueRetryHandler;
         $this->auditLogger = $auditLogger ?? new AdminAuditLogger();
         $this->request = $request ?? new AdminRequest();
+        $this->features = $features ?? new FeatureGate();
     }
 
     public function handleRequest(): void
@@ -490,6 +496,7 @@ final class LogAdmin
     private function renderFilters(array $filters, int $perPage): void
     {
         $providers = $this->providers->getAllSafe();
+        $exportProfile = $this->requestedExportProfile();
 
         echo '<form method="get" action="' . esc_url(admin_url('admin.php')) . '" class="onesmtp-log-filters">';
         echo '<input type="hidden" name="page" value="onesmtp">';
@@ -538,15 +545,26 @@ final class LogAdmin
         }
         echo '</select> ';
 
+        if ($this->features->isEnabled(FeatureGate::COMPLIANCE_CONTROLS)) {
+            echo '<label for="onesmtp-log-export-profile">' . esc_html__('Export profile', 'onesmtp') . '</label> ';
+            echo '<select id="onesmtp-log-export-profile" name="export_profile" aria-describedby="onesmtp-log-export-profile-help">';
+            foreach (LogExportProfile::profiles() as $profile => $definition) {
+                $this->renderOption($profile, $definition['label'], $exportProfile);
+            }
+            echo '</select>';
+            echo '<span id="onesmtp-log-export-profile-help" class="description">' . esc_html__('Only the selected privacy-safe summary fields are exported. Bodies, headers, raw recipients, payload JSON, paths, tokens, credentials, and provider configuration are never eligible.', 'onesmtp') . '</span> ';
+        }
+
         submit_button(__('Filter logs', 'onesmtp'), 'secondary', 'submit', false);
 
-        $exportUrl = add_query_arg(
-            $this->urlArgsForFilters($filters, 1, $perPage) + [
+        $exportArgs = $this->urlArgsForFilters($filters, 1, $perPage) + [
                 self::ACTION_NAME => self::EXPORT_ACTION,
                 self::EXPORT_NONCE_NAME => wp_create_nonce(self::EXPORT_ACTION),
-            ],
-            admin_url('admin.php')
-        );
+            ];
+        if ($this->features->isEnabled(FeatureGate::COMPLIANCE_CONTROLS)) {
+            $exportArgs['export_profile'] = $exportProfile;
+        }
+        $exportUrl = add_query_arg($exportArgs, admin_url('admin.php'));
         echo ' <a class="button" href="' . esc_url($exportUrl) . '" aria-label="' . esc_attr__('Export filtered log CSV', 'onesmtp') . '">' . esc_html__('Export CSV', 'onesmtp') . '</a>';
         echo '</p>';
         echo '</form>';
@@ -625,6 +643,19 @@ final class LogAdmin
         return preg_match('/^[a-f0-9]{64}$/', $value) === 1;
     }
 
+    private function requestedExportProfile(): string
+    {
+        if (! $this->features->isEnabled(FeatureGate::COMPLIANCE_CONTROLS)) {
+            return LogExportProfile::DEFAULT_PROFILE;
+        }
+
+        $profile = isset($_GET['export_profile'])
+            ? sanitize_key(wp_unslash((string) $_GET['export_profile']))
+            : LogExportProfile::DEFAULT_PROFILE;
+
+        return LogExportProfile::normalize($profile);
+    }
+
     /**
      * @param array{status:string,provider_id:int,date_from:string,date_to:string,recipient_hash:string,search:string} $filters
      * @return array<string,string|int>
@@ -679,6 +710,7 @@ final class LogAdmin
         }
 
         $filters = $this->filtersFromRequest();
+        $profile = $this->requestedExportProfile();
         $messages = $this->messages->listFilteredWithAttemptCounts($filters, 1, min(self::MAX_PER_PAGE, self::EXPORT_LIMIT));
         $remaining = self::EXPORT_LIMIT - count($messages);
         $page = 2;
@@ -693,13 +725,15 @@ final class LogAdmin
             $page++;
         }
 
+        $this->auditLogger->logLogExport($profile, count($messages));
+
         if (! headers_sent()) {
             header('Content-Type: text/csv; charset=utf-8');
             header('Content-Disposition: attachment; filename=onesmtp-email-logs.csv');
             header('X-Content-Type-Options: nosniff');
         }
 
-        $this->outputCsv($messages);
+        $this->outputCsv($messages, $profile);
 
         if ($this->isTestingRuntime()) {
             throw new \RuntimeException('Aculect Mail log CSV exported.');
@@ -711,49 +745,27 @@ final class LogAdmin
     /**
      * @param array<int,array<string,mixed>> $messages
      */
-    private function outputCsv(array $messages): void
+    private function outputCsv(array $messages, string $profile = LogExportProfile::DEFAULT_PROFILE): void
     {
         $handle = fopen('php://output', 'w');
         if (! is_resource($handle)) {
             return;
         }
 
+        $fields = LogExportProfile::fields($profile);
         fputcsv(
             $handle,
-            [
-                'message_id',
-                'lineage_uuid',
-                'status',
-                'provider',
-                'attempt_count',
-                'max_attempts',
-                'attachment_summary',
-                'recipient_summary',
-                'next_retry_at',
-                'created_at',
-                'updated_at',
-            ],
+            $fields,
             ',',
             '"',
             '\\'
         );
 
         foreach ($messages as $message) {
+            $row = $this->safeExportRow($message, $profile);
             fputcsv(
                 $handle,
-                [
-                    (string) ((int) ($message['id'] ?? 0)),
-                    $this->csvCell((string) ($message['message_uuid'] ?? '')),
-                    $this->csvCell($this->formatStatus((string) ($message['status'] ?? ''))),
-                    $this->csvCell($this->formatProvider((int) ($message['selected_provider_id'] ?? 0))),
-                    (string) ((int) ($message['attempt_count'] ?? $message['current_attempt'] ?? 0)),
-                    (string) ((int) ($message['max_attempts'] ?? 0)),
-                    $this->csvCell($this->formatAttachmentSummary($this->payloadFor($message))),
-                    $this->csvCell($this->formatRecipientSummary($this->payloadFor($message))),
-                    $this->csvCell((string) ($message['next_retry_at'] ?? '')),
-                    $this->csvCell((string) ($message['created_at'] ?? '')),
-                    $this->csvCell((string) ($message['updated_at'] ?? '')),
-                ],
+                array_map(static fn (string $field): string => (string) ($row[$field] ?? ''), $fields),
                 ',',
                 '"',
                 '\\'
@@ -764,9 +776,46 @@ final class LogAdmin
         fclose($handle);
     }
 
+    /**
+     * Build every possible export value from explicit safe summaries. Raw
+     * message columns and payload keys are deliberately absent from this map.
+     *
+     * @param array<string,mixed> $message
+     * @return array<string,string>
+     */
+    private function safeExportRow(array $message, string $profile): array
+    {
+        $row = [];
+        $payload = null;
+        foreach (LogExportProfile::fields($profile) as $field) {
+            $row[$field] = match ($field) {
+                'message_id' => (string) ((int) ($message['id'] ?? 0)),
+                'lineage_uuid' => $this->csvCell((string) ($message['message_uuid'] ?? '')),
+                'status' => $this->csvCell($this->formatStatus((string) ($message['status'] ?? ''))),
+                'provider' => $this->csvCell($this->formatProvider((int) ($message['selected_provider_id'] ?? 0))),
+                'attempt_count' => (string) ((int) ($message['attempt_count'] ?? $message['current_attempt'] ?? 0)),
+                'max_attempts' => (string) ((int) ($message['max_attempts'] ?? 0)),
+                'attachment_summary' => $this->csvCell($this->formatAttachmentSummary($payload ??= $this->payloadFor($message))),
+                'recipient_summary' => $this->csvCell($this->formatRecipientSummary($payload ??= $this->payloadFor($message))),
+                'next_retry_at' => $this->csvCell((string) ($message['next_retry_at'] ?? '')),
+                'created_at' => $this->csvCell((string) ($message['created_at'] ?? '')),
+                'updated_at' => $this->csvCell((string) ($message['updated_at'] ?? '')),
+                default => '',
+            };
+        }
+
+        return $row;
+    }
+
     private function csvCell(string $value): string
     {
-        return $this->redactor->redactText($value, 300);
+        $redacted = $this->redactor->redactText($value, 300);
+
+        if ($redacted !== '' && in_array($redacted[0], self::CSV_FORMULA_PREFIXES, true)) {
+            return "'" . $redacted;
+        }
+
+        return $redacted;
     }
 
     /**

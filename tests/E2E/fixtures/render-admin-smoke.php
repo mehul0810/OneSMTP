@@ -238,7 +238,11 @@ $queue = new QueueDiagnostics(
     static fn (): int => 1782475200
 );
 
-$proFeatures = new FeatureGate([FeatureGate::ADVANCED_ANALYTICS => true], true);
+$proFeatures = new FeatureGate([
+    FeatureGate::ADVANCED_ANALYTICS => true,
+    FeatureGate::COMPLIANCE_CONTROLS => true,
+], true);
+$adminFeatureGate = getenv('ONESMTP_PLAYWRIGHT_PRO') === '1' ? $proFeatures : null;
 $admin = new AdminPage(
     diagnostics: new QueueDiagnosticsAdmin(
         $queue,
@@ -248,7 +252,8 @@ $admin = new AdminPage(
         nowProvider: static fn (): int => 1782475200,
         reliability: new ProviderReliabilityScorer(),
         features: $proFeatures
-    )
+    ),
+    featureGate: $adminFeatureGate
 );
 
 ob_start();
