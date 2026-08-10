@@ -20,8 +20,11 @@ final class ProviderEventTest extends TestCase
         self::assertSame(ProviderEventType::SOFT_BOUNCE, ProviderEventType::fromProviderValue('temporary-bounce'));
         self::assertSame(ProviderEventType::COMPLAINT, ProviderEventType::fromProviderValue('spam-complaint'));
         self::assertSame(ProviderEventType::DEFERRED, ProviderEventType::fromProviderValue('temporary failure'));
-        self::assertSame(ProviderEventType::UNKNOWN, ProviderEventType::fromProviderValue('bounce'));
         self::assertSame(ProviderEventType::UNKNOWN, ProviderEventType::fromProviderValue('provider-specific-future-state'));
+
+        foreach (['accepted', 'sent', 'queued', 'bounce'] as $ambiguousValue) {
+            self::assertSame(ProviderEventType::UNKNOWN, ProviderEventType::fromProviderValue($ambiguousValue), $ambiguousValue);
+        }
     }
 
     public function test_only_hard_bounce_and_complaint_are_suppression_signals(): void
@@ -42,9 +45,12 @@ final class ProviderEventTest extends TestCase
         self::assertSame(ProviderEventType::HARD_BOUNCE, $event->getType());
         self::assertSame('fixture-provider', $event->getProvider());
         self::assertSame('fixture-event-002', $event->getEventId());
-        self::assertSame('synthetic-fixture', $event->getReasonCode());
         self::assertSame('hard_bounce', $serialized['type']);
         self::assertArrayHasKey('recipient_fingerprint', $serialized);
+        self::assertSame(
+            ['type', 'provider', 'event_id', 'occurred_at', 'recipient_fingerprint', 'provider_message_id'],
+            array_keys($serialized)
+        );
         self::assertStringNotContainsString('Recipient@example.test', (string) wp_json_encode($serialized));
     }
 

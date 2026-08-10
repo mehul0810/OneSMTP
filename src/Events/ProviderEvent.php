@@ -15,13 +15,11 @@ final class ProviderEvent
     private const MAX_PROVIDER_LENGTH = 64;
     private const MAX_EVENT_ID_LENGTH = 128;
     private const MAX_MESSAGE_ID_LENGTH = 128;
-    private const MAX_REASON_LENGTH = 128;
 
     private string $provider;
     private string $eventId;
     private ?string $recipientFingerprint;
     private ?string $providerMessageId;
-    private ?string $reasonCode;
 
     public function __construct(
         private ProviderEventType $type,
@@ -29,14 +27,12 @@ final class ProviderEvent
         string $eventId,
         private DateTimeImmutable $occurredAt,
         ?string $recipientFingerprint = null,
-        ?string $providerMessageId = null,
-        ?string $reasonCode = null
+        ?string $providerMessageId = null
     ) {
         $this->provider = self::requiredValue($provider, self::MAX_PROVIDER_LENGTH);
         $this->eventId = self::requiredValue($eventId, self::MAX_EVENT_ID_LENGTH);
         $this->recipientFingerprint = self::fingerprintValue($recipientFingerprint);
         $this->providerMessageId = self::optionalValue($providerMessageId, self::MAX_MESSAGE_ID_LENGTH);
-        $this->reasonCode = self::optionalValue($reasonCode, self::MAX_REASON_LENGTH);
     }
 
     public function getType(): ProviderEventType
@@ -69,15 +65,10 @@ final class ProviderEvent
         return $this->providerMessageId;
     }
 
-    public function getReasonCode(): ?string
-    {
-        return $this->reasonCode;
-    }
-
     /**
      * Return only bounded, normalized fields suitable for a future boundary.
      *
-     * @return array{type:string,provider:string,event_id:string,occurred_at:string,recipient_fingerprint:?string,provider_message_id:?string,reason_code:?string}
+     * @return array{type:string,provider:string,event_id:string,occurred_at:string,recipient_fingerprint:?string,provider_message_id:?string}
      */
     public function toArray(): array
     {
@@ -88,7 +79,6 @@ final class ProviderEvent
             'occurred_at' => $this->occurredAt->format(DATE_ATOM),
             'recipient_fingerprint' => $this->recipientFingerprint,
             'provider_message_id' => $this->providerMessageId,
-            'reason_code' => $this->reasonCode,
         ];
     }
 

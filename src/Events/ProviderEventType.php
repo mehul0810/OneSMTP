@@ -22,7 +22,7 @@ enum ProviderEventType: string
         $normalized = preg_replace('/[\s-]+/', '_', $normalized) ?? '';
 
         return match ($normalized) {
-            'delivered', 'delivery', 'accepted', 'sent' => self::DELIVERED,
+            'delivered', 'delivery' => self::DELIVERED,
             'hard_bounce', 'permanent_bounce', 'permanent_failure', 'bounced_hard' => self::HARD_BOUNCE,
             'soft_bounce', 'temporary_bounce', 'bounced_soft' => self::SOFT_BOUNCE,
             'complaint', 'complained', 'feedback', 'spam_complaint' => self::COMPLAINT,

@@ -27,7 +27,7 @@ final class ProviderEventFixtures
             'event_type' => $eventType,
             'recipient' => 'Recipient@example.test',
             'provider_message_id' => 'fixture-message-' . $suffix,
-            'reason' => 'synthetic-fixture',
+            'source_diagnostic' => 'recipient=private@example.test provider=fixture-private-detail',
         ];
     }
 
@@ -61,8 +61,7 @@ final class ProviderEventFixtures
             'fixture-event-' . $suffix,
             new DateTimeImmutable('2026-08-10T00:00:00+00:00'),
             $fingerprint,
-            'fixture-message-' . $suffix,
-            'synthetic-fixture'
+            'fixture-message-' . $suffix
         );
     }
 }

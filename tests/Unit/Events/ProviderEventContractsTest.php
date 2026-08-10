@@ -57,7 +57,6 @@ final class ProviderEventContractsTest extends TestCase
 
                 $eventId = $payload['event_id'] ?? '';
                 $providerMessageId = $payload['provider_message_id'] ?? '';
-                $reason = $payload['reason'] ?? '';
 
                 return new ProviderEvent(
                     $type,
@@ -65,8 +64,7 @@ final class ProviderEventContractsTest extends TestCase
                     is_string($eventId) ? $eventId : '',
                     new \DateTimeImmutable('2026-08-10T00:00:00+00:00'),
                     (new SiteSecretHmac('fixture-site-secret-without-production-data'))->digest($recipient),
-                    is_string($providerMessageId) ? $providerMessageId : '',
-                    is_string($reason) ? $reason : ''
+                    is_string($providerMessageId) ? $providerMessageId : ''
                 );
             }
         };
@@ -75,6 +73,16 @@ final class ProviderEventContractsTest extends TestCase
 
         self::assertInstanceOf(ProviderEvent::class, $event);
         self::assertSame(ProviderEventType::HARD_BOUNCE, $event->getType());
+        $serialized = $event->toArray();
+        $encoded = (string) wp_json_encode($serialized);
+
+        self::assertSame(
+            ['type', 'provider', 'event_id', 'occurred_at', 'recipient_fingerprint', 'provider_message_id'],
+            array_keys($serialized)
+        );
+        self::assertArrayNotHasKey('source_diagnostic', $serialized);
+        self::assertStringNotContainsString('private@example.test', $encoded);
+        self::assertStringNotContainsString('fixture-private-detail', $encoded);
         self::assertNull($normalizer->normalize(ProviderEventFixtures::payload('future-state', '005')));
     }
 
