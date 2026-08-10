@@ -462,6 +462,7 @@ final class AdminPage
             __('Manage delivery controls, provider administration, and operational diagnostics.', 'onesmtp'),
             function (): void {
                 (new ProCapabilitiesPanel($this->featureGate))->render();
+                (new ProDistributionPanel())->render();
                 $this->settings->renderAdvanced();
                 echo '<details id="onesmtp-provider-tools" class="onesmtp-admin-secondary-panel"><summary>' . esc_html__('Provider administration', 'onesmtp') . '</summary>';
                 $this->providers->renderAdvancedTools();
