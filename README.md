@@ -28,6 +28,8 @@ Aculect Mail routes transactional emails across multiple providers with automati
 - Aculect Mail records delivery attempts and provider outcomes in custom database tables
 - Default log retention is 30 days
 - Retention can be extended up to 120 days through a plugin filter
+- Pro Compliance controls add bounded 7/30/90/120-day presets or a 1-120-day site-local custom duration; scheduled pruning follows the selected policy
+- CSV exports remain privacy-safe by default, with optional Pro fixed profiles for operational, audit, or minimal summaries
 
 ## Performance Baseline
 

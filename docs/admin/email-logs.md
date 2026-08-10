@@ -69,6 +69,14 @@ Administrators with the Aculect Mail log-view capability can export the current 
 - Safe recipient summary
 - Next retry, created, and updated timestamps
 
+Sites with the Pro **Compliance controls** capability can choose an explicit export profile before downloading:
+
+- **Operational summary** (the safe default): all fields listed above
+- **Audit summary**: identifiers, outcome, provider, attempt counts, and timestamps
+- **Minimal record**: identifiers, outcome, and timestamps
+
+These profiles are fixed allowlists. No profile can include provider configuration, secrets, credentials, tokens, raw recipients, message bodies, raw headers, payload JSON, filesystem paths, or attachment contents. Empty exports contain the safe header row and are recorded as a zero-record export.
+
 ## Privacy Boundary
 
 The admin log views and CSV export do not display full recipient addresses, message bodies, raw headers, provider secrets, API keys, tokens, unsafe payload JSON, raw stored payloads, raw attachment paths, filesystem paths, or stack details. Error context, source labels, and attachment metadata are sanitized and truncated before rendering.
@@ -89,3 +97,5 @@ and do not enter the retry queue.
 
 - Default: 30 days
 - Extendable via filter: up to 120 days
+- Pro sites with the Compliance controls capability can choose Short (7), Standard (30), Extended (90), Maximum (120), or a custom site-local duration from 1-120 days in Advanced settings.
+- Saving a policy changes the next scheduled pruning cutoff; it does not trigger an immediate destructive purge. The existing filter remains authoritative and still clamps values to the 120-day maximum.

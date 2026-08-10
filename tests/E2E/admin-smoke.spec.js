@@ -11,13 +11,14 @@ const repoRoot = path.resolve( __dirname, '..', '..' );
 const adminUrl =
 	'https://example.org/wp-admin/options-general.php?page=onesmtp';
 
-function renderAdminFixture( proRouting = false ) {
+function renderAdminFixture( pro = false, proRouting = false ) {
 	return execFileSync( 'php', [ fixturePath ], {
 		cwd: repoRoot,
 		encoding: 'utf8',
 		env: {
 			...process.env,
 			ONESMTP_PLAYWRIGHT_SMOKE: '1',
+			ONESMTP_PLAYWRIGHT_PRO: pro ? '1' : '0',
 			ONESMTP_PLAYWRIGHT_PRO_ROUTING: proRouting ? '1' : '0',
 		},
 	} );
@@ -26,6 +27,7 @@ function renderAdminFixture( proRouting = false ) {
 test.describe( 'Aculect Mail admin browser smoke', () => {
 	test.beforeEach( async ( { page }, testInfo ) => {
 		const html = renderAdminFixture(
+			false,
 			testInfo.title.includes( 'Pro routing simulation' )
 		);
 
@@ -292,6 +294,71 @@ test.describe( 'Aculect Mail admin browser smoke', () => {
 		await expect(
 			page.locator( '#onesmtp-diagnostic-preview' )
 		).not.toContainText( 'smtp.local.test' );
+	} );
+
+	test( 'renders compliance retention and export profile controls with screenshots', async ( {
+		page,
+	} ) => {
+		const proHtml = renderAdminFixture( true );
+		await page.unroute(
+			'https://example.org/wp-admin/options-general.php**'
+		);
+		await page.route(
+			'https://example.org/wp-admin/options-general.php**',
+			async ( route ) => {
+				await route.fulfill( {
+					status: 200,
+					contentType: 'text/html; charset=utf-8',
+					body: proHtml,
+				} );
+			}
+		);
+		await page.goto( adminUrl );
+		await page.goto(
+			`${ adminUrl }?tab=onesmtp-advanced#onesmtp-advanced`
+		);
+		const advanced = page.locator( '#onesmtp-advanced' );
+		const retention = advanced.locator( '.onesmtp-settings-panel', {
+			has: page.getByRole( 'heading', {
+				name: 'Log retention policy',
+			} ),
+		} );
+
+		await expect( retention ).toContainText( '1-120 days' );
+		await expect(
+			retention.getByRole( 'combobox', { name: 'Policy preset' } )
+		).toBeVisible();
+		await expect(
+			retention.getByRole( 'spinbutton', {
+				name: 'Custom duration in days',
+			} )
+		).toHaveAttribute( 'min', '1' );
+
+		await page.goto(
+			`${ adminUrl }?tab=onesmtp-activity#onesmtp-activity`
+		);
+		await page
+			.locator(
+				'#onesmtp-activity details.onesmtp-activity-filters summary'
+			)
+			.click();
+		await expect(
+			page.getByRole( 'combobox', { name: 'Export profile' } )
+		).toBeVisible();
+		await expect(
+			page.locator( '#onesmtp-log-export-profile-help' )
+		).toContainText( 'payload JSON' );
+
+		await page.screenshot( {
+			path: 'output/playwright/screenshots/issue-44-desktop.png',
+			fullPage: true,
+		} );
+		await page.setViewportSize( { width: 390, height: 844 } );
+		await openWorkspace( page, 'Advanced', 'onesmtp-advanced' );
+		await page.screenshot( {
+			path: 'output/playwright/screenshots/issue-44-mobile.png',
+			fullPage: true,
+		} );
 	} );
 
 	test( 'renders alert event history with acknowledgement state and redacted context', async ( {
