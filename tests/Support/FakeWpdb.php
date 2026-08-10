@@ -114,6 +114,9 @@ final class FakeWpdb
     /** @var array<int|string,array<string,mixed>> */
     public array $providerEventRows = [];
 
+    /** @var array<string,array<string,mixed>> */
+    public array $suppressionRowsByFingerprint = [];
+
     /** @var array<string,int> */
     public array $providerEventMessageIds = [];
 
@@ -199,6 +202,37 @@ final class FakeWpdb
 
     public function query(string $sql): int|false
     {
+        if (str_contains($sql, $this->prefix . 'onesmtp_suppressions')) {
+            $this->queries[] = $sql;
+            $args = is_array($this->lastPrepared) ? ($this->lastPrepared['args'] ?? []) : [];
+            if (str_starts_with(strtoupper(ltrim($sql)), 'DELETE')) {
+                $fingerprint = (string) ($args[0] ?? '');
+                if (isset($this->suppressionRowsByFingerprint[$fingerprint])) {
+                    unset($this->suppressionRowsByFingerprint[$fingerprint]);
+                    return 1;
+                }
+                return 0;
+            }
+            $fingerprint = (string) ($args[0] ?? '');
+            if ($fingerprint === '') {
+                return false;
+            }
+            $now = gmdate('Y-m-d H:i:s');
+            $this->suppressionRowsByFingerprint[$fingerprint] = [
+                'recipient_fingerprint' => $fingerprint,
+                'recipient_domain' => (string) ($args[1] ?? ''),
+                'reason_code' => (string) ($args[2] ?? ''),
+                'provider' => (string) ($args[3] ?? ''),
+                'provider_id' => str_contains($sql, 'provider_id, provider_message_id') && isset($args[4]) && is_numeric($args[4]) ? (int) $args[4] : null,
+                'provider_message_id' => null,
+                'first_seen' => (string) ($args[count($args) - 4] ?? $now),
+                'last_seen' => $now,
+                'expiry_at' => (string) ($args[count($args) - 2] ?? $now),
+                'occurrence_count' => 1,
+            ];
+            return 1;
+        }
+
         if (str_contains($sql, $this->prefix . 'onesmtp_quota_leases')) {
             return $this->handleQuotaLeaseQuery($sql);
         }
@@ -289,6 +323,11 @@ final class FakeWpdb
         $isPreparedQuery = is_array($prepared) && $sql === $prepared['query'];
         $query = $isPreparedQuery ? $prepared['query'] : $sql;
         $args  = $isPreparedQuery ? $prepared['args'] : [];
+
+        if (str_contains($query, $this->prefix . 'onesmtp_suppressions')) {
+            $fingerprint = (string) ($args[0] ?? '');
+            return $this->suppressionRowsByFingerprint[$fingerprint] ?? null;
+        }
 
         if (str_contains($query, $this->prefix . 'onesmtp_quota_leases') && str_contains($query, 'owner_token')) {
             $key = (string) ($args[0] ?? '');
@@ -447,6 +486,10 @@ final class FakeWpdb
         $isPreparedQuery = is_array($prepared) && $sql === $prepared['query'];
         $query = $isPreparedQuery ? $prepared['query'] : $sql;
         $args = $isPreparedQuery ? $prepared['args'] : [];
+
+        if (str_contains($query, $this->prefix . 'onesmtp_suppressions')) {
+            return array_values($this->suppressionRowsByFingerprint);
+        }
 
         if ($this->throwOnMessageQueries && str_contains($query, $this->prefix . 'onesmtp_messages')) {
             throw new \RuntimeException('Synthetic message query failure.');
@@ -622,6 +665,12 @@ final class FakeWpdb
         $prepared = $this->lastPrepared;
         $preparedQuery = is_array($prepared) ? (string) ($prepared['query'] ?? '') : '';
         $preparedArgs = is_array($prepared) && isset($prepared['args']) && is_array($prepared['args']) ? $prepared['args'] : [];
+
+        if (str_contains($preparedQuery, $this->prefix . 'onesmtp_suppressions') && str_contains($preparedQuery, 'expiry_at > %s')) {
+            $fingerprint = (string) ($preparedArgs[0] ?? '');
+            $row = $this->suppressionRowsByFingerprint[$fingerprint] ?? null;
+            return is_array($row) && (string) ($row['expiry_at'] ?? '') > (string) ($preparedArgs[1] ?? '') ? (int) ($row['id'] ?? 1) : null;
+        }
 
         if (str_contains($preparedQuery, 'SHOW TABLES LIKE %s')) {
             $table = stripslashes((string) ($preparedArgs[0] ?? ''));

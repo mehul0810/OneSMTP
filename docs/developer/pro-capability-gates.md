@@ -29,12 +29,14 @@ The gate IDs currently defined in source are:
 | `advanced_analytics` | Shipped behind the gate | Provider reliability scoring and bounded advanced report slices. |
 | `compliance_controls` | Shipped behind the gate | Site-local 1–120 day retention policy and fixed privacy-safe export profiles. |
 | `advanced_alerts` | Shipped behind the gate | Repeated terminal-failure escalation to validated email or HTTPS webhook destinations. |
-| `provider_events` | Candidate-shipped behind the gate | Mailgun-only signed event ingestion and privacy-safe normalized records for #63. Suppression enforcement remains the separate owner-gated #64 follow-up. |
+| `provider_events` | Candidate-shipped behind the gate | Mailgun-only signed event ingestion and privacy-safe normalized records for #63. It is required by the separate default-off suppression gate. |
+| `bounce_suppression` | Candidate-shipped behind the gate | Site-local hard-bounce and complaint suppression derived from normalized Mailgun events; whole-message enforcement is fail-closed and bounded by retention. |
 | `multisite_management` | Shipped behind the gate | Network-admin-only allowlisted settings with explicit site inheritance/overrides and bounded privacy-safe network log summaries. Provider credentials and payload fields remain site-local. |
 | `provider_quota_budgets` | Shipped behind the gate | Per-provider minute/hour/day attempt windows with deterministic capacity-aware routing and typed deferral. Attachment-bearing quota deferrals fail closed before UUID resolution or scheduling when sanitized retry data cannot reproduce files. |
 
-`provider_events` is still candidate/release-branch scope and is not a public
-release or licensing API. It does not enable suppression enforcement.
+These gates are still candidate/release-branch scope and are not public
+release or licensing APIs. Suppression remains inert unless both gates, the
+site toggle, and a real site secret are available.
 
 ## Fallback and data boundaries
 
@@ -77,7 +79,7 @@ The filters above are internal integration points for the candidate runtime and
 fixtures, not a supported way to activate paid behavior. Do not add license
 activation, purchase URLs, pricing, tiers, hosted-service claims, telemetry,
 privacy promises, or public schema changes here. Owner-gated issues #40, #50,
-#51, #64, and #66 remain planned/excluded from this candidate. Provider
+#51 and #66 remain planned/excluded from this candidate. Provider
 quota budgets from [issue #54](https://github.com/mehul0810/aculect-mail/issues/54) are candidate-shipped by merged [PR #166](https://github.com/mehul0810/aculect-mail/pull/166);
 the issue is closed and its release-tip evidence is recorded in the claim ledger.
 

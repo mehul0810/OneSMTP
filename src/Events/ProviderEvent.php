@@ -20,6 +20,7 @@ final class ProviderEvent
     private string $eventId;
     private ?string $recipientFingerprint;
     private ?string $providerMessageId;
+    private ?string $recipientDomain;
 
     public function __construct(
         private ProviderEventType $type,
@@ -27,12 +28,14 @@ final class ProviderEvent
         string $eventId,
         private DateTimeImmutable $occurredAt,
         ?string $recipientFingerprint = null,
-        ?string $providerMessageId = null
+        ?string $providerMessageId = null,
+        ?string $recipientDomain = null
     ) {
         $this->provider = self::requiredValue($provider, self::MAX_PROVIDER_LENGTH);
         $this->eventId = self::requiredValue($eventId, self::MAX_EVENT_ID_LENGTH);
         $this->recipientFingerprint = self::fingerprintValue($recipientFingerprint);
         $this->providerMessageId = self::optionalValue($providerMessageId, self::MAX_MESSAGE_ID_LENGTH);
+        $this->recipientDomain = self::domainValue($recipientDomain);
     }
 
     public function getType(): ProviderEventType
@@ -63,6 +66,11 @@ final class ProviderEvent
     public function getProviderMessageId(): ?string
     {
         return $this->providerMessageId;
+    }
+
+    public function getRecipientDomain(): ?string
+    {
+        return $this->recipientDomain;
     }
 
     /**
@@ -123,6 +131,20 @@ final class ProviderEvent
         }
 
         return $fingerprint;
+    }
+
+    private static function domainValue(?string $domain): ?string
+    {
+        if ($domain === null || $domain === '') {
+            return null;
+        }
+
+        $domain = strtolower(trim($domain));
+        if (strlen($domain) > 253 || self::hasControlCharacters($domain) || preg_match('/\A[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?\z/D', $domain) !== 1) {
+            throw new InvalidArgumentException('Provider event domain is invalid.');
+        }
+
+        return $domain;
     }
 
     private static function hasControlCharacters(string $value): bool

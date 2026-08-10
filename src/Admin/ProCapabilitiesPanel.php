@@ -52,7 +52,12 @@ final class ProCapabilitiesPanel
             ],
             FeatureGate::PROVIDER_EVENTS => [
                 'label' => __('Provider event ingestion', 'onesmtp'),
-                'description' => __('Mailgun delivery events are ingested into privacy-safe site-local records when enabled. Bounce and complaint suppression controls remain planned.', 'onesmtp'),
+                'description' => __('Mailgun delivery events are ingested into privacy-safe site-local records when enabled. Bounce and complaint suppression is separately gated and default-off.', 'onesmtp'),
+                'availability' => 'shipped',
+            ],
+            FeatureGate::BOUNCE_SUPPRESSION => [
+                'label' => __('Bounce and complaint suppression', 'onesmtp'),
+                'description' => __('Block a complete message when an authenticated Mailgun hard-bounce or complaint matches a site-local suppression record; default-off and bounded by retention.', 'onesmtp'),
                 'availability' => 'shipped',
             ],
             FeatureGate::ADVANCED_ANALYTICS => [

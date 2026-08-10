@@ -54,4 +54,11 @@ final class TableNames
 
         return $wpdb->prefix . 'onesmtp_provider_event_replays';
     }
+
+    public static function suppressions(): string
+    {
+        global $wpdb;
+
+        return $wpdb->prefix . 'onesmtp_suppressions';
+    }
 }

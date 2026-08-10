@@ -18,6 +18,7 @@ use OneSMTP\Repository\MessageRepository;
 use OneSMTP\Repository\ProviderRepository;
 use OneSMTP\Settings\BackgroundSendingSettingsRepository;
 use OneSMTP\Settings\SimulationModeSettingsRepository;
+use OneSMTP\Suppression\SuppressionService;
 
 final class SendPipeline
 {
@@ -52,7 +53,8 @@ final class SendPipeline
         ?BackgroundSendingSettingsRepository $backgroundSending = null,
         ?MailSourceAttributor $sourceAttributor = null,
         ?SimulationModeSettingsRepository $simulationMode = null,
-        ?MailDeliveryOwnership $deliveryOwnership = null
+        ?MailDeliveryOwnership $deliveryOwnership = null,
+        private ?SuppressionService $suppression = null
     ) {
         $this->messages = $messages;
         $this->attempts = $attempts;
@@ -114,6 +116,9 @@ final class SendPipeline
         $messageUuid = $this->extractMessageUuidFromHeaders($captured['headers'] ?? []);
 
         if ($this->shouldQueueInitialSend($captured)) {
+            if ($this->suppression?->suppresses($captured) === true) {
+                return $this->blockSuppressed($messageId, $attemptNo, 'initial');
+            }
             $runAt = $this->retryScheduler->scheduleBackgroundSend($messageId, $attemptNo, $messageUuid);
 
             return is_int($runAt) && $runAt > 0;
@@ -265,6 +270,10 @@ final class SendPipeline
         callable $send,
         ?string $messageUuid = null
     ): bool {
+        if ($this->suppression?->suppresses($payload) === true) {
+            return $this->blockSuppressed($messageId, $attemptNo, $triggerType);
+        }
+
         if (! $this->rateLimiter->acquireSendLock()) {
             return $this->deferForRateLimit(
                 $messageId,
@@ -655,6 +664,23 @@ final class SendPipeline
         $this->events->add('message_simulated', ['reason' => 'simulation_mode', 'trigger' => $trigger], $messageId);
 
         return true;
+    }
+
+    private function blockSuppressed(int $messageId, int $attemptNo, string $triggerType): bool
+    {
+        $this->messages->markFailedTerminal($messageId, max(0, $attemptNo - 1));
+        $this->events->add(
+            'terminal_failure',
+            [
+                'attempt' => max(0, $attemptNo - 1),
+                'trigger' => $triggerType,
+                'reason' => 'recipient_suppressed',
+                'failure_category' => FailureCategory::RECIPIENT_SUPPRESSED,
+            ],
+            $messageId
+        );
+
+        return false;
     }
 
     private function hasAttachments(array $payload): bool

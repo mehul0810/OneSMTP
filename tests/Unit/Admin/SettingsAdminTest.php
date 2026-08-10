@@ -8,6 +8,10 @@ use OneSMTP\Admin\SettingsAdmin;
 use OneSMTP\Conflict\MailDeliveryOwnership;
 use OneSMTP\Core\RetentionPolicy;
 use OneSMTP\Product\FeatureGate;
+use OneSMTP\Repository\SuppressionRepository;
+use OneSMTP\Security\SiteSecretHmac;
+use OneSMTP\Suppression\SuppressionService;
+use OneSMTP\Suppression\SuppressionSettingsRepository;
 use OneSMTP\Tests\Support\FakeWpdb;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
@@ -130,6 +134,37 @@ final class SettingsAdminTest extends TestCase
         self::assertStringContainsString('name="onesmtp_return_tab" value="onesmtp-advanced"', $output);
         self::assertStringNotContainsString('Log retention policy', $output);
         self::assertStringNotContainsString('data-onesmtp-component="settings-navigation"', $output);
+    }
+
+    public function test_bounce_suppression_is_default_deny_when_gate_is_off(): void
+    {
+        ob_start();
+        (new SettingsAdmin())->renderAdvanced();
+        $output = (string) ob_get_clean();
+
+        self::assertStringNotContainsString('Bounce and complaint suppression', $output);
+        self::assertStringNotContainsString('bounce_suppression_enabled', $output);
+    }
+
+    public function test_bounce_suppression_panel_is_visible_only_when_enabled(): void
+    {
+        $gate = new FeatureGate([FeatureGate::BOUNCE_SUPPRESSION => true], true);
+        $service = new SuppressionService(
+            $gate,
+            new SuppressionSettingsRepository(),
+            new SuppressionRepository(),
+            new SiteSecretHmac('fixture-site-secret'),
+            recipientContext: 'recipient.site.1'
+        );
+
+        ob_start();
+        (new SettingsAdmin(featureGate: $gate, suppression: $service))->renderAdvanced();
+        $output = (string) ob_get_clean();
+
+        self::assertStringContainsString('Bounce and complaint suppression', $output);
+        self::assertStringContainsString('bounce_suppression_enabled', $output);
+        self::assertStringContainsString('Remove by exact recipient', $output);
+        self::assertStringContainsString('30-day default', $output);
     }
 
     public function test_pro_compliance_render_exposes_bounded_retention_control(): void

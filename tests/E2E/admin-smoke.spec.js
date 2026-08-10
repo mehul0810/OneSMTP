@@ -430,7 +430,7 @@ test.describe( 'Aculect Mail admin browser smoke', () => {
 		await expect( proCapabilities ).toContainText( 'Available with Pro' );
 		await expect(
 			proCapabilities.getByRole( 'button', { name: 'Requires Pro' } )
-		).toHaveCount( 7 );
+		).toHaveCount( 8 );
 		await expect(
 			proCapabilities
 				.getByRole( 'button', { name: 'Requires Pro' } )
@@ -452,7 +452,7 @@ test.describe( 'Aculect Mail admin browser smoke', () => {
 		).not.toContainText( 'smtp.local.test' );
 	} );
 
-	test( 'renders candidate provider-event capability state with screenshots', async ( {
+	test( 'renders candidate suppression capability state with screenshots', async ( {
 		page,
 	} ) => {
 		const proHtml = renderAdminFixture( true );
@@ -478,19 +478,31 @@ test.describe( 'Aculect Mail admin browser smoke', () => {
 			'Mailgun delivery events are ingested into privacy-safe site-local records'
 		);
 		await expect( proCapabilities ).toContainText(
-			'Bounce and complaint suppression controls remain planned'
+			'Bounce and complaint suppression is separately gated and default-off'
 		);
 		await expect(
 			proCapabilities.getByText( 'Enabled', { exact: true } )
-		).toHaveCount( 4 );
+		).toHaveCount( 5 );
+		const suppressionPanel = page
+			.locator(
+				'section.onesmtp-settings-panel:not(.onesmtp-pro-capabilities)'
+			)
+			.filter( { hasText: 'Bounce and complaint suppression' } )
+			.first();
+		await expect( suppressionPanel ).toContainText(
+			'Default-off site-local protection'
+		);
+		await expect( suppressionPanel ).toContainText(
+			'No suppression records are currently stored'
+		);
 		await page.screenshot( {
-			path: 'output/playwright/screenshots/issue-63-provider-events-capabilities-desktop.png',
+			path: 'output/playwright/screenshots/issue-64-bounce-suppression-desktop.png',
 			fullPage: true,
 		} );
 
 		await page.setViewportSize( { width: 390, height: 844 } );
 		await page.screenshot( {
-			path: 'output/playwright/screenshots/issue-63-provider-events-capabilities-mobile.png',
+			path: 'output/playwright/screenshots/issue-64-bounce-suppression-mobile.png',
 			fullPage: true,
 		} );
 	} );

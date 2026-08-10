@@ -23,7 +23,7 @@ final class ProCapabilitiesPanelTest extends TestCase
         self::assertStringContainsString('Requires Pro', $output);
         self::assertStringContainsString('disabled aria-disabled="true"', $output);
         self::assertStringContainsString('Core sending, providers, failover, queues, and logs remain available without Pro.', $output);
-        self::assertSame(7, substr_count($output, 'Requires Pro'));
+        self::assertSame(count(FeatureGate::featureIds()), substr_count($output, 'Requires Pro'));
     }
 
     public function test_enabled_feature_is_not_rendered_as_a_disabled_control(): void
@@ -37,7 +37,7 @@ final class ProCapabilitiesPanelTest extends TestCase
         self::assertStringContainsString('Smart routing rules', $output);
         self::assertStringContainsString('Enabled', $output);
         self::assertStringContainsString('Provider sending budgets', $output);
-        self::assertSame(6, substr_count($output, 'disabled aria-disabled="true"'));
+        self::assertSame(count(FeatureGate::featureIds()) - 1, substr_count($output, 'disabled aria-disabled="true"'));
     }
 
     public function test_provider_event_ingestion_is_enabled_when_the_gate_is_supplied(): void
@@ -52,6 +52,6 @@ final class ProCapabilitiesPanelTest extends TestCase
 
         self::assertStringContainsString('Provider event ingestion', $output);
         self::assertStringContainsString('>Enabled</span>', $output);
-        self::assertStringContainsString('suppression controls remain planned.', $output);
+        self::assertStringContainsString('suppression is separately gated and default-off.', $output);
     }
 }

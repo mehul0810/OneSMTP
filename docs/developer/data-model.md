@@ -31,3 +31,9 @@ Aculect Mail uses custom database tables for operational email records.
 - Provider-event rows use the same site-local 30-day default, bounded 1–120 day
   retention policy, and daily batch pruner as other operational records. A
   disabled gate stops new writes; existing rows age out normally.
+- The additive `onesmtp_suppressions` table stores only a site-context-bound
+  recipient HMAC, bounded domain, reason, provider correlation references,
+  timestamps, expiry, and count. It is populated only from normalized
+  authenticated hard-bounce and complaint events when both Pro gates and the
+  default-off site toggle are enabled; plaintext recipients and payloads never
+  cross the repository boundary.

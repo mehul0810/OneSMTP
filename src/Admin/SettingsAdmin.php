@@ -25,6 +25,10 @@ use OneSMTP\Settings\SimulationModeSettings;
 use OneSMTP\Settings\SimulationModeSettingsRepository;
 use OneSMTP\Summary\WeeklySummarySettings;
 use OneSMTP\Summary\WeeklySummarySettingsRepository;
+use OneSMTP\Repository\SuppressionRepository;
+use OneSMTP\Suppression\SuppressionService;
+use OneSMTP\Suppression\SuppressionSettings;
+use OneSMTP\Suppression\SuppressionSettingsRepository;
 use RuntimeException;
 
 final class SettingsAdmin
@@ -48,7 +52,10 @@ final class SettingsAdmin
         private ?AdminRequest $request = null,
         private ?SimulationModeSettingsRepository $simulationMode = null,
         private ?MailDeliveryOwnership $deliveryOwnership = null,
-        private ?FeatureGate $featureGate = null
+        private ?FeatureGate $featureGate = null,
+        private ?SuppressionService $suppression = null,
+        private ?SuppressionSettingsRepository $suppressionSettings = null,
+        private ?SuppressionRepository $suppressionRepository = null
     ) {
         $this->senderIdentity = $senderIdentity ?? new SenderIdentityRepository();
         $this->rateLimits = $rateLimits ?? new RateLimitSettingsRepository();
@@ -62,6 +69,8 @@ final class SettingsAdmin
         $this->simulationMode = $simulationMode ?? new SimulationModeSettingsRepository();
         $this->deliveryOwnership = $deliveryOwnership ?? new MailDeliveryOwnership();
         $this->featureGate = $featureGate ?? new FeatureGate();
+        $this->suppressionSettings = $suppressionSettings ?? new SuppressionSettingsRepository();
+        $this->suppressionRepository = $suppressionRepository ?? new SuppressionRepository();
     }
 
     public function handleRequest(): void
@@ -242,6 +251,35 @@ final class SettingsAdmin
                 return;
             }
 
+            if ($action === 'save_bounce_suppression') {
+                if (! $this->featureGate->isEnabled(FeatureGate::BOUNCE_SUPPRESSION) || ($this->suppression === null && isset($_POST['bounce_suppression_enabled']))) {
+                    $this->redirect('invalid', __('Bounce suppression requires an enabled Pro entitlement and a site secret.', 'onesmtp'));
+                    return;
+                }
+                $enabled = isset($_POST['bounce_suppression_enabled']);
+                $this->suppressionSettings->save(new SuppressionSettings($enabled));
+                $this->auditLogger->logSettingsChange('bounce_suppression', [
+                    'source' => 'settings_admin',
+                    'enabled' => $enabled,
+                ]);
+                $this->redirect('bounce_suppression_saved');
+                return;
+            }
+
+            if ($action === 'remove_bounce_suppression') {
+                if (! $this->featureGate->isEnabled(FeatureGate::BOUNCE_SUPPRESSION)) {
+                    return;
+                }
+                $recipient = isset($_POST['suppression_recipient']) ? wp_unslash((string) $_POST['suppression_recipient']) : '';
+                $fingerprint = $this->suppression?->fingerprintForLookup($recipient);
+                if ($fingerprint !== null) {
+                    $this->suppressionRepository->remove($fingerprint);
+                }
+                $this->auditLogger->logSettingsChange('bounce_suppression_remove', ['source' => 'settings_admin', 'matched' => $fingerprint !== null]);
+                $this->redirect('bounce_suppression_removed');
+                return;
+            }
+
             if ($action !== 'save_sender_identity') {
                 return;
             }
@@ -398,11 +436,42 @@ final class SettingsAdmin
         }
         $alerts = $this->failureAlerts->get();
         $alertValues = $alerts->toArray();
+        $suppressionEnabled = $this->suppressionSettings->get()->isEnabled();
         $actionUrl = admin_url('options-general.php?page=onesmtp&tab=onesmtp-advanced#onesmtp-advanced');
 
         echo '<div class="onesmtp-settings-shell onesmtp-advanced-settings-shell">';
         $this->renderStatusNotice($status, $message);
         echo '<div class="onesmtp-settings-grid">';
+
+        if ($this->featureGate->isEnabled(FeatureGate::BOUNCE_SUPPRESSION)) {
+            $this->renderPanel(
+                __('Bounce and complaint suppression', 'onesmtp'),
+                __('Default-off site-local protection. Authenticated Mailgun hard-bounce and complaint events can block a complete message when any canonical recipient is still suppressed. Raw recipients and webhook payloads are never stored.', 'onesmtp'),
+                true,
+                function () use ($actionUrl, $suppressionEnabled): void {
+                    if ($this->suppression === null) {
+                        $this->renderInlineNotice('warning', __('Suppression is unavailable until WordPress provides a site secret.', 'onesmtp'));
+                    }
+                    echo '<form class="onesmtp-settings-form" method="post" action="' . esc_url($actionUrl) . '">';
+                    echo '<input type="hidden" name="onesmtp_settings_action" value="save_bounce_suppression">';
+                    echo '<input type="hidden" name="onesmtp_return_tab" value="onesmtp-advanced">';
+                    wp_nonce_field(self::ACTION_NAME, self::NONCE_NAME);
+                    $this->renderCheckbox('bounce_suppression_enabled', __('Enable hard-bounce and complaint suppression on this site.', 'onesmtp'), $suppressionEnabled && $this->suppression !== null);
+                    echo '<p class="description">' . esc_html__('Disabling stops new derivation and blocking; existing rows expire under the 30-day default (maximum 120 days). A match blocks the entire message across initial, queued, retry, and manual resend paths.', 'onesmtp') . '</p>';
+                    $this->renderActionFooter(__('Save suppression setting', 'onesmtp'));
+                    echo '</form>';
+                    $this->renderSuppressionList();
+                    echo '<form class="onesmtp-settings-form" method="post" action="' . esc_url($actionUrl) . '">';
+                    echo '<input type="hidden" name="onesmtp_settings_action" value="remove_bounce_suppression">';
+                    echo '<input type="hidden" name="onesmtp_return_tab" value="onesmtp-advanced">';
+                    wp_nonce_field(self::ACTION_NAME, self::NONCE_NAME);
+                    echo '<label for="onesmtp-suppression-recipient">' . esc_html__('Remove by exact recipient', 'onesmtp') . '</label> ';
+                    echo '<input id="onesmtp-suppression-recipient" type="email" name="suppression_recipient" class="regular-text" autocomplete="off"> ';
+                    submit_button(__('Remove matching suppression', 'onesmtp'), 'secondary', 'submit', false);
+                    echo '<p class="description">' . esc_html__('The address is hashed transiently for lookup and is not stored or written to audit context.', 'onesmtp') . '</p></form>';
+                }
+            );
+        }
 
         $this->renderPanel(
             __('Advanced alert routing', 'onesmtp'),
@@ -667,6 +736,12 @@ final class SettingsAdmin
         } elseif ($status === 'retention_policy_saved') {
             $noticeClass = 'success';
             $noticeText = __('Log retention policy saved. Scheduled pruning will follow the selected duration.', 'onesmtp');
+        } elseif ($status === 'bounce_suppression_saved') {
+            $noticeClass = 'success';
+            $noticeText = __('Bounce and complaint suppression settings saved.', 'onesmtp');
+        } elseif ($status === 'bounce_suppression_removed') {
+            $noticeClass = 'success';
+            $noticeText = __('Any matching suppression was removed.', 'onesmtp');
         } elseif ($status === 'imported') {
             $noticeClass = 'success';
             $noticeText = $message !== '' ? $message : __('Aculect Mail settings imported. Secrets and recipient fields were excluded.', 'onesmtp');
@@ -706,6 +781,22 @@ final class SettingsAdmin
     private function renderInlineNotice(string $type, string $message): void
     {
         echo '<div class="notice notice-' . esc_attr($type) . ' inline"><p>' . esc_html($message) . '</p></div>';
+    }
+
+    private function renderSuppressionList(): void
+    {
+        $rows = $this->suppressionRepository->list(100);
+        echo '<h4>' . esc_html__('Active suppression records', 'onesmtp') . '</h4>';
+        if ($rows === []) {
+            echo '<p class="description">' . esc_html__('No suppression records are currently stored.', 'onesmtp') . '</p>';
+            return;
+        }
+        echo '<div class="onesmtp-table-wrap"><table class="widefat striped"><thead><tr><th>' . esc_html__('Fingerprint', 'onesmtp') . '</th><th>' . esc_html__('Domain', 'onesmtp') . '</th><th>' . esc_html__('Reason', 'onesmtp') . '</th><th>' . esc_html__('First seen', 'onesmtp') . '</th><th>' . esc_html__('Expires', 'onesmtp') . '</th><th>' . esc_html__('Count', 'onesmtp') . '</th><th>' . esc_html__('Provider', 'onesmtp') . '</th></tr></thead><tbody>';
+        foreach ($rows as $row) {
+            $providerLabel = ucwords(str_replace('_', ' ', (string) ($row['provider'] ?? '')));
+            echo '<tr><td><code>' . esc_html(substr((string) ($row['recipient_fingerprint'] ?? ''), 0, 10)) . '</code></td><td>' . esc_html((string) ($row['recipient_domain'] ?? '')) . '</td><td>' . esc_html((string) ($row['reason_code'] ?? '')) . '</td><td>' . esc_html((string) ($row['first_seen'] ?? '')) . '</td><td>' . esc_html((string) ($row['expiry_at'] ?? '')) . '</td><td>' . esc_html((string) ($row['occurrence_count'] ?? 0)) . '</td><td>' . esc_html($providerLabel) . '</td></tr>';
+        }
+        echo '</tbody></table></div>';
     }
 
     private function renderActionFooter(string $label, string $type = 'primary'): void

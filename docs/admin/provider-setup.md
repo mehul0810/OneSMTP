@@ -124,7 +124,7 @@ other provider metadata, raw payloads, plaintext recipients, headers, IPs, user
 agents, diagnostics, and signing tokens are discarded after validation.
 Subaccount payloads may include Mailgun's `parent-signature`; it is verified
 with the configured primary Webhook Signing Key. Suppression enforcement
-remains a separate, owner-gated follow-up (#64).
+is separately gated by `bounce_suppression` and remains default-off.
 
 See Mailgun's [webhook security guidance](https://documentation.mailgun.com/docs/mailgun/user-manual/webhooks/securing-webhooks)
 and [webhook payload reference](https://documentation.mailgun.com/docs/mailgun/user-manual/webhooks/webhook-payloads)

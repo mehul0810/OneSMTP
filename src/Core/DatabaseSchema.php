@@ -19,6 +19,7 @@ final class DatabaseSchema
         $quotaLeasesTable = TableNames::quotaLeases();
         $providerEventsTable = TableNames::providerEvents();
         $providerEventReplaysTable = TableNames::providerEventReplays();
+        $suppressionsTable = TableNames::suppressions();
 
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
@@ -153,6 +154,29 @@ final class DatabaseSchema
             KEY created_at (created_at)
         ) {$charsetCollate};";
 
+        $suppressionsSql = "CREATE TABLE {$suppressionsTable} (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            recipient_fingerprint CHAR(64) NOT NULL,
+            recipient_domain VARCHAR(253) NOT NULL,
+            reason_code VARCHAR(32) NOT NULL,
+            provider VARCHAR(64) NOT NULL,
+            provider_id BIGINT UNSIGNED NULL,
+            provider_message_id VARCHAR(128) NULL,
+            first_seen DATETIME NOT NULL,
+            last_seen DATETIME NOT NULL,
+            expiry_at DATETIME NOT NULL,
+            occurrence_count INT UNSIGNED NOT NULL DEFAULT 1,
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL,
+            PRIMARY KEY (id),
+            UNIQUE KEY recipient_fingerprint (recipient_fingerprint),
+            KEY expiry_at (expiry_at),
+            KEY recipient_domain (recipient_domain),
+            KEY reason_code (reason_code),
+            KEY provider_message_id (provider_id, provider_message_id),
+            KEY updated_at (updated_at)
+        ) {$charsetCollate};";
+
         dbDelta($providersSql);
         dbDelta($messagesSql);
         dbDelta($attemptsSql);
@@ -160,6 +184,7 @@ final class DatabaseSchema
         dbDelta($quotaLeasesSql);
         dbDelta($providerEventsSql);
         dbDelta($providerEventReplaysSql);
+        dbDelta($suppressionsSql);
     }
 
     /**
@@ -178,6 +203,7 @@ final class DatabaseSchema
             TableNames::quotaLeases(),
             TableNames::providerEvents(),
             TableNames::providerEventReplays(),
+            TableNames::suppressions(),
         ];
     }
 

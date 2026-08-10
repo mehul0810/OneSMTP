@@ -40,6 +40,9 @@ use OneSMTP\Settings\SimulationModeSettingsRepository;
 use OneSMTP\Summary\WeeklySummaryMailer;
 use OneSMTP\Multisite\NetworkLogRepository;
 use OneSMTP\Multisite\NetworkSettingsRepository;
+use OneSMTP\Repository\SuppressionRepository;
+use OneSMTP\Suppression\SuppressionService;
+use OneSMTP\Suppression\SuppressionSettingsRepository;
 
 final class Plugin
 {
@@ -70,27 +73,41 @@ final class Plugin
         $deliveryEngine = new DeliveryEngine($providers, $attempts, $dispatchPolicy, null, $events, null, $providerQuota);
         $rateLimiter = new RateLimiter($attempts);
         $backgroundSending = new BackgroundSendingSettingsRepository();
+        $suppression = null;
         $senderIdentity = new SenderIdentityApplier();
         if ($deliveryOwnership->canAculectDeliver()) {
             $senderIdentity->registerHooks();
         }
 
-        $sendPipeline = new SendPipeline($messages, $attempts, $providers, $events, $retryScheduler, $deliveryEngine, $rateLimiter, $backgroundSending, null, new SimulationModeSettingsRepository(), $deliveryOwnership);
-        $sendPipeline->registerHooks();
-
         $siteSecret = function_exists('wp_salt') ? trim( (string) wp_salt('auth') ) : '';
         $providerEventIngestion = null;
         if ($siteSecret !== '') {
             $siteId = function_exists('get_current_blog_id') ? max(1, (int) get_current_blog_id()) : 1;
+            $suppression = new SuppressionService(
+                $featureGate,
+                new SuppressionSettingsRepository(),
+                new SuppressionRepository(),
+                new SiteSecretHmac($siteSecret),
+                recipientContext: 'recipient.site.' . $siteId
+            );
             $providerEvents = new ProviderEventRepository();
             $providerEventIngestion = new ProviderEventIngestionService(
                 $providers,
                 $providerEvents,
                 $featureGate,
                 new MailgunEventNormalizer(new SiteSecretHmac($siteSecret), recipientContext: 'recipient.site.' . $siteId),
-                static fn (string $signingKey): MailgunEventVerifier => new MailgunEventVerifier($signingKey)
+                static fn (string $signingKey): MailgunEventVerifier => new MailgunEventVerifier($signingKey),
+                null,
+                static function (\OneSMTP\Events\ProviderEvent $event, ?int $providerId) use (&$suppression): void {
+                    if ($suppression instanceof SuppressionService) {
+                        $suppression->derive($event, $providerId);
+                    }
+                }
             );
         }
+
+        $sendPipeline = new SendPipeline($messages, $attempts, $providers, $events, $retryScheduler, $deliveryEngine, $rateLimiter, $backgroundSending, null, new SimulationModeSettingsRepository(), $deliveryOwnership, $suppression);
+        $sendPipeline->registerHooks();
 
         $adminPage = new AdminPage(
             null,
@@ -106,7 +123,7 @@ final class Plugin
                 static fn (int $messageId): bool => $retryScheduler->scheduleImmediateRetry($messageId),
                 $featureGate
             ),
-            null,
+            new Admin\SettingsAdmin(featureGate: $featureGate, suppression: $suppression),
             new Admin\QueueDiagnosticsAdmin($queueDiagnostics, new DiagnosticReportGenerator($providers, $queueDiagnostics, $attempts)),
             new Admin\DashboardAdmin(new MetricsRepository()),
             null,
