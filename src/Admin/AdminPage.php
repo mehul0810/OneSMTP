@@ -58,7 +58,7 @@ final class AdminPage
         $this->deliveryOwnership = $deliveryOwnership ?? new MailDeliveryOwnership();
         $this->simulationMode = $simulationMode ?? new SimulationModeSettingsRepository();
         $this->featureGate = $featureGate ?? new FeatureGate();
-        $this->dashboard = $dashboard ?? new DashboardAdmin();
+        $this->dashboard = $dashboard ?? new DashboardAdmin(features: $this->featureGate);
         $this->providers = $providers ?? new ProviderAdmin($this->providerRepository);
         $this->setupWizard = $setupWizard ?? new SetupWizard($this->providerRepository);
         $this->logs = $logs ?? new LogAdmin(new MessageRepository(), new AttemptRepository(), $this->providerRepository);

@@ -98,6 +98,63 @@
     line-height: 1.2;
 }
 
+.onesmtp-reliability-panel {
+	margin: 20px 0;
+	padding: 20px;
+	border: 1px solid var(--aculect-admin-border, #dcdcde);
+	border-radius: 10px;
+	background: #fff;
+}
+
+.onesmtp-reliability-heading {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: 16px;
+}
+
+.onesmtp-reliability-heading h3,
+.onesmtp-reliability-heading p,
+.onesmtp-reliability-disclaimer {
+	margin: 0;
+}
+
+.onesmtp-reliability-heading p,
+.onesmtp-reliability-disclaimer,
+.onesmtp-reliability-empty {
+	color: #646970;
+}
+
+.onesmtp-reliability-disclaimer {
+	max-width: 880px;
+	margin-top: 10px;
+	padding-left: 12px;
+	border-left: 3px solid #72aee6;
+	line-height: 1.5;
+}
+
+.onesmtp-reliability-panel .onesmtp-dataviews-mount {
+	margin-top: 18px;
+}
+
+.onesmtp-reliability-empty {
+	margin: 18px 0 0;
+}
+
+@media (max-width: 782px) {
+	.onesmtp-reliability-panel {
+		padding: 20px;
+	}
+
+	.onesmtp-reliability-heading {
+		align-items: flex-start;
+	}
+
+	.onesmtp-reliability-table .onesmtp-reliability-secondary {
+		display: none;
+	}
+}
+
 .onesmtp-workspace-intro {
     display: flex;
     align-items: flex-end;

@@ -17,3 +17,11 @@ Analytics separates failovers **to** a provider from switches **away** from a pr
 If all healthy providers fail, the message is returned to the Action Scheduler retry queue with exponential backoff. A terminal failure is recorded when no safe alternate or retry path remains. Delivery is best-effort and depends on provider acceptance, recipient-domain policy, DNS, and downstream mailbox availability; no plugin can guarantee 100% inbox delivery.
 
 The normal retry policy can keep a provider for one additional attempt when immediate failover is not requested. Retry processing and background delivery opt into immediate failover so queued messages can move to another provider after the first failure.
+
+## Provider reliability score
+
+When Pro analytics is enabled, the Analytics screen calculates a provider reliability score from aggregate Aculect Mail attempt history for the selected window. The score starts with the recorded success percentage, then applies bounded penalties for retry rate, switch-away rate, and average provider response latency. The result is clamped between 0 and 100.
+
+The dashboard labels fewer than 20 recorded attempts as a **Limited sample** and 20 or more as an **Established sample**. This label describes evidence volume, not statistical certainty. Scores contain no recipient address, message body, subject, credential, or provider response content.
+
+Reliability scores are operational comparisons inside the selected site and time window. They are not inbox-placement measurements, contractual provider SLAs, or delivery guarantees.

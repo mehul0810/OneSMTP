@@ -91,6 +91,10 @@ const mountDataViews = async ( section ) => {
 			),
 			providers: __( 'Aculect Mail providers', 'onesmtp' ),
 			'analytics-providers': __( 'Provider performance', 'onesmtp' ),
+			'analytics-reliability': __(
+				'Provider reliability scores',
+				'onesmtp'
+			),
 		};
 		mounts.forEach( ( mount ) => {
 			const key = mount.dataset.onesmtpDataviews;

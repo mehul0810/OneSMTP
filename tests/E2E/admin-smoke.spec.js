@@ -393,6 +393,22 @@ test.describe( 'Aculect Mail admin browser smoke', () => {
 			).toBe( false );
 		}
 	} );
+
+	test( 'renders Pro provider reliability with bounded operational claims', async ( {
+		page,
+	} ) => {
+		await openWorkspace( page, 'Analytics', 'onesmtp-analytics' );
+
+		const reliability = page.locator( '.onesmtp-reliability-panel' );
+		await expect( reliability ).toBeVisible();
+		await expect( reliability ).toContainText( 'Provider reliability' );
+		await expect( reliability ).toContainText( 'Browser Smoke SMTP' );
+		await expect( reliability ).toContainText( '96' );
+		await expect( reliability ).toContainText( 'Established sample' );
+		await expect( reliability ).toContainText(
+			'do not guarantee inbox placement or a provider SLA'
+		);
+	} );
 } );
 
 async function openWorkspace( page, label, id ) {
