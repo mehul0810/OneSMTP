@@ -44,3 +44,16 @@ The routing context is bounded in memory and is never copied into routing
 events, audit records, or new persistent fields. Rule definitions contain only
 the administrator's configured field/operator/value; message bodies,
 recipients, and headers are not added to the logs.
+
+## Simulate a routing decision (Pro)
+
+Use the **Simulate routing decision** panel to test either the current saved
+rules or one unsaved candidate rule against synthetic sender, recipient,
+subject, content, and source fields. The result identifies a matched rule and
+provider, or explains a safe no-match/no-eligible-provider result. Inactive
+providers and providers skipped by an open circuit breaker are shown as
+eligibility effects.
+
+Simulation evaluates only the bounded in-memory context. It does not call a
+provider, send or queue mail, create message/attempt/event/audit records, or
+change saved routing rules. Sample values are discarded when the request ends.

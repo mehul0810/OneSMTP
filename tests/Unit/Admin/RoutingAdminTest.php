@@ -201,4 +201,94 @@ final class RoutingAdminTest extends TestCase
         self::assertStringContainsString('deleted', $context);
         self::assertStringNotContainsString('delete phrase', $context);
     }
+
+    public function test_candidate_simulation_matches_without_persisting_sample_or_emitting_events(): void
+    {
+        $GLOBALS['wpdb'] = new FakeWpdb();
+        $GLOBALS['wpdb']->activeProviders = [
+            [
+				'id' => 5,
+				'name' => 'Fixture SMTP',
+				'is_active' => 1,
+				'circuit_state' => 'closed',
+			],
+        ];
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = [
+            'onesmtp_routing_action' => 'simulate',
+            'simulation_source' => 'candidate',
+            'simulation_provider_id' => '5',
+            'simulation_priority' => '10',
+            'simulation_condition_field' => 'content',
+            'simulation_condition_operator' => 'contains',
+            'simulation_condition_value' => 'fixture phrase',
+            'simulation_enabled' => '1',
+            'simulation_sender' => 'billing@example.test',
+            'simulation_recipient' => 'owner@example.test',
+            'simulation_subject' => 'Synthetic subject',
+            'simulation_content' => 'fixture phrase in memory only',
+            'simulation_source_type' => 'plugin',
+            'simulation_source_slug' => 'checkout',
+            'onesmtp_routing_nonce' => 'test-nonce',
+        ];
+
+        $admin = new RoutingAdmin(
+            new RoutingRulesRepository(),
+            new ProviderRepository(),
+            new FeatureGate([FeatureGate::SMART_ROUTING => true], true)
+        );
+        $admin->handleRequest();
+
+        self::assertFalse(array_key_exists('onesmtp_routing_rules', $GLOBALS['onesmtp_test_options']));
+        self::assertSame([], $GLOBALS['wpdb']->inserts);
+        self::assertSame([], $GLOBALS['wpdb']->updates);
+        self::assertSame([], $GLOBALS['wpdb']->deletions);
+        self::assertSame([], $GLOBALS['onesmtp_test_fired_actions']);
+
+        ob_start();
+        $admin->render($GLOBALS['wpdb']->activeProviders);
+        $html = (string) ob_get_clean();
+        self::assertStringContainsString('Matched rule #1; selected provider: Fixture SMTP.', $html);
+        self::assertStringContainsString('no provider call, queue, retry, message, attempt, event, audit record, or rule update', $html);
+    }
+
+    public function test_simulation_requires_capability_and_nonce_without_mutation(): void
+    {
+        $GLOBALS['wpdb'] = new FakeWpdb();
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = [
+            'onesmtp_routing_action' => 'simulate',
+            'simulation_source' => 'saved',
+            'simulation_subject' => 'Synthetic subject',
+            'onesmtp_routing_nonce' => 'test-nonce',
+        ];
+
+        $GLOBALS['onesmtp_test_current_user_can'] = false;
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('You are not allowed to manage Aculect Mail routing rules.');
+        (new RoutingAdmin())->handleRequest();
+    }
+
+    public function test_invalid_nonce_blocks_simulation_before_reading_sample(): void
+    {
+        $GLOBALS['wpdb'] = new FakeWpdb();
+        $GLOBALS['onesmtp_test_nonce_valid'] = false;
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = [
+            'onesmtp_routing_action' => 'simulate',
+            'simulation_source' => 'saved',
+            'simulation_content' => 'never persisted',
+            'onesmtp_routing_nonce' => 'invalid',
+        ];
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Invalid nonce.');
+        try {
+            (new RoutingAdmin(
+                featureGate: new FeatureGate([FeatureGate::SMART_ROUTING => true], true)
+            ))->handleRequest();
+        } finally {
+            $GLOBALS['onesmtp_test_nonce_valid'] = true;
+        }
+    }
 }

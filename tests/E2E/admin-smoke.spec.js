@@ -11,20 +11,23 @@ const repoRoot = path.resolve( __dirname, '..', '..' );
 const adminUrl =
 	'https://example.org/wp-admin/options-general.php?page=onesmtp';
 
-function renderAdminFixture() {
+function renderAdminFixture( proRouting = false ) {
 	return execFileSync( 'php', [ fixturePath ], {
 		cwd: repoRoot,
 		encoding: 'utf8',
 		env: {
 			...process.env,
 			ONESMTP_PLAYWRIGHT_SMOKE: '1',
+			ONESMTP_PLAYWRIGHT_PRO_ROUTING: proRouting ? '1' : '0',
 		},
 	} );
 }
 
 test.describe( 'Aculect Mail admin browser smoke', () => {
-	test.beforeEach( async ( { page } ) => {
-		const html = renderAdminFixture();
+	test.beforeEach( async ( { page }, testInfo ) => {
+		const html = renderAdminFixture(
+			testInfo.title.includes( 'Pro routing simulation' )
+		);
 
 		await page.route(
 			'https://example.org/wp-admin/options-general.php**',
@@ -454,6 +457,77 @@ test.describe( 'Aculect Mail admin browser smoke', () => {
 		await expect(
 			routing.locator( 'input[name="condition_value"]' )
 		).toHaveCount( 0 );
+		await expect(
+			routing.locator( 'textarea[name="simulation_content"]' )
+		).toHaveCount( 0 );
+	} );
+
+	test( 'Pro routing simulation stays in the admin request boundary', async ( {
+		page,
+	} ) => {
+		await captureFormSubmissions( page );
+		await openWorkspace( page, 'Routing', 'onesmtp-routing' );
+
+		const routing = page.locator( '#onesmtp-routing' );
+		await expect(
+			routing.getByRole( 'heading', {
+				name: 'Simulate routing decision',
+			} )
+		).toBeVisible();
+		await expect( routing ).toContainText(
+			'no provider call, queue, retry, message, attempt, event, audit record, or rule update'
+		);
+		await page.screenshot( {
+			path: 'output/playwright/routing-simulation-pro-desktop.png',
+			fullPage: true,
+		} );
+		await page.setViewportSize( { width: 390, height: 844 } );
+		await expect( routing ).toBeVisible();
+		const hasPageOverflow = await page.evaluate(
+			() =>
+				document.documentElement.scrollWidth >
+				document.documentElement.clientWidth + 1
+		);
+		expect( hasPageOverflow ).toBe( false );
+		await page.screenshot( {
+			path: 'output/playwright/routing-simulation-pro-mobile.png',
+			fullPage: true,
+		} );
+
+		const simulation = routing.locator(
+			'.onesmtp-routing-simulation-form'
+		);
+		await simulation
+			.locator( 'select[name="simulation_source"]' )
+			.selectOption( 'candidate' );
+		await simulation
+			.locator( 'select[name="simulation_condition_field"]' )
+			.selectOption( 'source_type' );
+		await simulation
+			.locator( 'select[name="simulation_condition_operator"]' )
+			.selectOption( 'equals' );
+		await simulation
+			.locator( 'textarea[name="simulation_condition_value"]' )
+			.fill( 'checkout' );
+		await simulation
+			.locator( 'input[name="simulation_source_type"]' )
+			.fill( 'checkout' );
+		await simulation
+			.locator( 'textarea[name="simulation_content"]' )
+			.fill( 'Synthetic browser sample only' );
+		await simulation
+			.getByRole( 'button', { name: 'Simulate routing' } )
+			.click();
+
+		await expect
+			.poll( () => latestSubmission( page ) )
+			.toMatchObject( {
+				onesmtp_routing_action: 'simulate',
+				simulation_source: 'candidate',
+				simulation_condition_value: 'checkout',
+				simulation_source_type: 'checkout',
+				simulation_content: 'Synthetic browser sample only',
+			} );
 	} );
 } );
 
