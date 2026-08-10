@@ -24,13 +24,42 @@ final class RoutingRuleEvaluator
      */
     public function evaluate(array $rules, array $context, array $providers): ?int
     {
+        $result = $this->evaluateDetailed($rules, $context, $providers);
+
+        return $result['provider_id'];
+    }
+
+    /**
+     * Evaluate rules while retaining only safe decision metadata for previews.
+     * The context itself is deliberately absent from the returned contract.
+     *
+     * @param array<int,array<string,mixed>> $rules
+     * @param array<string,mixed>            $context
+     * @param array<int,array<string,mixed>> $providers
+     * @return array{
+     *     status:string,
+     *     provider_id:?int,
+     *     rule_id:?int,
+     *     eligible_provider_ids:array<int,int>,
+     *     provider_effects:array<int,array{provider_id:int,state:string}>
+     * }
+     */
+    public function evaluateDetailed(array $rules, array $context, array $providers): array
+    {
         if ( ! $this->featureGate->isEnabled(FeatureGate::SMART_ROUTING)) {
-            return null;
+            return $this->emptyResult('pro_required');
         }
 
         $eligibleProviderIds = $this->eligibleProviderIds($providers);
+        $providerEffects = $this->providerEffects($providers);
         if ($rules === [] || $context === [] || $eligibleProviderIds === []) {
-            return null;
+            return [
+                'status' => $rules === [] ? 'no_rules' : ($context === [] ? 'no_sample' : 'no_eligible_provider'),
+                'provider_id' => null,
+                'rule_id' => null,
+                'eligible_provider_ids' => $eligibleProviderIds,
+                'provider_effects' => $providerEffects,
+            ];
         }
 
         foreach ($this->orderedRules($rules) as $rule) {
@@ -48,10 +77,22 @@ final class RoutingRuleEvaluator
                 continue;
             }
 
-            return $providerId;
+            return [
+                'status' => 'matched',
+                'provider_id' => $providerId,
+                'rule_id' => (int) ($rule['id'] ?? 0) > 0 ? (int) $rule['id'] : null,
+                'eligible_provider_ids' => $eligibleProviderIds,
+                'provider_effects' => $providerEffects,
+            ];
         }
 
-        return null;
+        return [
+            'status' => 'no_match',
+            'provider_id' => null,
+            'rule_id' => null,
+            'eligible_provider_ids' => $eligibleProviderIds,
+            'provider_effects' => $providerEffects,
+        ];
     }
 
     /**
@@ -85,6 +126,59 @@ final class RoutingRuleEvaluator
         sort($ids);
 
         return array_values(array_unique($ids));
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $providers
+     * @return array<int,array{provider_id:int,state:string}>
+     */
+    private function providerEffects(array $providers): array
+    {
+        $effects = [];
+        foreach ($providers as $provider) {
+            if ( ! is_array($provider)) {
+                continue;
+            }
+
+            $providerId = (int) ($provider['id'] ?? 0);
+            if ($providerId <= 0) {
+                continue;
+            }
+
+            $state = 'eligible';
+            if (array_key_exists('is_active', $provider) && (int) $provider['is_active'] !== 1) {
+                $state = 'inactive';
+            } elseif ( (string) ($provider['circuit_state'] ?? 'closed') === 'open' && $this->isCircuitStillOpen($provider)) {
+                $state = 'circuit_open';
+            }
+
+            $effects[] = [
+                'provider_id' => $providerId,
+                'state' => $state,
+            ];
+        }
+
+        return $effects;
+    }
+
+    /**
+     * @return array{
+     *     status:string,
+     *     provider_id:?int,
+     *     rule_id:?int,
+     *     eligible_provider_ids:array<int,int>,
+     *     provider_effects:array<int,array{provider_id:int,state:string}>
+     * }
+     */
+    private function emptyResult(string $status): array
+    {
+        return [
+            'status' => $status,
+            'provider_id' => null,
+            'rule_id' => null,
+            'eligible_provider_ids' => [],
+            'provider_effects' => [],
+        ];
     }
 
     /**
