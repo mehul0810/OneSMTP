@@ -7,6 +7,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 ## [0.4.0] - Unreleased
 
 - Pro provider reliability scoring based on aggregate success, failure, retry, switch-away, and latency history, with sample-quality labels and non-SLA guidance.
+- Pro Compliance controls for bounded site-local log retention and fixed privacy-safe CSV export profiles, preserving the existing safe operational export by default.
 
 ### Added
 

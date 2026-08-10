@@ -212,7 +212,10 @@ $queue = new QueueDiagnostics(
     static fn (): int => 1782475200
 );
 
-$proFeatures = new FeatureGate([FeatureGate::ADVANCED_ANALYTICS => true], true);
+$proFeatures = new FeatureGate([
+    FeatureGate::ADVANCED_ANALYTICS => true,
+    FeatureGate::COMPLIANCE_CONTROLS => true,
+], true);
 $admin = new AdminPage(
     diagnostics: new QueueDiagnosticsAdmin(
         $queue,

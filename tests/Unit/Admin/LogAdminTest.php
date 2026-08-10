@@ -7,6 +7,7 @@ namespace OneSMTP\Tests\Unit\Admin;
 use OneSMTP\Admin\LogAdmin;
 use OneSMTP\Core\Capabilities;
 use OneSMTP\Logging\AttachmentLogSanitizer;
+use OneSMTP\Product\FeatureGate;
 use OneSMTP\Repository\AttemptRepository;
 use OneSMTP\Repository\MessageRepository;
 use OneSMTP\Repository\ProviderRepository;
@@ -70,6 +71,18 @@ final class LogAdminTest extends TestCase
         self::assertStringContainsString('Recent messages', $html);
         self::assertStringContainsString('No email activity yet', $html);
         self::assertStringContainsString('data-onesmtp-dataviews="delivery-messages"', $html);
+        self::assertStringNotContainsString('onesmtp-log-export-profile', $html);
+    }
+
+    public function test_pro_compliance_render_exposes_explicit_safe_export_profiles(): void
+    {
+        $html = $this->renderLogs(new FeatureGate([FeatureGate::COMPLIANCE_CONTROLS => true], true));
+
+        self::assertStringContainsString('id="onesmtp-log-export-profile"', $html);
+        self::assertStringContainsString('Operational summary', $html);
+        self::assertStringContainsString('Audit summary', $html);
+        self::assertStringContainsString('Minimal record', $html);
+        self::assertStringContainsString('payload JSON', $html);
     }
 
     public function test_render_queue_management_shows_pending_status_and_switchovers(): void
@@ -753,6 +766,60 @@ final class LogAdminTest extends TestCase
         self::assertStringNotContainsString('raw-token', $csv);
         self::assertStringNotContainsString('raw-secret', $csv);
         self::assertStringNotContainsString('payload_json', $csv);
+        self::assertSame('audit_log_exported', $GLOBALS['wpdb']->inserts[0]['data']['event_type']);
+    }
+
+    public function test_pro_minimal_csv_profile_has_only_its_allowlisted_fields(): void
+    {
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+        $_GET = [
+            'onesmtp_log_action' => 'export_csv',
+            'onesmtp_log_export_nonce' => 'test-nonce',
+            'export_profile' => 'minimal',
+        ];
+        $GLOBALS['wpdb']->recentMessageRows = [[
+            'id' => 11,
+            'message_uuid' => 'lineage-11',
+            'payload_json' => wp_json_encode([
+                'to' => ['hidden@example.test'],
+                'message' => 'private body never exported',
+                'headers' => ['Authorization: Bearer hidden-token'],
+                AttachmentLogSanitizer::PAYLOAD_KEY => [
+                    'enabled' => true,
+                    'count' => 1,
+                    'items' => [['filename' => 'secret.pdf']],
+                ],
+            ]),
+            'status' => 'failed',
+            'selected_provider_id' => 7,
+            'current_attempt' => 2,
+            'max_attempts' => 6,
+            'attempt_count' => 2,
+            'created_at' => '2026-06-23 10:00:00',
+            'updated_at' => '2026-06-23 10:01:00',
+        ]];
+
+        ob_start();
+        try {
+            (new LogAdmin(
+                new MessageRepository(),
+                new AttemptRepository(),
+                new ProviderRepository(),
+                features: new FeatureGate([FeatureGate::COMPLIANCE_CONTROLS => true], true)
+            ))->handleRequest();
+            self::fail('Expected CSV export exception.');
+        } catch (RuntimeException $exception) {
+            self::assertSame('Aculect Mail log CSV exported.', $exception->getMessage());
+        }
+        $csv = (string) ob_get_clean();
+
+        self::assertStringContainsString("message_id,lineage_uuid,status,created_at,updated_at", $csv);
+        self::assertStringNotContainsString('provider', $csv);
+        self::assertStringNotContainsString('recipient_summary', $csv);
+        self::assertStringNotContainsString('hidden@example.test', $csv);
+        self::assertStringNotContainsString('private body never exported', $csv);
+        self::assertStringNotContainsString('hidden-token', $csv);
+        self::assertSame('minimal', json_decode((string) $GLOBALS['wpdb']->inserts[0]['data']['context_json'], true)['profile'] ?? null);
     }
 
     public function test_resend_action_invokes_pipeline_with_eligible_provider_override(): void
@@ -1031,9 +1098,14 @@ final class LogAdminTest extends TestCase
         self::assertStringContainsString('No email activity yet', $html);
     }
 
-    private function renderLogs(): string
+    private function renderLogs(?FeatureGate $features = null): string
     {
-        $admin = new LogAdmin(new MessageRepository(), new AttemptRepository(), new ProviderRepository());
+        $admin = new LogAdmin(
+            new MessageRepository(),
+            new AttemptRepository(),
+            new ProviderRepository(),
+            features: $features
+        );
 
         ob_start();
         try {

@@ -6,6 +6,8 @@ namespace OneSMTP\Tests\Unit\Admin;
 
 use OneSMTP\Admin\SettingsAdmin;
 use OneSMTP\Conflict\MailDeliveryOwnership;
+use OneSMTP\Core\RetentionPolicy;
+use OneSMTP\Product\FeatureGate;
 use OneSMTP\Tests\Support\FakeWpdb;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
@@ -126,7 +128,97 @@ final class SettingsAdminTest extends TestCase
         self::assertStringContainsString('name="onesmtp_settings_import_json"', $output);
         self::assertStringContainsString('tab=onesmtp-advanced', $output);
         self::assertStringContainsString('name="onesmtp_return_tab" value="onesmtp-advanced"', $output);
+        self::assertStringNotContainsString('Log retention policy', $output);
         self::assertStringNotContainsString('data-onesmtp-component="settings-navigation"', $output);
+    }
+
+    public function test_pro_compliance_render_exposes_bounded_retention_control(): void
+    {
+        update_option(RetentionPolicy::OPTION, 45, false);
+        $admin = new SettingsAdmin(
+            features: new FeatureGate([FeatureGate::COMPLIANCE_CONTROLS => true], true)
+        );
+
+        ob_start();
+        $admin->renderAdvanced();
+        $output = (string) ob_get_clean();
+
+        self::assertStringContainsString('Log retention policy', $output);
+        self::assertStringContainsString('name="retention_profile"', $output);
+        self::assertStringContainsString('Custom duration (1-120 days)', $output);
+        self::assertStringContainsString('min="1" max="120"', $output);
+        self::assertStringContainsString('value="45"', $output);
+        self::assertStringContainsString('onesmtp_settings_nonce', $output);
+        self::assertStringContainsString('site-local', $output);
+    }
+
+    public function test_free_retention_action_is_default_deny_and_does_not_mutate(): void
+    {
+        update_option(RetentionPolicy::OPTION, 30, false);
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = [
+            'onesmtp_settings_action' => 'save_retention_policy',
+            'onesmtp_settings_nonce' => 'test-nonce',
+            'retention_profile' => 'maximum',
+            'retention_days' => '120',
+        ];
+
+        (new SettingsAdmin())->handleRequest();
+
+        self::assertSame(30, get_option(RetentionPolicy::OPTION));
+        self::assertArrayNotHasKey('location', $GLOBALS['onesmtp_test_redirect'] ?? []);
+    }
+
+    public function test_pro_retention_action_saves_selected_policy_and_audits_safe_context(): void
+    {
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = [
+            'onesmtp_settings_action' => 'save_retention_policy',
+            'onesmtp_settings_nonce' => 'test-nonce',
+            'onesmtp_return_tab' => 'onesmtp-advanced',
+            'retention_profile' => 'custom',
+            'retention_days' => '75',
+        ];
+
+        try {
+            (new SettingsAdmin(
+                features: new FeatureGate([FeatureGate::COMPLIANCE_CONTROLS => true], true)
+            ))->handleRequest();
+        } catch (RuntimeException $exception) {
+            self::assertSame('Aculect Mail settings admin redirected.', $exception->getMessage());
+        }
+
+        self::assertSame(75, get_option(RetentionPolicy::OPTION));
+        self::assertStringContainsString('onesmtp_settings_status=retention_policy_saved', (string) $GLOBALS['onesmtp_test_redirect']['location']);
+        $audit = end($GLOBALS['wpdb']->inserts);
+        self::assertSame('audit_settings_changed', $audit['data']['event_type']);
+        $context = json_decode((string) $audit['data']['context_json'], true);
+        self::assertSame('retention_policy', $context['object_key'] ?? null);
+        self::assertSame(75, $context['retention_days'] ?? null);
+        self::assertSame('custom', $context['profile'] ?? null);
+    }
+
+    public function test_pro_retention_rejects_duration_over_maximum_without_saving(): void
+    {
+        update_option(RetentionPolicy::OPTION, 30, false);
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = [
+            'onesmtp_settings_action' => 'save_retention_policy',
+            'onesmtp_settings_nonce' => 'test-nonce',
+            'retention_profile' => 'custom',
+            'retention_days' => '121',
+        ];
+
+        try {
+            (new SettingsAdmin(
+                features: new FeatureGate([FeatureGate::COMPLIANCE_CONTROLS => true], true)
+            ))->handleRequest();
+        } catch (RuntimeException $exception) {
+            self::assertSame('Aculect Mail settings admin redirected.', $exception->getMessage());
+        }
+
+        self::assertSame(30, get_option(RetentionPolicy::OPTION));
+        self::assertStringContainsString('onesmtp_settings_status=invalid', (string) $GLOBALS['onesmtp_test_redirect']['location']);
     }
 
     public function test_simulation_mode_is_blocked_when_suremail_owns_delivery(): void

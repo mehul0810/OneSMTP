@@ -269,7 +269,7 @@ test.describe( 'Aculect Mail admin browser smoke', () => {
 		await expect( proCapabilities ).toContainText( 'Available with Pro' );
 		await expect(
 			proCapabilities.getByRole( 'button', { name: 'Requires Pro' } )
-		).toHaveCount( 5 );
+		).toHaveCount( 4 );
 		await expect(
 			proCapabilities
 				.getByRole( 'button', { name: 'Requires Pro' } )
@@ -289,6 +289,43 @@ test.describe( 'Aculect Mail admin browser smoke', () => {
 		await expect(
 			page.locator( '#onesmtp-diagnostic-preview' )
 		).not.toContainText( 'smtp.local.test' );
+	} );
+
+	test( 'renders compliance retention and export profile controls with screenshots', async ( {
+		page,
+	} ) => {
+		await openWorkspace( page, 'Advanced', 'onesmtp-advanced' );
+		const advanced = page.locator( '#onesmtp-advanced' );
+		const retention = advanced.locator( '.onesmtp-settings-panel', {
+			hasText: 'Log retention policy',
+		} );
+
+		await expect( retention ).toContainText( '1-120 days' );
+		await expect(
+			retention.getByRole( 'combobox', { name: 'Policy preset' } )
+		).toBeVisible();
+		await expect(
+			retention.getByRole( 'spinbutton', { name: 'Custom duration in days' } )
+		).toHaveAttribute( 'min', '1' );
+
+		await openWorkspace( page, 'Activity', 'onesmtp-activity' );
+		await expect(
+			page.getByRole( 'combobox', { name: 'Export profile' } )
+		).toBeVisible();
+		await expect( page.locator( '#onesmtp-log-export-profile-help' ) ).toContainText(
+			'payload JSON'
+		);
+
+		await page.screenshot( {
+			path: 'output/playwright/screenshots/issue-44-desktop.png',
+			fullPage: true,
+		} );
+		await page.setViewportSize( { width: 390, height: 844 } );
+		await openWorkspace( page, 'Advanced', 'onesmtp-advanced' );
+		await page.screenshot( {
+			path: 'output/playwright/screenshots/issue-44-mobile.png',
+			fullPage: true,
+		} );
 	} );
 
 	test( 'renders alert event history with acknowledgement state and redacted context', async ( {

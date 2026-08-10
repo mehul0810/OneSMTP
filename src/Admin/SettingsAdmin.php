@@ -11,6 +11,7 @@ use OneSMTP\Alerts\FailureAlertSettingsRepository;
 use OneSMTP\Core\Capabilities;
 use OneSMTP\Core\RetentionPolicy;
 use OneSMTP\Conflict\MailDeliveryOwnership;
+use OneSMTP\Product\FeatureGate;
 use OneSMTP\Settings\AttachmentLoggingSettings;
 use OneSMTP\Settings\AttachmentLoggingSettingsRepository;
 use OneSMTP\Settings\BackgroundSendingSettings;
@@ -35,6 +36,8 @@ final class SettingsAdmin
     private const EXPORT_NONCE_NAME = 'onesmtp_settings_export_nonce';
     private const IMPORT_NONCE_NAME = 'onesmtp_settings_import_nonce';
 
+    private FeatureGate $features;
+
     public function __construct(
         private ?SenderIdentityRepository $senderIdentity = null,
         private ?RateLimitSettingsRepository $rateLimits = null,
@@ -46,7 +49,8 @@ final class SettingsAdmin
         private ?AdminAuditLogger $auditLogger = null,
         private ?AdminRequest $request = null,
         private ?SimulationModeSettingsRepository $simulationMode = null,
-        private ?MailDeliveryOwnership $deliveryOwnership = null
+        private ?MailDeliveryOwnership $deliveryOwnership = null,
+        ?FeatureGate $features = null
     ) {
         $this->senderIdentity = $senderIdentity ?? new SenderIdentityRepository();
         $this->rateLimits = $rateLimits ?? new RateLimitSettingsRepository();
@@ -59,6 +63,7 @@ final class SettingsAdmin
         $this->request = $request ?? new AdminRequest();
         $this->simulationMode = $simulationMode ?? new SimulationModeSettingsRepository();
         $this->deliveryOwnership = $deliveryOwnership ?? new MailDeliveryOwnership();
+        $this->features = $features ?? new FeatureGate();
     }
 
     public function handleRequest(): void
@@ -191,6 +196,28 @@ final class SettingsAdmin
                     'recipient_count' => count((array) ($summaryValues['email_recipients'] ?? [])),
                 ]);
                 $this->redirect('weekly_summary_saved');
+                return;
+            }
+
+            if ($action === 'save_retention_policy') {
+                if (! $this->features->isEnabled(FeatureGate::COMPLIANCE_CONTROLS)) {
+                    return;
+                }
+
+                $profile = isset($_POST['retention_profile'])
+                    ? sanitize_key(wp_unslash((string) $_POST['retention_profile']))
+                    : '';
+                $customDays = isset($_POST['retention_days'])
+                    ? absint(wp_unslash((string) $_POST['retention_days']))
+                    : RetentionPolicy::DEFAULT_DAYS;
+                $days = RetentionPolicy::daysForProfile($profile, $customDays);
+                RetentionPolicy::saveDays($days);
+                $this->auditLogger->logSettingsChange('retention_policy', [
+                    'source' => 'settings_admin',
+                    'profile' => RetentionPolicy::profileForDays($days),
+                    'retention_days' => $days,
+                ]);
+                $this->redirect('retention_policy_saved');
                 return;
             }
 
@@ -342,6 +369,12 @@ final class SettingsAdmin
         $backgroundSending = $this->backgroundSending->get();
         $attachmentLogging = $this->attachmentLogging->get();
         $simulationMode = $this->simulationMode->get();
+        $retentionDays = RetentionPolicy::DEFAULT_DAYS;
+        $retentionProfile = 'standard';
+        if ($this->features->isEnabled(FeatureGate::COMPLIANCE_CONTROLS)) {
+            $retentionDays = RetentionPolicy::getLogRetentionDays();
+            $retentionProfile = RetentionPolicy::profileForDays($retentionDays);
+        }
         $actionUrl = admin_url('options-general.php?page=onesmtp&tab=onesmtp-advanced#onesmtp-advanced');
 
         echo '<div class="onesmtp-settings-shell onesmtp-advanced-settings-shell">';
@@ -437,6 +470,35 @@ final class SettingsAdmin
             }
         );
 
+        if ($this->features->isEnabled(FeatureGate::COMPLIANCE_CONTROLS)) {
+            $this->renderPanel(
+                __('Log retention policy', 'onesmtp'),
+                __('Choose how long Aculect Mail keeps operational email records on this site. Retention is bounded to 1-120 days and pruning follows the selected policy.', 'onesmtp'),
+                false,
+                function () use ($retentionDays, $retentionProfile, $actionUrl): void {
+                    echo '<form class="onesmtp-settings-form" method="post" action="' . esc_url($actionUrl) . '">';
+                    echo '<input type="hidden" name="onesmtp_settings_action" value="save_retention_policy">';
+                    echo '<input type="hidden" name="onesmtp_return_tab" value="onesmtp-advanced">';
+                    wp_nonce_field(self::ACTION_NAME, self::NONCE_NAME);
+                    echo '<fieldset class="onesmtp-settings-fieldset" aria-describedby="onesmtp-retention-policy-help">';
+                    echo '<legend>' . esc_html__('Retention duration', 'onesmtp') . '</legend>';
+                    echo '<p id="onesmtp-retention-policy-help" class="description">' . esc_html__('The current policy is site-local. Existing records are not purged immediately when you save; the scheduled pruner applies this duration on its next run.', 'onesmtp') . '</p>';
+                    echo '<p><label for="onesmtp-retention-profile">' . esc_html__('Policy preset', 'onesmtp') . '</label><br>';
+                    echo '<select id="onesmtp-retention-profile" name="retention_profile">';
+                    foreach (RetentionPolicy::presets() as $profile => $preset) {
+                        $this->renderOption($profile, $preset['label'], $retentionProfile);
+                    }
+                    $this->renderOption('custom', __('Custom duration (1-120 days)', 'onesmtp'), $retentionProfile);
+                    echo '</select></p>';
+                    echo '<p><label for="onesmtp-retention-days">' . esc_html__('Custom duration in days', 'onesmtp') . '</label><br>';
+                    echo '<input type="number" class="small-text" id="onesmtp-retention-days" name="retention_days" min="1" max="120" step="1" value="' . esc_attr((string) $retentionDays) . '">';
+                    echo ' <span class="description">' . esc_html__('Used when Custom duration is selected.', 'onesmtp') . '</span></p>';
+                    $this->renderActionFooter(__('Save retention policy', 'onesmtp'));
+                    echo '</fieldset></form>';
+                }
+            );
+        }
+
         $this->renderPanel(
             __('Settings import/export', 'onesmtp'),
             __('Move safe Aculect Mail configuration between environments without exposing secrets, credentials, raw recipients, headers, or payload data.', 'onesmtp'),
@@ -455,6 +517,11 @@ final class SettingsAdmin
         echo '<tr><th scope="row"><label for="' . esc_attr($name) . '">' . esc_html($label) . '</label></th><td>';
         echo '<input type="' . esc_attr($type) . '" class="' . esc_attr($class) . '" id="' . esc_attr($name) . '" name="' . esc_attr($name) . '" value="' . esc_attr((string) $value) . '"' . ($maxlength > 0 ? ' maxlength="' . esc_attr((string) $maxlength) . '"' : '') . '>';
         echo '</td></tr>';
+    }
+
+    private function renderOption(string $value, string $label, string $selected): void
+    {
+        echo '<option value="' . esc_attr($value) . '"' . ($value === $selected ? ' selected="selected"' : '') . '>' . esc_html($label) . '</option>';
     }
 
     private function renderTextarea(string $name, string $label, string $value): void
@@ -534,6 +601,9 @@ final class SettingsAdmin
         } elseif ($status === 'weekly_summary_saved') {
             $noticeClass = 'success';
             $noticeText = __('Weekly delivery summary settings saved.', 'onesmtp');
+        } elseif ($status === 'retention_policy_saved') {
+            $noticeClass = 'success';
+            $noticeText = __('Log retention policy saved. Scheduled pruning will follow the selected duration.', 'onesmtp');
         } elseif ($status === 'imported') {
             $noticeClass = 'success';
             $noticeText = $message !== '' ? $message : __('Aculect Mail settings imported. Secrets and recipient fields were excluded.', 'onesmtp');

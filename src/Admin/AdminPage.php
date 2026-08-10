@@ -61,10 +61,16 @@ final class AdminPage
         $this->dashboard = $dashboard ?? new DashboardAdmin(features: $this->featureGate);
         $this->providers = $providers ?? new ProviderAdmin($this->providerRepository);
         $this->setupWizard = $setupWizard ?? new SetupWizard($this->providerRepository);
-        $this->logs = $logs ?? new LogAdmin(new MessageRepository(), new AttemptRepository(), $this->providerRepository);
+        $this->logs = $logs ?? new LogAdmin(
+            new MessageRepository(),
+            new AttemptRepository(),
+            $this->providerRepository,
+            features: $this->featureGate
+        );
         $this->settings = $settings ?? new SettingsAdmin(
             simulationMode: $this->simulationMode,
-            deliveryOwnership: $this->deliveryOwnership
+            deliveryOwnership: $this->deliveryOwnership,
+            features: $this->featureGate
         );
         $this->diagnostics = $diagnostics ?? new QueueDiagnosticsAdmin();
         $this->alerts = $alerts ?? new AlertHistoryAdmin();
