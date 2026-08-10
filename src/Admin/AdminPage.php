@@ -76,7 +76,7 @@ final class AdminPage
         $this->settings = $settings ?? new SettingsAdmin(
             simulationMode: $this->simulationMode,
             deliveryOwnership: $this->deliveryOwnership,
-            features: $this->featureGate
+            featureGate: $this->featureGate
         );
         $this->diagnostics = $diagnostics ?? new QueueDiagnosticsAdmin();
         $this->alerts = $alerts ?? new AlertHistoryAdmin();
