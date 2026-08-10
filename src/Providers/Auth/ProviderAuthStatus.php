@@ -16,18 +16,9 @@ final class ProviderAuthStatus
     ) {
     }
 
-    public static function forState(ProviderAuthState $state): self
+    public static function forState(ProviderAuthState $state, ?ProviderAuthCapabilities $capabilities = null): self
     {
-        $capabilities = match ($state) {
-            ProviderAuthState::CONNECTED,
-            ProviderAuthState::REFRESH_FAILED,
-            ProviderAuthState::REAUTH_REQUIRED => ProviderAuthCapabilities::reconnectAndRevoke(),
-            ProviderAuthState::DISCONNECTED,
-            ProviderAuthState::REVOKED => ProviderAuthCapabilities::reconnectOnly(),
-            default => ProviderAuthCapabilities::none(),
-        };
-
-        return new self($state, $capabilities);
+        return new self($state, $capabilities ?? ProviderAuthCapabilities::none());
     }
 
     public function getState(): ProviderAuthState

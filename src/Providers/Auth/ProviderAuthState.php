@@ -15,6 +15,7 @@ enum ProviderAuthState: string
     case UNSUPPORTED     = 'unsupported';
     case STATIC          = 'static';
     case DISCONNECTED    = 'disconnected';
+    case CONFIGURED_UNVERIFIED = 'configured_unverified';
     case CONNECTED       = 'connected';
     case REFRESH_FAILED  = 'refresh_failed';
     case REAUTH_REQUIRED = 'reauth_required';

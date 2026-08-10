@@ -6,7 +6,9 @@ The foundation provides typed, redacted lifecycle states and a pure evaluator fo
 
 ## Bounded contract
 
-`OneSMTP\Providers\Auth\ProviderAuthState` is limited to `unsupported`, `static`, `disconnected`, `connected`, `refresh_failed`, `reauth_required`, `revoked`, and `unknown`. `ProviderAuthStatus` exposes only the state and side-effect-free `can_reconnect` / `can_revoke` capability flags.
+`OneSMTP\Providers\Auth\ProviderAuthState` is limited to `unsupported`, `static`, `disconnected`, `configured_unverified`, `connected`, `refresh_failed`, `reauth_required`, `revoked`, and `unknown`. Complete stored credentials without a verified refresh are `configured_unverified`; production UI must never present that state as connected.
+
+Capabilities are explicit context, not inferred from a state label. Status objects default to `can_reconnect=false` and `can_revoke=false`. The evaluator may expose reconnect as a future credential-replacement affordance for configured Zoho evidence, but it does not imply callback availability. Revoke remains false for all ordinary outputs. It is available only when a future-approved context supplies verified, token-bearing revocation evidence alongside a verified connected result.
 
 `ProviderAuthConfiguration` retains only presence flags for refresh credentials. `ProviderAuthRefreshResult` maps the existing result contract to bounded outcomes without retaining error text, tokens, client values, account values, or email addresses.
 

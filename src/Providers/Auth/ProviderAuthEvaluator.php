@@ -44,10 +44,10 @@ final class ProviderAuthEvaluator implements ProviderAuthLifecycleEvaluatorInter
 
         // GmailAdapter is SMTP-backed today; do not claim OAuth lifecycle support.
         if ($providerType === ProviderTypes::GMAIL) {
-            return ProviderAuthStatus::forState(ProviderAuthState::UNSUPPORTED);
+            return $this->status(ProviderAuthState::UNSUPPORTED);
         }
 
-        return ProviderAuthStatus::forState(
+        return $this->status(
             in_array($providerType, self::STATIC_PROVIDERS, true)
                 ? ProviderAuthState::STATIC
                 : ProviderAuthState::UNKNOWN
@@ -61,24 +61,43 @@ final class ProviderAuthEvaluator implements ProviderAuthLifecycleEvaluatorInter
 
         if ($refreshResult === null) {
             if ($configuration->hasRefreshCredentials()) {
-                return ProviderAuthStatus::forState(ProviderAuthState::CONNECTED);
+                return $this->status(ProviderAuthState::CONFIGURED_UNVERIFIED, true);
             }
 
-            return ProviderAuthStatus::forState(
+            return $this->status(
                 $configuration->hasPartialRefreshCredentials()
                     ? ProviderAuthState::REAUTH_REQUIRED
-                    : ProviderAuthState::DISCONNECTED
+                    : ProviderAuthState::DISCONNECTED,
+                true
             );
         }
 
         return match ($refreshResult->getState()) {
             ProviderAuthRefreshState::SUCCESS => $configuration->hasRefreshCredentials()
-                ? ProviderAuthStatus::forState(ProviderAuthState::CONNECTED)
-                : ProviderAuthStatus::forState(ProviderAuthState::REAUTH_REQUIRED),
-            ProviderAuthRefreshState::NETWORK_ERROR => ProviderAuthStatus::forState(ProviderAuthState::REFRESH_FAILED),
-            ProviderAuthRefreshState::INVALID_CREDENTIALS => ProviderAuthStatus::forState(ProviderAuthState::REAUTH_REQUIRED),
-            ProviderAuthRefreshState::REVOKED => ProviderAuthStatus::forState(ProviderAuthState::REVOKED),
-            ProviderAuthRefreshState::UNKNOWN => ProviderAuthStatus::forState(ProviderAuthState::UNKNOWN),
+                ? $this->connectedStatus($context)
+                : $this->status(ProviderAuthState::REAUTH_REQUIRED, true),
+            ProviderAuthRefreshState::NETWORK_ERROR => $this->status(ProviderAuthState::REFRESH_FAILED, true),
+            ProviderAuthRefreshState::INVALID_CREDENTIALS => $this->status(ProviderAuthState::REAUTH_REQUIRED, true),
+            ProviderAuthRefreshState::REVOKED => $this->status(ProviderAuthState::REVOKED, true),
+            ProviderAuthRefreshState::UNKNOWN => $this->status(ProviderAuthState::UNKNOWN),
         };
+    }
+
+    private function connectedStatus(ProviderAuthContext $context): ProviderAuthStatus
+    {
+        $revocationEvidence = $context->getRevocationEvidence();
+        $capabilities = $revocationEvidence !== null && $revocationEvidence->allowsRevocation()
+            ? ProviderAuthCapabilities::reconnectAndRevoke()
+            : ProviderAuthCapabilities::reconnectOnly();
+
+        return ProviderAuthStatus::forState(ProviderAuthState::CONNECTED, $capabilities);
+    }
+
+    private function status(ProviderAuthState $state, bool $canReconnect = false): ProviderAuthStatus
+    {
+        return ProviderAuthStatus::forState(
+            $state,
+            $canReconnect ? ProviderAuthCapabilities::reconnectOnly() : ProviderAuthCapabilities::none()
+        );
     }
 }

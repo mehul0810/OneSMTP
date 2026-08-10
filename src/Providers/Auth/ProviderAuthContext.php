@@ -14,7 +14,8 @@ final class ProviderAuthContext
     public function __construct(
         private string $providerType,
         private ProviderAuthConfiguration $configuration,
-        private ?ProviderAuthRefreshResult $refreshResult = null
+        private ?ProviderAuthRefreshResult $refreshResult = null,
+        private ?ProviderAuthRevocationEvidence $revocationEvidence = null
     ) {
         $this->providerType = strtolower(trim($providerType));
     }
@@ -26,12 +27,14 @@ final class ProviderAuthContext
         string $providerType,
         ProviderConfig $config,
         ?ProviderAuthRefreshResult $refreshResult = null,
-        array $refreshCredentialKeys = [ 'client_id', 'client_secret', 'refresh_token' ]
+        array $refreshCredentialKeys = [ 'client_id', 'client_secret', 'refresh_token' ],
+        ?ProviderAuthRevocationEvidence $revocationEvidence = null
     ): self {
         return new self(
             $providerType,
             ProviderAuthConfiguration::fromProviderConfig($config, $refreshCredentialKeys),
-            $refreshResult
+            $refreshResult,
+            $revocationEvidence
         );
     }
 
@@ -48,5 +51,10 @@ final class ProviderAuthContext
     public function getRefreshResult(): ?ProviderAuthRefreshResult
     {
         return $this->refreshResult;
+    }
+
+    public function getRevocationEvidence(): ?ProviderAuthRevocationEvidence
+    {
+        return $this->revocationEvidence;
     }
 }
