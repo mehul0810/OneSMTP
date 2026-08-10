@@ -238,11 +238,18 @@ $queue = new QueueDiagnostics(
     static fn (): int => 1782475200
 );
 
-$proFeatures = new FeatureGate([
+$featureFlags = [
     FeatureGate::ADVANCED_ANALYTICS => true,
     FeatureGate::COMPLIANCE_CONTROLS => true,
-], true);
-$adminFeatureGate = getenv('ONESMTP_PLAYWRIGHT_PRO') === '1' ? $proFeatures : null;
+];
+if (getenv('ONESMTP_PLAYWRIGHT_PRO_ROUTING') === '1') {
+    $featureFlags[FeatureGate::SMART_ROUTING] = true;
+}
+$proFeatures = new FeatureGate($featureFlags, true);
+$adminFeatureGate = getenv('ONESMTP_PLAYWRIGHT_PRO') === '1'
+    || getenv('ONESMTP_PLAYWRIGHT_PRO_ROUTING') === '1'
+    ? $proFeatures
+    : null;
 $admin = new AdminPage(
     diagnostics: new QueueDiagnosticsAdmin(
         $queue,

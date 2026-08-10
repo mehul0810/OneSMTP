@@ -16,6 +16,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Clear disabled states for upcoming Pro modules without blocking core delivery workflows.
 - Pro-gated advanced alert escalation with multiple email/HTTPS webhook destinations, deterministic repeated-failure thresholds, and privacy-safe payload/context handling.
 - Pro-gated conditional routing rules for sender, recipient, subject, content, and source attribution with bounded in-memory matching and deterministic priority conflict resolution.
+- Pro routing simulation for saved or unsaved candidate rules with bounded sample fields, provider eligibility explanations, and no-delivery/no-persistence guarantees.
 
 ## [0.3.0] - Unreleased
 
