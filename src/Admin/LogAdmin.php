@@ -30,6 +30,7 @@ final class LogAdmin
     private const MAX_BULK_MESSAGES = 50;
     private const EXPORT_LIMIT = 1000;
     private const ERROR_LIMIT = 220;
+    private const CSV_FORMULA_PREFIXES = ['=', '+', '-', '@', "\t", "\r"];
 
     private MessageRepository $messages;
     private AttemptRepository $attempts;
@@ -808,7 +809,13 @@ final class LogAdmin
 
     private function csvCell(string $value): string
     {
-        return $this->redactor->redactText($value, 300);
+        $redacted = $this->redactor->redactText($value, 300);
+
+        if ($redacted !== '' && in_array($redacted[0], self::CSV_FORMULA_PREFIXES, true)) {
+            return "'" . $redacted;
+        }
+
+        return $redacted;
     }
 
     /**

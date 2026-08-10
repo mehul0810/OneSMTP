@@ -58,7 +58,8 @@ final class DatabaseSchema
             KEY selected_provider_id (selected_provider_id),
             KEY next_retry_at (next_retry_at),
             KEY status_retry (status, next_retry_at),
-            KEY provider_status (selected_provider_id, status)
+            KEY provider_status (selected_provider_id, status),
+            KEY created_at (created_at)
         ) {$charsetCollate};";
 
         $attemptsSql = "CREATE TABLE {$attemptsTable} (
@@ -80,7 +81,8 @@ final class DatabaseSchema
             KEY result (result),
             KEY failure_category (failure_category),
             UNIQUE KEY message_attempt (message_id, attempt_no),
-            KEY provider_result_time (provider_id, result, created_at)
+            KEY provider_result_time (provider_id, result, created_at),
+            KEY created_at (created_at)
         ) {$charsetCollate};";
 
         $eventsSql = "CREATE TABLE {$eventsTable} (
@@ -94,7 +96,8 @@ final class DatabaseSchema
             PRIMARY KEY  (id),
             KEY event_type (event_type),
             KEY message_id (message_id),
-            KEY provider_id (provider_id)
+            KEY provider_id (provider_id),
+            KEY created_at (created_at)
         ) {$charsetCollate};";
 
         dbDelta($providersSql);

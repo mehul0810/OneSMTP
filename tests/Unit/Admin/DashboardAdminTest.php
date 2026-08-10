@@ -162,6 +162,84 @@ final class DashboardAdminTest extends TestCase
         ];
 
         self::assertStringNotContainsString('Provider reliability', $this->render());
+        self::assertCount(0, array_filter(
+            $GLOBALS['wpdb']->preparedQueries,
+            static fn (array $prepared): bool => str_contains($prepared['query'], 'created_at < %s')
+        ));
+    }
+
+    public function test_pro_advanced_reports_render_bounded_safe_slices(): void
+    {
+        $lastWeek = $this->sinceDaysAgo(7);
+        $until = gmdate('Y-m-d H:i:s', self::NOW);
+        $key = $lastWeek . '|' . $until;
+        $GLOBALS['wpdb']->dashboardActivityRowsBySince[$lastWeek] = [
+            'sent_count' => 12,
+            'failed_count' => 2,
+            'retry_count' => 1,
+        ];
+        $GLOBALS['wpdb']->dashboardProviderAttemptRowsBySince[$lastWeek] = [[
+            'provider_id' => 10,
+            'provider_name' => 'Primary SMTP',
+            'adapter_type' => 'smtp',
+            'sent_count' => 12,
+            'failed_count' => 2,
+            'retry_count' => 1,
+            'avg_latency_ms' => 800,
+        ]];
+        $GLOBALS['wpdb']->advancedProviderRowsByWindow[$key] = [[
+            'provider_id' => 10,
+            'provider_name' => 'Primary SMTP',
+            'adapter_type' => 'smtp',
+            'sent_count' => 12,
+            'failed_count' => 2,
+            'retry_count' => 1,
+            'attempt_count' => 14,
+            'avg_latency_ms' => 800,
+        ]];
+        $GLOBALS['wpdb']->advancedStatusRowsByWindow[$key] = [
+            ['status' => 'sent', 'status_count' => 5],
+            ['status' => 'failed', 'status_count' => 1],
+        ];
+        $GLOBALS['wpdb']->advancedSubjectRowsByWindow[$key] = [
+            ['subject' => 'Reset token=private-secret', 'subject_count' => 3],
+            ['subject' => '', 'subject_count' => 1],
+        ];
+        $GLOBALS['wpdb']->advancedTrendRowsByWindow[$key] = [
+            ['period' => '2026-06-23', 'status' => 'sent', 'status_count' => 5],
+        ];
+        $GLOBALS['wpdb']->advancedFailureRowsByWindow[$key] = [
+            ['failure_category' => 'timeout', 'failure_count' => 2, 'last_seen_at' => '2026-06-29 10:00:00'],
+        ];
+
+        $html = $this->render(true);
+
+        self::assertStringContainsString('Advanced reports', $html);
+        self::assertStringContainsString('Provider report', $html);
+        self::assertStringContainsString('Status distribution', $html);
+        self::assertStringContainsString('Subject groups', $html);
+        self::assertStringContainsString('Delivery trend', $html);
+        self::assertStringContainsString('Failure categories', $html);
+        self::assertStringContainsString('Reset token=[REDACTED]', $html);
+        self::assertStringContainsString('No subject', $html);
+        self::assertStringNotContainsString('private-secret', $html);
+        self::assertStringNotContainsString('payload_json', $html);
+    }
+
+    public function test_pro_advanced_reports_render_error_state_without_sensitive_fallback(): void
+    {
+        $lastWeek = $this->sinceDaysAgo(7);
+        $GLOBALS['wpdb']->dashboardActivityRowsBySince[$lastWeek] = [
+            'sent_count' => 1,
+            'failed_count' => 0,
+            'retry_count' => 0,
+        ];
+        $GLOBALS['wpdb']->failAdvancedQueries = true;
+
+        $html = $this->render(true);
+
+        self::assertStringContainsString('Advanced reports are temporarily unavailable.', $html);
+        self::assertStringNotContainsString('secret', $html);
     }
 
     public function test_pro_reliability_dashboard_excludes_unattributed_attempts(): void

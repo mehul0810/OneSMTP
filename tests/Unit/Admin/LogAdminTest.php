@@ -822,6 +822,66 @@ final class LogAdminTest extends TestCase
         self::assertSame('minimal', json_decode((string) $GLOBALS['wpdb']->inserts[0]['data']['context_json'], true)['profile'] ?? null);
     }
 
+    public function test_csv_cell_neutralizes_formula_prefixes_after_redaction_and_preserves_normal_values(): void
+    {
+        $admin = new LogAdmin(new MessageRepository(), new AttemptRepository(), new ProviderRepository());
+        $method = new \ReflectionMethod($admin, 'csvCell');
+        $method->setAccessible(true);
+
+        foreach (['=', '+', '-', '@', "\t", "\r"] as $prefix) {
+            self::assertSame("'{$prefix}formula", $method->invoke($admin, $prefix . 'formula'));
+        }
+
+        self::assertSame('normal value', $method->invoke($admin, 'normal value'));
+        self::assertSame('token=[REDACTED]', $method->invoke($admin, 'token=secret-value'));
+    }
+
+    public function test_csv_export_neutralizes_provider_names_and_keeps_attachment_summary_safe(): void
+    {
+        $_GET = [
+            'onesmtp_log_action' => 'export_csv',
+            'onesmtp_log_export_nonce' => 'test-nonce',
+        ];
+        $GLOBALS['wpdb']->recentMessageRows = [[
+            'id' => 12,
+            'message_uuid' => 'normal-lineage',
+            'payload_json' => wp_json_encode([
+                AttachmentLogSanitizer::PAYLOAD_KEY => [
+                    'enabled' => true,
+                    'count' => 1,
+                    'items' => [['filename' => '+invoice.pdf']],
+                ],
+            ]),
+            'status' => 'sent',
+            'selected_provider_id' => 8,
+            'current_attempt' => 1,
+            'max_attempts' => 6,
+            'attempt_count' => 1,
+            'created_at' => '2026-06-23 10:00:00',
+            'updated_at' => '2026-06-23 10:01:00',
+        ]];
+        $GLOBALS['wpdb']->providerRowsById[8] = [
+            'id' => 8,
+            'name' => '=Provider name',
+            'adapter_type' => 'smtp',
+            'is_active' => 1,
+            'config_json' => wp_json_encode([]),
+        ];
+
+        ob_start();
+        try {
+            (new LogAdmin(new MessageRepository(), new AttemptRepository(), new ProviderRepository()))->handleRequest();
+            self::fail('Expected CSV export exception.');
+        } catch (RuntimeException $exception) {
+            self::assertSame('Aculect Mail log CSV exported.', $exception->getMessage());
+        }
+        $csv = (string) ob_get_clean();
+
+        self::assertStringContainsString("'=Provider name (smtp)", $csv);
+        self::assertStringContainsString('1 attachment: +invoice.pdf', $csv);
+        self::assertStringNotContainsString('"=Provider name (smtp)"', $csv);
+    }
+
     public function test_resend_action_invokes_pipeline_with_eligible_provider_override(): void
     {
         $GLOBALS['onesmtp_test_current_user_caps'][Capabilities::RESEND_EMAILS] = true;
