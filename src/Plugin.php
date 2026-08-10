@@ -78,7 +78,8 @@ final class Plugin
                 static fn (int $messageId, ?int $providerId): bool => $sendPipeline->resendMessage($messageId, $providerId),
                 null,
                 null,
-                static fn (int $messageId): bool => $retryScheduler->scheduleImmediateRetry($messageId)
+                static fn (int $messageId): bool => $retryScheduler->scheduleImmediateRetry($messageId),
+                $featureGate
             ),
             null,
             new Admin\QueueDiagnosticsAdmin($queueDiagnostics, new DiagnosticReportGenerator($providers, $queueDiagnostics, $attempts)),
