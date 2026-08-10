@@ -15,6 +15,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Pro routing simulation for saved or unsaved candidate rules with bounded sample fields, provider eligibility explanations, and no-delivery/no-persistence guarantees.
 - Provider reliability scoring and bounded advanced report slices behind the `advanced_analytics` gate, with aggregate-only data and non-SLA guidance.
 - Bounded site-local retention policies and fixed privacy-safe export profiles behind the `compliance_controls` gate.
+- Pro multisite network settings with explicit site inheritance/overrides and a network-admin-only bounded log summary view behind the `multisite_management` gate; provider credentials and payload data remain site-local.
 - An additive provider adapter catalog and validation contract for developer extensions; malformed declarations fail closed.
 
 ### Changed

@@ -25,8 +25,8 @@ final class ProCapabilitiesPanelTest extends TestCase
         self::assertStringContainsString('Not available yet', $output);
         self::assertStringContainsString('disabled aria-disabled="true"', $output);
         self::assertStringContainsString('Core sending, providers, failover, queues, and logs remain available without Pro.', $output);
-        self::assertSame(4, substr_count($output, 'Requires Pro'));
-        self::assertSame(2, substr_count($output, 'Not available yet'));
+        self::assertSame(5, substr_count($output, 'Requires Pro'));
+        self::assertSame(1, substr_count($output, 'Not available yet'));
     }
 
     public function test_enabled_feature_is_not_rendered_as_a_disabled_control(): void
@@ -46,15 +46,14 @@ final class ProCapabilitiesPanelTest extends TestCase
     {
         $panel = new ProCapabilitiesPanel(new FeatureGate([
             FeatureGate::PROVIDER_EVENTS => true,
-            FeatureGate::MULTISITE_MANAGEMENT => true,
         ], true));
 
         ob_start();
         $panel->render();
         $output = (string) ob_get_clean();
 
-        self::assertSame(2, substr_count($output, 'Planned'));
-        self::assertSame(2, substr_count($output, 'Not available yet'));
+        self::assertSame(1, substr_count($output, 'Planned'));
+        self::assertSame(1, substr_count($output, 'Not available yet'));
         self::assertStringNotContainsString('>Enabled</span>', $output);
     }
 }

@@ -30,11 +30,11 @@ The gate IDs currently defined in source are:
 | `compliance_controls` | Shipped behind the gate | Site-local 1–120 day retention policy and fixed privacy-safe export profiles. |
 | `advanced_alerts` | Shipped behind the gate | Repeated terminal-failure escalation to validated email or HTTPS webhook destinations. |
 | `provider_events` | Reserved/planned | Provider event ingestion and suppression are tracked by issues #63/#64; no event-ingestion workflow is shipped. |
-| `multisite_management` | Reserved/planned | Network-level settings and logs are tracked by issue #41; current settings and logs remain site-local. |
+| `multisite_management` | Shipped behind the gate | Network-admin-only allowlisted settings with explicit site inheritance/overrides and bounded privacy-safe network log summaries. Provider credentials and payload fields remain site-local. |
 
-The last two IDs remain default-deny even if a future integration supplies
-flags. Their presence in the catalog is not proof that the corresponding
-workflow exists.
+`provider_events` remains a reserved/planned ID even if a future integration
+supplies flags. Its presence in the catalog is not proof that event ingestion
+exists.
 
 ## Fallback and data boundaries
 
@@ -55,6 +55,11 @@ workflow exists.
 - Advanced alert destinations are revalidated before dispatch. Payloads carry
   operational metadata only, and core alerts continue independently when
   advanced escalation is unavailable.
+- Multisite settings are network-admin-only and limited to allowlisted
+  operational groups. Effective values resolve at read time with explicit
+  inheritance/override state; network summaries are bounded and restore blog
+  context after each per-site read/write path. Provider credentials and raw
+  payload data are never copied into network settings or summaries.
 
 ## Extension and release boundaries
 

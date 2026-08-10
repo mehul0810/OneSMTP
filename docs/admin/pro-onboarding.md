@@ -36,6 +36,7 @@ The controls are default-deny and do not change core delivery when unavailable.
 | Provider reliability and advanced reports | Analytics | `advanced_analytics` plus log visibility | Core summary analytics and provider tables remain available. Pro views use bounded aggregate history; they exclude bodies, recipients, credentials, payloads, and raw event context. Scores are operational comparisons, not inbox-placement or provider-SLA measurements. See [Advanced reports](advanced-reports.md). |
 | Compliance retention and export profiles | Advanced settings and Activity | `compliance_controls` | Core 30-day retention, filter-based extension, and the safe operational CSV remain available. Pro retention is site-local, bounded to 1–120 days, and does not purge immediately; export profiles are fixed allowlists. See [Email Logs](email-logs.md). |
 | Advanced alert escalation | Advanced settings | `advanced_alerts` | Existing core failure alerts are unchanged. Pro escalation sends only validated email or HTTPS webhook destinations at a configured repeated-failure threshold, with safe operational metadata and throttling. See [Troubleshooting](troubleshooting.md). |
+| Multisite network settings and bounded network log summaries | Network admin Settings → Aculect Mail and network log view | `multisite_management` plus `manage_network_options` | Network defaults and site overrides are allowlisted and resolved at read time. Summaries are bounded and privacy-safe; provider credentials, payloads, bodies, full recipients, headers, and paths remain site-local/excluded. Single-site and normal site-admin behavior remain unchanged. See [Multisite network](multisite-network.md). |
 
 The status **Available with Pro** is descriptive of the capability boundary,
 not a claim that a plan, license, purchase flow, or upgrade URL is available.
@@ -51,9 +52,6 @@ enabled Pro workflows:
   controls (issues [#63](https://github.com/mehul0810/aculect-mail/issues/63)
   and [#64](https://github.com/mehul0810/aculect-mail/issues/64)). The
   candidate's webhook validation hardening does not implement event ingestion.
-- Multisite network settings and network-level logs (issue
-  [#41](https://github.com/mehul0810/aculect-mail/issues/41)); current settings
-  and retention are site-local.
 - Open/click tracking (issue
   [#40](https://github.com/mehul0810/aculect-mail/issues/40)).
 - OAuth connection lifecycle (issue

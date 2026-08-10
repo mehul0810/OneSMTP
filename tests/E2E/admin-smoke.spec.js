@@ -275,10 +275,10 @@ test.describe( 'Aculect Mail admin browser smoke', () => {
 		await expect( proCapabilities ).toContainText( 'Planned' );
 		await expect(
 			proCapabilities.getByRole( 'button', { name: 'Requires Pro' } )
-		).toHaveCount( 4 );
+		).toHaveCount( 5 );
 		await expect(
 			proCapabilities.getByRole( 'button', { name: 'Not available yet' } )
-		).toHaveCount( 2 );
+		).toHaveCount( 1 );
 		await expect(
 			proCapabilities
 				.getByRole( 'button', { name: 'Requires Pro' } )

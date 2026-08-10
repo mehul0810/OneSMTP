@@ -26,9 +26,10 @@ default-deny entitlement and rollout gates, and the disabled states are inert.
 Candidate workflows currently implemented behind those gates are conditional
 routing and simulation, provider reliability and bounded advanced reports,
 bounded compliance retention and privacy-safe export profiles, and advanced
-terminal-failure alert escalation. Core provider setup, sending, failover,
-queues, retries, logs, manual resend, provider tests, and troubleshooting stay
-complete without Pro.
+terminal-failure alert escalation, plus multisite network settings and bounded
+network log summaries. Core provider setup, sending, failover, queues, retries,
+logs, manual resend, provider tests, troubleshooting, and normal single-site
+behavior stay complete without Pro.
 
 See [Pro-ready onboarding](docs/admin/pro-onboarding.md), the
 [developer gate contract](docs/developer/pro-capability-gates.md), and the
@@ -62,6 +63,7 @@ hosted-service, telemetry, privacy, or release-date claims from this section.
 
 - Admin docs: `docs/admin/`
 - Pro onboarding: `docs/admin/pro-onboarding.md`
+- Multisite network: `docs/admin/multisite-network.md`
 - Developer docs: `docs/developer/`
 - Pro capability gates: `docs/developer/pro-capability-gates.md`
 - 0.4.0 Pro claim ledger: `docs/release/0.4.0-pro-claim-ledger.md`

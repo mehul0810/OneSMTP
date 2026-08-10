@@ -67,8 +67,8 @@ final class ProCapabilitiesPanel
             ],
             FeatureGate::MULTISITE_MANAGEMENT => [
                 'label' => __('Multisite management', 'onesmtp'),
-                'description' => __('Network-level settings and log views are planned; current settings and logs remain site-local.', 'onesmtp'),
-                'availability' => 'planned',
+                'description' => __('Manage allowlisted network settings, explicit site inheritance, and bounded privacy-safe log summaries; provider credentials and payload data remain site-local.', 'onesmtp'),
+                'availability' => 'shipped',
             ],
             FeatureGate::ADVANCED_ALERTS => [
                 'label' => __('Advanced alert escalation', 'onesmtp'),
