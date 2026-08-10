@@ -29,13 +29,12 @@ The gate IDs currently defined in source are:
 | `advanced_analytics` | Shipped behind the gate | Provider reliability scoring and bounded advanced report slices. |
 | `compliance_controls` | Shipped behind the gate | Site-local 1–120 day retention policy and fixed privacy-safe export profiles. |
 | `advanced_alerts` | Shipped behind the gate | Repeated terminal-failure escalation to validated email or HTTPS webhook destinations. |
-| `provider_events` | Reserved/planned | Provider event ingestion and suppression are tracked by issues #63/#64; no event-ingestion workflow is shipped. |
+| `provider_events` | Candidate-shipped behind the gate | Mailgun-only signed event ingestion and privacy-safe normalized records for #63. Suppression enforcement remains the separate owner-gated #64 follow-up. |
 | `multisite_management` | Shipped behind the gate | Network-admin-only allowlisted settings with explicit site inheritance/overrides and bounded privacy-safe network log summaries. Provider credentials and payload fields remain site-local. |
 | `provider_quota_budgets` | Shipped behind the gate | Per-provider minute/hour/day attempt windows with deterministic capacity-aware routing and typed deferral. Attachment-bearing quota deferrals fail closed before UUID resolution or scheduling when sanitized retry data cannot reproduce files. |
 
-`provider_events` remains a reserved/planned ID even if a future integration
-supplies flags. Its presence in the catalog is not proof that event ingestion
-exists.
+`provider_events` is still candidate/release-branch scope and is not a public
+release or licensing API. It does not enable suppression enforcement.
 
 ## Fallback and data boundaries
 
@@ -61,6 +60,10 @@ exists.
   inheritance/override state; network summaries are bounded and restore blog
   context after each per-site read/write path. Provider credentials and raw
   payload data are never copied into network settings or summaries.
+- Mailgun webhooks are site-local, HTTPS-only, bounded JSON POSTs. Signature
+  verification, replay hashing, and retention happen before any normalized row
+  is written; no provider payload or plaintext recipient crosses the storage or
+  admin boundary.
 - Provider budgets are stored as bounded non-secret provider configuration. Only
   production send attempts count toward a window; provider tests do not. When
   all eligible providers are exhausted, delivery defers to the earliest next

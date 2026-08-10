@@ -194,6 +194,26 @@ test.describe( 'Aculect Mail admin browser smoke', () => {
 			} );
 	} );
 
+	test( 'renders the Mailgun webhook signing-key field at desktop and narrow widths', async ( {
+		page,
+	} ) => {
+		await openWorkspace( page, 'Providers', 'onesmtp-providers' );
+		await page.locator( '#onesmtp-provider-form summary' ).click();
+
+		const signingKey = page.getByLabel( 'Mailgun webhook signing key' );
+		await expect( signingKey ).toHaveAttribute( 'type', 'password' );
+		await page.screenshot( {
+			path: 'output/playwright/screenshots/issue-63-provider-webhook-desktop.png',
+			fullPage: true,
+		} );
+
+		await page.setViewportSize( { width: 390, height: 844 } );
+		await page.screenshot( {
+			path: 'output/playwright/screenshots/issue-63-provider-webhook-mobile.png',
+			fullPage: true,
+		} );
+	} );
+
 	test( 'renders Pro provider budgets with bounded accessible controls', async ( {
 		page,
 	} ) => {
@@ -363,7 +383,7 @@ test.describe( 'Aculect Mail admin browser smoke', () => {
 		await expect( proCapabilities ).toContainText( 'Available with Pro' );
 		await expect(
 			proCapabilities.getByRole( 'button', { name: 'Requires Pro' } )
-		).toHaveCount( 6 );
+		).toHaveCount( 7 );
 		await expect(
 			proCapabilities
 				.getByRole( 'button', { name: 'Requires Pro' } )

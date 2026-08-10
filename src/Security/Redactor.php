@@ -61,7 +61,7 @@ final class Redactor
         $key = strtolower(trim($key));
 
         return (bool) preg_match(
-            '/pass|secret|token|api(?:_|-)?key|authorization|oauth|(^|_)(recipient|recipients|raw_recipient|raw_recipients|message_body|raw_body|header|headers|raw_headers|payload|payload_json|raw_payload)(?!_count)(_|$)/',
+            '/pass|secret|token|api(?:_|-)?key|signing|authorization|oauth|(^|_)(recipient|recipients|raw_recipient|raw_recipients|message_body|raw_body|header|headers|raw_headers|payload|payload_json|raw_payload)(?!_count)(_|$)/',
             $key
         );
     }

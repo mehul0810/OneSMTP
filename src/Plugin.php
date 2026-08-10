@@ -7,6 +7,7 @@ namespace OneSMTP;
 use OneSMTP\Admin\AdminPage;
 use OneSMTP\Cli\DiagnosticsCommand;
 use OneSMTP\Api\RestController;
+use OneSMTP\Api\ProviderEventController;
 use OneSMTP\Core\Installer;
 use OneSMTP\Conflict\MailDeliveryOwnership;
 use OneSMTP\Diagnostics\DiagnosticReportGenerator;
@@ -27,6 +28,11 @@ use OneSMTP\Repository\EventRepository;
 use OneSMTP\Repository\MetricsRepository;
 use OneSMTP\Repository\MessageRepository;
 use OneSMTP\Repository\ProviderRepository;
+use OneSMTP\Repository\ProviderEventRepository;
+use OneSMTP\Events\MailgunEventNormalizer;
+use OneSMTP\Events\MailgunEventVerifier;
+use OneSMTP\Events\ProviderEventIngestionService;
+use OneSMTP\Security\SiteSecretHmac;
 use OneSMTP\Quota\ProviderQuotaManager;
 use OneSMTP\Settings\BackgroundSendingSettingsRepository;
 use OneSMTP\Settings\SenderIdentityRepository;
@@ -72,6 +78,19 @@ final class Plugin
         $sendPipeline = new SendPipeline($messages, $attempts, $providers, $events, $retryScheduler, $deliveryEngine, $rateLimiter, $backgroundSending, null, new SimulationModeSettingsRepository(), $deliveryOwnership);
         $sendPipeline->registerHooks();
 
+        $siteSecret = function_exists('wp_salt') ? trim( (string) wp_salt('auth') ) : '';
+        $providerEventIngestion = null;
+        if ($siteSecret !== '') {
+            $providerEvents = new ProviderEventRepository();
+            $providerEventIngestion = new ProviderEventIngestionService(
+                $providers,
+                $providerEvents,
+                $featureGate,
+                new MailgunEventNormalizer(new SiteSecretHmac($siteSecret)),
+                static fn (string $signingKey): MailgunEventVerifier => new MailgunEventVerifier($signingKey)
+            );
+        }
+
         $adminPage = new AdminPage(
             null,
             null,
@@ -110,9 +129,10 @@ final class Plugin
 
         add_action(
             'rest_api_init',
-            static function () use ($providers, $messages, $attempts, $sendPipeline, $featureGate): void {
+            static function () use ($providers, $messages, $attempts, $sendPipeline, $featureGate, $providerEventIngestion): void {
                 $controller = new RestController($providers, $messages, $attempts, $sendPipeline, null, new SenderIdentityRepository(), null, $featureGate);
                 $controller->registerRoutes();
+                (new ProviderEventController($providerEventIngestion))->registerRoutes();
             }
         );
 

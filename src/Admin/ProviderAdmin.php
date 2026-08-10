@@ -316,7 +316,7 @@ final class ProviderAdmin
         echo '</label></td></tr>';
 
         foreach ($this->configFields() as $field => $label) {
-            $type = str_contains($field, 'password') || str_contains($field, 'secret') || str_contains($field, 'token') || str_contains($field, 'api_key') ? 'password' : 'text';
+            $type = str_contains($field, 'password') || str_contains($field, 'secret') || str_contains($field, 'token') || str_contains($field, 'api_key') || str_contains($field, 'signing') ? 'password' : 'text';
             $this->renderTextInput('config[' . $field . ']', $label, '', $type);
         }
 
@@ -397,6 +397,7 @@ final class ProviderAdmin
             'from_email' => __('From email', 'onesmtp'),
             'from_name' => __('From name', 'onesmtp'),
             'dkim_selector' => __('DKIM selector', 'onesmtp'),
+            'webhook_signing_key' => __('Mailgun webhook signing key', 'onesmtp'),
         ];
     }
 
@@ -446,7 +447,7 @@ final class ProviderAdmin
 
     private function isSensitiveConfigField(string $field): bool
     {
-        return (bool) preg_match('/pass|secret|token|api(?:_|-)?key|client_id/i', $field);
+        return (bool) preg_match('/pass|secret|token|api(?:_|-)?key|signing|client_id/i', $field);
     }
 
     /**
@@ -675,7 +676,7 @@ final class ProviderAdmin
 
     private function isSensitiveField(string $field): bool
     {
-        return (bool) preg_match('/pass|secret|token|api(?:_|-)?key/i', $field);
+        return (bool) preg_match('/pass|secret|token|api(?:_|-)?key|signing/i', $field);
     }
 
     private function normalizePostedPositiveInteger(string $field, int $default): int

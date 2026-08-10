@@ -34,6 +34,11 @@ const fieldsByType = {
 		[ 'api_key', __( 'Private API key', 'onesmtp' ), 'password' ],
 		[ 'domain', __( 'Sending domain', 'onesmtp' ) ],
 		[ 'region', __( 'API region (us or eu)', 'onesmtp' ) ],
+		[
+			'webhook_signing_key',
+			__( 'Mailgun webhook signing key', 'onesmtp' ),
+			'password',
+		],
 	],
 	resend: [ [ 'api_key', __( 'API key', 'onesmtp' ), 'password' ] ],
 	mailjet: [
@@ -155,7 +160,7 @@ const normalizeProviderQuota = ( storedConfig = {} ) =>
 	}, {} );
 
 const isSensitiveField = ( field ) =>
-	/pass|secret|token|api(?:_|-)?key|client_id/i.test( field );
+	/pass|secret|token|api(?:_|-)?key|signing|client_id/i.test( field );
 
 const editableConfig = ( type, storedConfig = {} ) =>
 	Object.entries( storedConfig ).reduce(

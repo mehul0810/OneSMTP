@@ -86,6 +86,45 @@ prevents a later worker from sending the message without its files.
 - Emailit requires an API v2 key and verified sender domain.
 - Netcore requires an Email API key and the matching US or EU API region.
 
+## Mailgun delivery webhooks (Pro candidate)
+
+The 0.4.0 candidate can accept Mailgun delivery webhooks at:
+
+`https://example.com/wp-json/onesmtp/v1/webhooks/mailgun`
+
+Replace `example.com` with the site hostname. Configure the Mailgun webhook
+with **POST** and `application/json`, and use HTTPS end to end. In the Mailgun
+provider connection, enter the account's **Webhook Signing Key**. It is stored
+through Aculect Mail's encrypted SecretVault and is never returned by the
+provider API or rendered back into the admin UI.
+
+The endpoint is public at the WordPress login layer because Mailgun cannot send
+an authenticated WordPress session. It still fails closed unless the active
+Mailgun connection exists, the Pro `provider_events` entitlement and rollout
+flag are enabled, the site has a real WordPress salt, and Mailgun's timestamp,
+token, and HMAC-SHA256 signature verify. Requests must be HTTPS, JSON, and no
+larger than 64 KiB; timestamps more than five minutes from the site clock are
+rejected. Replayed event identities are acknowledged without a second write.
+
+Only `delivered`, `hard_bounce`, `soft_bounce`, `complaint`, `deferred`, and
+`unknown` are retained as normalized categories. Mailgun `accepted` means
+queued and is deliberately recorded as `unknown`, never as delivered. A
+`temporary_fail` is deferred unless Mailgun explicitly supplies temporary
+bounce severity; `permanent_fail` and an explicit permanent failure are hard
+bounces. Bounce and complaint records keep only an individual recipient HMAC;
+raw payloads, recipients, headers, IPs, user agents, diagnostics, and provider
+metadata are discarded after validation. Suppression enforcement remains a
+separate, owner-gated follow-up (#64).
+
+See Mailgun's [webhook security guidance](https://documentation.mailgun.com/docs/mailgun/user-manual/webhooks/securing-webhooks)
+and [webhook payload reference](https://documentation.mailgun.com/docs/mailgun/user-manual/webhooks/webhook-payloads)
+for the provider-side configuration and signed payload contract.
+
+Browser proof for the password-protected signing-key field is captured at
+[desktop width](screenshots/issue-63/provider-webhook-desktop.png) and
+[390px narrow width](screenshots/issue-63/provider-webhook-mobile.png); the
+fixture contains no live credential.
+
 ## Importing from SureMail
 
 When SureMail is installed, the Providers screen shows a quiet compatibility

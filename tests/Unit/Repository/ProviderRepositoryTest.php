@@ -32,6 +32,7 @@ final class ProviderRepositoryTest extends TestCase
                     'host' => 'smtp.example.test',
                     'password' => 'plain-password',
                     'api_key' => 'plain-api-key',
+                    'webhook_signing_key' => 'plain-mailgun-signing-key',
                 ],
             ]
         );
@@ -46,8 +47,10 @@ final class ProviderRepositoryTest extends TestCase
         self::assertSame('smtp.example.test', $storedConfig['host']);
         self::assertNotSame('plain-password', $storedConfig['password']);
         self::assertNotSame('plain-api-key', $storedConfig['api_key']);
+        self::assertNotSame('plain-mailgun-signing-key', $storedConfig['webhook_signing_key']);
         self::assertTrue((new SecretVault())->isEncrypted((string) $storedConfig['password']));
         self::assertTrue((new SecretVault())->isEncrypted((string) $storedConfig['api_key']));
+        self::assertTrue((new SecretVault())->isEncrypted((string) $storedConfig['webhook_signing_key']));
 
         $GLOBALS['wpdb']->providerRowsById[$providerId] = [
             'id' => $providerId,
@@ -66,6 +69,7 @@ final class ProviderRepositoryTest extends TestCase
         self::assertIsArray($provider);
         self::assertSame('plain-password', $provider['config']['password']);
         self::assertSame('plain-api-key', $provider['config']['api_key']);
+        self::assertSame('plain-mailgun-signing-key', $provider['config']['webhook_signing_key']);
     }
 
     public function test_malformed_encrypted_secret_is_unavailable_and_requires_recovery(): void

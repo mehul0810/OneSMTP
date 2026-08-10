@@ -102,6 +102,12 @@ final class FakeWpdb
     /** @var array<int,array<string,mixed>> */
     public array $eventRows = [];
 
+    /** @var array<string,int> */
+    public array $providerEventRowsByHash = [];
+
+    /** @var array<string,int> */
+    public array $providerEventMessageIds = [];
+
     /** @var array<string,array{lease_type:string,provider_id:?int,owner_token:string,expires_at:string,created_at:string}> */
     public array $quotaLeaseRows = [];
 
@@ -178,6 +184,28 @@ final class FakeWpdb
     {
         if (str_contains($sql, $this->prefix . 'onesmtp_quota_leases')) {
             return $this->handleQuotaLeaseQuery($sql);
+        }
+
+        if (str_contains($sql, $this->prefix . 'onesmtp_provider_events')) {
+            $this->queries[] = $sql;
+            $args = is_array($this->lastPrepared) ? ($this->lastPrepared['args'] ?? []) : [];
+            $hash = '';
+            foreach ($args as $arg) {
+                if (is_string($arg) && preg_match('/\A[a-f0-9]{64}\z/D', $arg) === 1) {
+                    $hash = $arg;
+                    break;
+                }
+            }
+            if ($hash !== '') {
+                if (isset($this->providerEventRowsByHash[$hash])) {
+                    return 0;
+                }
+
+                $this->insert_id++;
+                $this->providerEventRowsByHash[$hash] = $this->insert_id;
+            }
+
+            return 1;
         }
 
         $this->queries[] = $sql;
@@ -521,6 +549,12 @@ final class FakeWpdb
             }
 
             return $count;
+        }
+
+        if (str_contains($preparedQuery, $this->prefix . 'onesmtp_attempts') && str_contains($preparedQuery, 'provider_message_id = %s')) {
+            $key = (string) ($preparedArgs[0] ?? '') . '|' . (string) ($preparedArgs[1] ?? '');
+
+            return (int) ($this->providerEventMessageIds[$key] ?? 0);
         }
 
         if (

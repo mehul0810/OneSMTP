@@ -51,6 +51,19 @@ final class ProviderRepository
         return $rows;
     }
 
+    public function findActiveByType(string $adapterType): ?array
+    {
+        $adapterType = sanitize_key($adapterType);
+
+        foreach ($this->getActiveProviders() as $provider) {
+            if (sanitize_key((string) ($provider['adapter_type'] ?? '')) === $adapterType) {
+                return $provider;
+            }
+        }
+
+        return null;
+    }
+
     public function getAll(): array
     {
         global $wpdb;
@@ -398,7 +411,7 @@ final class ProviderRepository
 
     private function isSensitiveKey(string $key): bool
     {
-        return (bool) preg_match('/pass|secret|token|api(?:_|-)?key/i', $key);
+        return (bool) preg_match('/pass|secret|token|api(?:_|-)?key|signing/i', $key);
     }
 
     private function acquireTypeLock(string $lockKey): bool

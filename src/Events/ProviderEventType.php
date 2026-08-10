@@ -23,10 +23,10 @@ enum ProviderEventType: string
 
         return match ($normalized) {
             'delivered', 'delivery' => self::DELIVERED,
-            'hard_bounce', 'permanent_bounce', 'permanent_failure', 'bounced_hard' => self::HARD_BOUNCE,
+            'hard_bounce', 'permanent_bounce', 'permanent_failure', 'permanent_fail', 'bounced_hard' => self::HARD_BOUNCE,
             'soft_bounce', 'temporary_bounce', 'bounced_soft' => self::SOFT_BOUNCE,
             'complaint', 'complained', 'feedback', 'spam_complaint' => self::COMPLAINT,
-            'defer', 'deferred', 'deferral', 'temporary_failure' => self::DEFERRED,
+            'defer', 'deferred', 'deferral', 'temporary_failure', 'temporary_fail' => self::DEFERRED,
             default => self::UNKNOWN,
         };
     }

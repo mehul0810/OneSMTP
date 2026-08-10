@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Aculect Mail 0.1.0\n"
 "Report-Msgid-Bugs-To: https://github.com/mehul0810/aculect-mail/issues\n"
-"POT-Creation-Date: 2026-08-10 08:19+0000\n"
+"POT-Creation-Date: 2026-08-10 10:34+0000\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -48,11 +48,11 @@ msgstr ""
 msgid "%d ms"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:758
+#: src/Admin/ProviderAdmin.php:759
 msgid "%d other connection will be skipped."
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:759
+#: src/Admin/ProviderAdmin.php:760
 msgid "%d other connections will be skipped."
 msgstr ""
 
@@ -181,7 +181,7 @@ msgstr ""
 msgid "Aculect Mail alert acknowledgement denied"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:762
+#: src/Admin/ProviderAdmin.php:763
 msgid "Aculect Mail already has this provider type configured, so import is disabled to preserve the one-provider/one-connection model."
 msgstr ""
 
@@ -290,7 +290,7 @@ msgstr ""
 msgid "Aculect Mail weekly delivery summary"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:487
+#: src/Admin/ProviderAdmin.php:488
 msgid "Add a DKIM selector to enable selector-specific checks."
 msgstr ""
 
@@ -326,7 +326,7 @@ msgstr ""
 msgid "Add the name and email address you want to send from."
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:597
+#: src/Admin/ProviderAdmin.php:598
 msgid "Add the provider DKIM selector when available so Aculect Mail can check the selector-specific TXT name."
 msgstr ""
 
@@ -415,7 +415,7 @@ msgid "Allow sites to inherit these rate limits"
 msgstr ""
 
 #: src/Providers/ProviderTypes.php:77
-#: src/Admin/ProviderAdmin.php:583
+#: src/Admin/ProviderAdmin.php:584
 msgid "Amazon SES"
 msgstr ""
 
@@ -431,7 +431,7 @@ msgstr ""
 msgid "Analytics summary"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:782
+#: src/Admin/ProviderAdmin.php:783
 msgid "Analyze SureMail setup"
 msgstr ""
 
@@ -539,7 +539,7 @@ msgid "Bounded report slices for %s, matched to stored delivery logs."
 msgstr ""
 
 #: src/Providers/ProviderTypes.php:157
-#: src/Admin/ProviderAdmin.php:582
+#: src/Admin/ProviderAdmin.php:583
 msgid "Brevo"
 msgstr ""
 
@@ -607,12 +607,12 @@ msgstr ""
 msgid "Choose which operational controls sites inherit. Sites can explicitly opt out and keep their own site-level values."
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:702
+#: src/Admin/ProviderAdmin.php:703
 msgid "Circuit closed"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:707
-#: src/Admin/ProviderAdmin.php:710
+#: src/Admin/ProviderAdmin.php:708
+#: src/Admin/ProviderAdmin.php:711
 msgid "Circuit open"
 msgstr ""
 
@@ -667,7 +667,7 @@ msgstr ""
 msgid "Conditional routing rules require an enabled Pro capability."
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:461
+#: src/Admin/ProviderAdmin.php:462
 msgid "Configure a provider From email or sender identity From Email to see SPF, DKIM, and DMARC guidance for sender domains."
 msgstr ""
 
@@ -774,7 +774,7 @@ msgstr ""
 msgid "Custom duration in days"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:476
+#: src/Admin/ProviderAdmin.php:477
 msgid "DKIM"
 msgstr ""
 
@@ -782,15 +782,15 @@ msgstr ""
 msgid "DKIM selector"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:477
+#: src/Admin/ProviderAdmin.php:478
 msgid "DMARC"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:467
+#: src/Admin/ProviderAdmin.php:468
 msgid "DNS TXT lookup is not available in this PHP environment. Aculect Mail can show expected records, but it cannot verify SPF, DKIM, or DMARC readiness here."
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:457
+#: src/Admin/ProviderAdmin.php:458
 msgid "DNS authentication readiness"
 msgstr ""
 
@@ -859,7 +859,7 @@ msgstr ""
 msgid "Disabled"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:473
+#: src/Admin/ProviderAdmin.php:474
 msgid "Domain"
 msgstr ""
 
@@ -895,7 +895,7 @@ msgstr ""
 msgid "Email"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:777
+#: src/Admin/ProviderAdmin.php:778
 msgid "Email logs are never copied. Imported credentials are decrypted in memory and stored again using Aculect Mail AES-GCM encryption. The imported connection starts inactive."
 msgstr ""
 
@@ -1153,11 +1153,11 @@ msgstr ""
 msgid "Gmail"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:584
+#: src/Admin/ProviderAdmin.php:585
 msgid "Gmail or Google Workspace"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:478
+#: src/Admin/ProviderAdmin.php:479
 msgid "Guidance"
 msgstr ""
 
@@ -1173,11 +1173,11 @@ msgstr ""
 msgid "Identifiers, outcome, provider, attempts, and timestamps without recipient or attachment summaries."
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:787
+#: src/Admin/ProviderAdmin.php:788
 msgid "Import default connection"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:770
+#: src/Admin/ProviderAdmin.php:771
 msgid "Import needs these required fields before it can continue: %s."
 msgstr ""
 
@@ -1209,7 +1209,7 @@ msgstr ""
 msgid "Include candidate rule"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:573
+#: src/Admin/ProviderAdmin.php:574
 msgid "Inconclusive"
 msgstr ""
 
@@ -1326,6 +1326,14 @@ msgstr ""
 
 #: src/Providers/ProviderTypes.php:173
 msgid "Mailgun"
+msgstr ""
+
+#: src/Admin/ProCapabilitiesPanel.php:55
+msgid "Mailgun delivery events are ingested into privacy-safe site-local records when enabled. Bounce and complaint suppression controls remain planned."
+msgstr ""
+
+#: src/Admin/ProviderAdmin.php:400
+msgid "Mailgun webhook signing key"
 msgstr ""
 
 #: src/Providers/ProviderTypes.php:205
@@ -1508,7 +1516,7 @@ msgstr ""
 msgid "No latency data"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:572
+#: src/Admin/ProviderAdmin.php:573
 msgid "No matching TXT evidence found"
 msgstr ""
 
@@ -1577,7 +1585,7 @@ msgstr ""
 msgid "No subject groups were recorded in this window."
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:775
+#: src/Admin/ProviderAdmin.php:776
 msgid "No supported default SureMail connection was found. Nothing will be imported."
 msgstr ""
 
@@ -1669,11 +1677,11 @@ msgstr ""
 msgid "Open"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:712
+#: src/Admin/ProviderAdmin.php:713
 msgid "Open until %s GMT."
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:707
+#: src/Admin/ProviderAdmin.php:708
 msgid "Open until manually closed."
 msgstr ""
 
@@ -1782,7 +1790,7 @@ msgid "Policy preset"
 msgstr ""
 
 #: src/Providers/ProviderTypes.php:141
-#: src/Admin/ProviderAdmin.php:581
+#: src/Admin/ProviderAdmin.php:582
 msgid "Postmark"
 msgstr ""
 
@@ -1859,11 +1867,11 @@ msgstr ""
 msgid "Provider ID for updates"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:730
+#: src/Admin/ProviderAdmin.php:731
 msgid "Provider action completed."
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:725
+#: src/Admin/ProviderAdmin.php:726
 msgid "Provider action failed."
 msgstr ""
 
@@ -1899,10 +1907,6 @@ msgstr ""
 msgid "Provider eligibility effects"
 msgstr ""
 
-#: src/Admin/ProCapabilitiesPanel.php:55
-msgid "Provider event ingestion and suppression controls are planned. Current provider delivery, tests, and logs remain available without them."
-msgstr ""
-
 #: src/Admin/ProCapabilitiesPanel.php:54
 msgid "Provider events and suppression"
 msgstr ""
@@ -1931,7 +1935,7 @@ msgstr ""
 msgid "Provider saved. Send a test email to verify setup."
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:521
+#: src/Admin/ProviderAdmin.php:522
 msgid "Provider sender"
 msgstr ""
 
@@ -1955,7 +1959,7 @@ msgstr ""
 msgid "Providers"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:592
+#: src/Admin/ProviderAdmin.php:593
 msgid "Publish the SPF, DKIM, and DMARC TXT records supplied by %s for this sender domain."
 msgstr ""
 
@@ -1992,7 +1996,7 @@ msgstr ""
 msgid "Queued messages"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:754
+#: src/Admin/ProviderAdmin.php:755
 msgid "Ready to import:"
 msgstr ""
 
@@ -2070,6 +2074,10 @@ msgstr ""
 msgid "Reports use aggregate message and attempt records only. Message bodies, recipients, credentials, provider payloads, and raw event context are never included."
 msgstr ""
 
+#: src/Api/ProviderEventController.php:46
+msgid "Request could not be accepted."
+msgstr ""
+
 #: src/Admin/ProCapabilitiesPanel.php:107
 #: src/Admin/RoutingAdmin.php:255
 msgid "Requires Pro"
@@ -2140,11 +2148,11 @@ msgstr ""
 msgid "Review recent email delivery events from Aculect Mail."
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:754
+#: src/Admin/ProviderAdmin.php:755
 msgid "Review required:"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:470
+#: src/Admin/ProviderAdmin.php:471
 msgid "Review sender-domain authentication before relying on a provider for production delivery. Results are based only on TXT evidence visible to this WordPress server."
 msgstr ""
 
@@ -2214,7 +2222,7 @@ msgstr ""
 msgid "SMTP2GO"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:475
+#: src/Admin/ProviderAdmin.php:476
 msgid "SPF"
 msgstr ""
 
@@ -2447,7 +2455,7 @@ msgid "Send transactional messages through Elastic Email REST API v4."
 msgstr ""
 
 #: src/Providers/ProviderTypes.php:125
-#: src/Admin/ProviderAdmin.php:580
+#: src/Admin/ProviderAdmin.php:581
 msgid "SendGrid"
 msgstr ""
 
@@ -2457,7 +2465,7 @@ msgid "Sender"
 msgstr ""
 
 #: src/Admin/SetupWizard.php:157
-#: src/Admin/ProviderAdmin.php:537
+#: src/Admin/ProviderAdmin.php:538
 #: src/Admin/SettingsAdmin.php:296
 msgid "Sender identity"
 msgstr ""
@@ -2611,7 +2619,7 @@ msgstr ""
 
 #: src/Admin/LogAdmin.php:409
 #: src/Admin/LogAdmin.php:853
-#: src/Admin/ProviderAdmin.php:474
+#: src/Admin/ProviderAdmin.php:475
 msgid "Source"
 msgstr ""
 
@@ -2701,7 +2709,7 @@ msgstr ""
 msgid "Summary recipients"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:747
+#: src/Admin/ProviderAdmin.php:748
 msgid "SureMail compatibility"
 msgstr ""
 
@@ -2709,11 +2717,11 @@ msgstr ""
 msgid "SureMail currently owns live WordPress delivery. Aculect Mail simulation mode cannot guarantee that messages are captured instead of sent until delivery ownership is migrated."
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:727
+#: src/Admin/ProviderAdmin.php:728
 msgid "SureMail import could not be completed. Analyze the setup again and review the reported requirements."
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:748
+#: src/Admin/ProviderAdmin.php:749
 msgid "SureMail is present on this site. Only one mail plugin should own live delivery at a time. Aculect Mail will not disable SureMail or change its settings."
 msgstr ""
 
@@ -2741,7 +2749,7 @@ msgstr ""
 msgid "Switchovers"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:571
+#: src/Admin/ProviderAdmin.php:572
 msgid "TXT evidence found"
 msgstr ""
 
@@ -2785,7 +2793,7 @@ msgstr ""
 msgid "The Aculect Mail settings import form has expired. Refresh the page and try again."
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:728
+#: src/Admin/ProviderAdmin.php:729
 msgid "The SureMail analysis expired or the source configuration changed. Analyze it again before importing."
 msgstr ""
 
@@ -2801,7 +2809,7 @@ msgstr ""
 msgid "The current policy is site-local. Existing records are not purged immediately when you save; the scheduled pruner applies this duration on its next run."
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:726
+#: src/Admin/ProviderAdmin.php:727
 msgid "The default SureMail connection was imported as inactive. Review and test it before making Aculect Mail the delivery owner."
 msgstr ""
 
@@ -2855,7 +2863,7 @@ msgstr ""
 msgid "Theme: Unknown theme"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:765
+#: src/Admin/ProviderAdmin.php:766
 msgid "This SureMail version is outside the migration versions Aculect Mail can safely validate."
 msgstr ""
 
@@ -3210,14 +3218,14 @@ msgstr ""
 msgid "unknown domains"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:585
+#: src/Admin/ProviderAdmin.php:586
 msgid "your SMTP provider"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:586
+#: src/Admin/ProviderAdmin.php:587
 msgid "your hosting DNS provider"
 msgstr ""
 
-#: src/Admin/ProviderAdmin.php:587
+#: src/Admin/ProviderAdmin.php:588
 msgid "your mail provider"
 msgstr ""

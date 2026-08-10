@@ -20,6 +20,14 @@ Aculect Mail uses custom database tables for operational email records.
 ## Lifecycle Contract
 
 - Activation creates or upgrades the provider, message, attempt, and event tables with `dbDelta`.
+- The additive `onesmtp_provider_events` table stores only normalized Mailgun
+  event categories, provider/message references, provider message IDs,
+  occurrence time, a unique external-event hash, and recipient HMACs for hard
+  bounces/complaints. The existing attempts table also has a composite
+  provider/message-ID lookup index for correlation.
 - Activation is repeatable and refreshes the stored `onesmtp_version` option to the current plugin version.
 - Activation seeds the default log retention option only when it does not already exist, preserving administrator changes.
 - Uninstall preserves operational records and settings by default. A destructive deletion path requires an explicit product decision, migration plan, and user-facing control before it can ship.
+- Provider-event rows use the same site-local 30-day default, bounded 1–120 day
+  retention policy, and daily batch pruner as other operational records. A
+  disabled gate stops new writes; existing rows age out normally.

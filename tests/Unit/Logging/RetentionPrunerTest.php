@@ -24,10 +24,11 @@ final class RetentionPrunerTest extends TestCase
     {
         (new RetentionPruner())->prune();
 
-        self::assertCount(3, $GLOBALS['wpdb']->queries);
+        self::assertCount(4, $GLOBALS['wpdb']->queries);
         self::assertStringContainsString('wp_onesmtp_attempts', $GLOBALS['wpdb']->queries[0]);
         self::assertStringContainsString('wp_onesmtp_events', $GLOBALS['wpdb']->queries[1]);
-        self::assertStringContainsString('wp_onesmtp_messages', $GLOBALS['wpdb']->queries[2]);
-        self::assertStringContainsString("status IN ('sent','failed','simulated')", $GLOBALS['wpdb']->queries[2]);
+        self::assertStringContainsString('wp_onesmtp_provider_events', $GLOBALS['wpdb']->queries[2]);
+        self::assertStringContainsString('wp_onesmtp_messages', $GLOBALS['wpdb']->queries[3]);
+        self::assertStringContainsString("status IN ('sent','failed','simulated')", $GLOBALS['wpdb']->queries[3]);
     }
 }

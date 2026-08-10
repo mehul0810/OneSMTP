@@ -51,7 +51,7 @@ final class InstallerTest extends TestCase
     {
         Installer::activate();
 
-        self::assertCount(5, $GLOBALS['onesmtp_test_dbdelta_queries']);
+        self::assertCount(6, $GLOBALS['onesmtp_test_dbdelta_queries']);
         self::assertSame((string) constant('ONESMTP_VERSION'), get_option(Installer::VERSION_OPTION));
         self::assertSame(30, get_option(Installer::RETENTION_DAYS_OPTION));
 
@@ -60,7 +60,7 @@ final class InstallerTest extends TestCase
 
         Installer::activate();
 
-        self::assertCount(10, $GLOBALS['onesmtp_test_dbdelta_queries']);
+        self::assertCount(12, $GLOBALS['onesmtp_test_dbdelta_queries']);
         self::assertSame((string) constant('ONESMTP_VERSION'), get_option(Installer::VERSION_OPTION));
         self::assertSame(90, get_option(Installer::RETENTION_DAYS_OPTION));
     }
@@ -81,11 +81,11 @@ final class InstallerTest extends TestCase
 
         Installer::maybeUpgrade();
 
-        self::assertCount(5, $GLOBALS['onesmtp_test_dbdelta_queries']);
+        self::assertCount(6, $GLOBALS['onesmtp_test_dbdelta_queries']);
         self::assertSame((string) constant('ONESMTP_VERSION'), get_option(Installer::VERSION_OPTION));
 
         Installer::maybeUpgrade();
 
-        self::assertCount(5, $GLOBALS['onesmtp_test_dbdelta_queries']);
+        self::assertCount(6, $GLOBALS['onesmtp_test_dbdelta_queries']);
     }
 }
