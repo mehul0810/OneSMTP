@@ -22,58 +22,68 @@ final class ProCapabilitiesPanel
 
         foreach ($this->catalog() as $feature => $content) {
             $state = $this->features->state($feature);
-            $enabled = $state === FeatureGate::STATE_ENABLED;
+            $enabled = $content['availability'] === 'shipped' && $state === FeatureGate::STATE_ENABLED;
 
             echo '<div class="onesmtp-pro-capability-item">';
             echo '<div class="onesmtp-pro-capability-copy"><strong>' . esc_html($content['label']) . '</strong><p>' . esc_html($content['description']) . '</p></div>';
             echo '<div class="onesmtp-pro-capability-status">';
-            echo '<span class="onesmtp-status-pill ' . ($enabled ? 'is-ready' : 'is-pending') . '">' . esc_html($this->stateLabel($state)) . '</span>';
+            echo '<span class="onesmtp-status-pill ' . ($enabled ? 'is-ready' : 'is-pending') . '">' . esc_html($this->stateLabel($state, $content['availability'])) . '</span>';
 
             if ( ! $enabled) {
-                echo '<button type="button" class="button button-secondary" disabled aria-disabled="true">' . esc_html($this->disabledActionLabel($state)) . '</button>';
+                echo '<button type="button" class="button button-secondary" disabled aria-disabled="true">' . esc_html($this->disabledActionLabel($state, $content['availability'])) . '</button>';
             }
 
             echo '</div></div>';
         }
 
         echo '</div>';
-        echo '<p class="description onesmtp-pro-capabilities-note">' . esc_html__('License and upgrade controls will appear here when Pro distribution is available. Core sending, failover, queues, and logs remain available without Pro.', 'onesmtp') . '</p>';
+        echo '<p class="description onesmtp-pro-capabilities-note">' . esc_html__('No purchase, license activation, or upgrade URL is included in this candidate. “Available with Pro” describes a capability boundary only; disabled controls are inert. Core sending, providers, failover, queues, and logs remain available without Pro.', 'onesmtp') . '</p>';
         echo '</div></section>';
     }
 
-    /** @return array<string,array{label:string,description:string}> */
+    /** @return array<string,array{label:string,description:string,availability:'shipped'|'planned'}> */
     private function catalog(): array
     {
         return [
             FeatureGate::SMART_ROUTING => [
                 'label' => __('Smart routing rules', 'onesmtp'),
-                'description' => __('Route mail using sender, recipient, subject, content, and source conditions.', 'onesmtp'),
+                'description' => __('Route mail with bounded sender, recipient, subject, content, and source conditions while core provider priority and failover remain available.', 'onesmtp'),
+                'availability' => 'shipped',
             ],
             FeatureGate::PROVIDER_EVENTS => [
                 'label' => __('Provider events and suppression', 'onesmtp'),
-                'description' => __('Process delivery webhooks, bounces, complaints, and suppression decisions.', 'onesmtp'),
+                'description' => __('Provider event ingestion and suppression controls are planned. Current provider delivery, tests, and logs remain available without them.', 'onesmtp'),
+                'availability' => 'planned',
             ],
             FeatureGate::ADVANCED_ANALYTICS => [
                 'label' => __('Advanced analytics', 'onesmtp'),
-                'description' => __('Compare provider reliability, delivery trends, and operational SLA signals.', 'onesmtp'),
+                'description' => __('Compare bounded provider reliability and delivery report slices from aggregate site history; scores are not inbox-placement or provider-SLA measurements.', 'onesmtp'),
+                'availability' => 'shipped',
             ],
             FeatureGate::COMPLIANCE_CONTROLS => [
                 'label' => __('Compliance controls', 'onesmtp'),
-                'description' => __('Apply configurable retention, audit, and privacy-safe export policies.', 'onesmtp'),
+                'description' => __('Apply bounded site-local retention presets or custom duration and fixed privacy-safe export profiles.', 'onesmtp'),
+                'availability' => 'shipped',
             ],
             FeatureGate::MULTISITE_MANAGEMENT => [
                 'label' => __('Multisite management', 'onesmtp'),
-                'description' => __('Manage network-level settings and delivery visibility across sites.', 'onesmtp'),
+                'description' => __('Network-level settings and log views are planned; current settings and logs remain site-local.', 'onesmtp'),
+                'availability' => 'planned',
             ],
             FeatureGate::ADVANCED_ALERTS => [
                 'label' => __('Advanced alert escalation', 'onesmtp'),
-                'description' => __('Escalate repeated terminal failures to multiple safe destinations.', 'onesmtp'),
+                'description' => __('Escalate repeated terminal failures to validated email or HTTPS webhook destinations without changing core alerts.', 'onesmtp'),
+                'availability' => 'shipped',
             ],
         ];
     }
 
-    private function stateLabel(string $state): string
+    private function stateLabel(string $state, string $availability): string
     {
+        if ($availability === 'planned') {
+            return __('Planned', 'onesmtp');
+        }
+
         return match ($state) {
             FeatureGate::STATE_ENABLED => __('Enabled', 'onesmtp'),
             FeatureGate::STATE_FLAG_DISABLED => __('Not enabled', 'onesmtp'),
@@ -81,8 +91,12 @@ final class ProCapabilitiesPanel
         };
     }
 
-    private function disabledActionLabel(string $state): string
+    private function disabledActionLabel(string $state, string $availability): string
     {
+        if ($availability === 'planned') {
+            return __('Not available yet', 'onesmtp');
+        }
+
         return $state === FeatureGate::STATE_FLAG_DISABLED
             ? __('Unavailable on this site', 'onesmtp')
             : __('Requires Pro', 'onesmtp');

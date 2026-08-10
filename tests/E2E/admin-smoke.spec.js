@@ -272,9 +272,13 @@ test.describe( 'Aculect Mail admin browser smoke', () => {
 		const proCapabilities = advanced.locator( '.onesmtp-pro-capabilities' );
 		await expect( proCapabilities ).toContainText( 'Pro capabilities' );
 		await expect( proCapabilities ).toContainText( 'Available with Pro' );
+		await expect( proCapabilities ).toContainText( 'Planned' );
 		await expect(
 			proCapabilities.getByRole( 'button', { name: 'Requires Pro' } )
-		).toHaveCount( 6 );
+		).toHaveCount( 4 );
+		await expect(
+			proCapabilities.getByRole( 'button', { name: 'Not available yet' } )
+		).toHaveCount( 2 );
 		await expect(
 			proCapabilities
 				.getByRole( 'button', { name: 'Requires Pro' } )

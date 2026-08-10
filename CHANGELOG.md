@@ -6,11 +6,6 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 ## [0.4.0] - Unreleased
 
-- Pro provider reliability scoring based on aggregate success, failure, retry, switch-away, and latency history, with sample-quality labels and non-SLA guidance.
-- Pro Compliance controls for bounded site-local log retention and fixed privacy-safe CSV export profiles, preserving the existing safe operational export by default.
-- Pro advanced reports for provider attempts, message statuses, daily trends, failure categories, and privacy-safe subject groups, using bounded time-window queries.
-- Additive provider adapter descriptors, bounded credential schemas, catalog validation, and developer authoring documentation.
-
 ### Added
 
 - Default-deny Pro capability gates with separate entitlement and rollout checks.
@@ -18,6 +13,13 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Pro-gated advanced alert escalation with multiple email/HTTPS webhook destinations, deterministic repeated-failure thresholds, and privacy-safe payload/context handling.
 - Pro-gated conditional routing rules for sender, recipient, subject, content, and source attribution with bounded in-memory matching and deterministic priority conflict resolution.
 - Pro routing simulation for saved or unsaved candidate rules with bounded sample fields, provider eligibility explanations, and no-delivery/no-persistence guarantees.
+- Provider reliability scoring and bounded advanced report slices behind the `advanced_analytics` gate, with aggregate-only data and non-SLA guidance.
+- Bounded site-local retention policies and fixed privacy-safe export profiles behind the `compliance_controls` gate.
+- An additive provider adapter catalog and validation contract for developer extensions; malformed declarations fail closed.
+
+### Changed
+
+- Documented the unreleased 0.4.0 candidate's Pro onboarding, default-deny states, free/core fallback behavior, planned boundaries, and claim evidence without adding purchase, licensing, pricing, or upgrade claims.
 
 ## [0.3.0] - Unreleased
 
