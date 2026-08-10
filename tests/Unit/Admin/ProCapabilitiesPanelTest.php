@@ -25,7 +25,7 @@ final class ProCapabilitiesPanelTest extends TestCase
         self::assertStringContainsString('Not available yet', $output);
         self::assertStringContainsString('disabled aria-disabled="true"', $output);
         self::assertStringContainsString('Core sending, providers, failover, queues, and logs remain available without Pro.', $output);
-        self::assertSame(5, substr_count($output, 'Requires Pro'));
+        self::assertSame(6, substr_count($output, 'Requires Pro'));
         self::assertSame(1, substr_count($output, 'Not available yet'));
     }
 
@@ -39,7 +39,8 @@ final class ProCapabilitiesPanelTest extends TestCase
 
         self::assertStringContainsString('Smart routing rules', $output);
         self::assertStringContainsString('Enabled', $output);
-        self::assertSame(5, substr_count($output, 'disabled aria-disabled="true"'));
+        self::assertStringContainsString('Provider sending budgets', $output);
+        self::assertSame(6, substr_count($output, 'disabled aria-disabled="true"'));
     }
 
     public function test_planned_catalog_entries_remain_inert_even_when_flags_are_supplied(): void

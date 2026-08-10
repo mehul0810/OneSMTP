@@ -140,6 +140,47 @@ final class AttemptRepository
     }
 
     /**
+     * Count recorded production delivery attempts for one provider.
+     *
+     * Deferred decisions are never inserted as attempts. Provider-test sends
+     * are deliberately excluded because they are verification traffic rather
+     * than production delivery; initial, retry, failover, background, and
+     * manual-resend adapter calls all remain in this bounded query.
+     *
+     * @return array{attempt_count:int,oldest_created_at:?string}
+     */
+    public function getProviderAttemptWindowStats(int $providerId, string $since): array
+    {
+        global $wpdb;
+
+        if ($providerId <= 0) {
+            return [
+                'attempt_count' => 0,
+                'oldest_created_at' => null,
+            ];
+        }
+
+        $sql = $wpdb->prepare(
+            'SELECT COUNT(*) AS attempt_count, MIN(created_at) AS oldest_created_at FROM ' . TableNames::attempts() . ' WHERE provider_id = %d AND trigger_type <> %s AND created_at >= %s',
+            $providerId,
+            'provider_test',
+            $since
+        );
+        $row = $wpdb->get_row($sql, ARRAY_A);
+
+        if (! is_array($row)) {
+            $row = [];
+        }
+
+        return [
+            'attempt_count' => (int) ($row['attempt_count'] ?? 0),
+            'oldest_created_at' => isset($row['oldest_created_at']) && (string) $row['oldest_created_at'] !== ''
+                ? (string) $row['oldest_created_at']
+                : null,
+        ];
+    }
+
+    /**
      * @return array<int,array{category:string,count:int,last_seen_at:?string}>
      */
     public function getRecentFailureCategoryCounts(string $since, int $limit = 10): array

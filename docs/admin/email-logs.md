@@ -57,6 +57,10 @@ Attachment metadata is retained only as part of the parent email log row. It is 
 
 Messages with file attachments may not preserve those attachments for background retries or manual resend unless the source can provide the files again.
 
+For the same reason, an attachment-bearing message that reaches an all-provider
+quota deferral is marked failed rather than queued for a retry that could omit
+its files; the terminal reason is `attachment_quota_deferral_not_persisted`.
+
 ## CSV Export
 
 Administrators with the Aculect Mail log-view capability can export the current filtered log list to CSV from the Logs section. Export links are nonce protected and limited to safe log summary fields:

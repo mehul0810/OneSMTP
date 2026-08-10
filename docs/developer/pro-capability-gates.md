@@ -31,6 +31,7 @@ The gate IDs currently defined in source are:
 | `advanced_alerts` | Shipped behind the gate | Repeated terminal-failure escalation to validated email or HTTPS webhook destinations. |
 | `provider_events` | Reserved/planned | Provider event ingestion and suppression are tracked by issues #63/#64; no event-ingestion workflow is shipped. |
 | `multisite_management` | Shipped behind the gate | Network-admin-only allowlisted settings with explicit site inheritance/overrides and bounded privacy-safe network log summaries. Provider credentials and payload fields remain site-local. |
+| `provider_quota_budgets` | Shipped behind the gate | Per-provider minute/hour/day attempt windows with deterministic capacity-aware routing and typed deferral. Attachment-bearing quota deferrals fail closed before UUID resolution or scheduling when sanitized retry data cannot reproduce files. |
 
 `provider_events` remains a reserved/planned ID even if a future integration
 supplies flags. Its presence in the catalog is not proof that event ingestion
@@ -60,6 +61,12 @@ exists.
   inheritance/override state; network summaries are bounded and restore blog
   context after each per-site read/write path. Provider credentials and raw
   payload data are never copied into network settings or summaries.
+- Provider budgets are stored as bounded non-secret provider configuration. Only
+  production send attempts count toward a window; provider tests do not. When
+  all eligible providers are exhausted, delivery defers to the earliest next
+  capacity only when the retry payload is safely reproducible. Attachment-bearing
+  deferrals fail closed with `attachment_quota_deferral_not_persisted`, mark the
+  message terminally failed, and enqueue no retry.
 
 ## Extension and release boundaries
 
@@ -67,9 +74,9 @@ The filters above are internal integration points for the candidate runtime and
 fixtures, not a supported way to activate paid behavior. Do not add license
 activation, purchase URLs, pricing, tiers, hosted-service claims, telemetry,
 privacy promises, or public schema changes here. Owner-gated issues #40, #50,
-#51, #54, #63, #64, and #66 remain planned/excluded from this candidate.
-Provider quota windows and sending budgets from [issue #54](https://github.com/mehul0810/aculect-mail/issues/54)
-are not a shipped control while that issue remains open.
+#51, #63, #64, and #66 remain planned/excluded from this candidate. Provider
+quota budgets from [issue #54](https://github.com/mehul0810/aculect-mail/issues/54) are candidate-shipped by merged [PR #166](https://github.com/mehul0810/aculect-mail/pull/166);
+the issue is closed and its release-tip evidence is recorded in the claim ledger.
 
 The additive provider adapter catalog in
 [`provider-adapters.md`](provider-adapters.md) is a developer extension

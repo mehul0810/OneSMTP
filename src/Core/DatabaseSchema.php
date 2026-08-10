@@ -16,6 +16,7 @@ final class DatabaseSchema
         $messagesTable  = TableNames::messages();
         $attemptsTable  = TableNames::attempts();
         $eventsTable    = TableNames::events();
+        $quotaLeasesTable = TableNames::quotaLeases();
 
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
@@ -100,9 +101,22 @@ final class DatabaseSchema
             KEY created_at (created_at)
         ) {$charsetCollate};";
 
+        $quotaLeasesSql = "CREATE TABLE {$quotaLeasesTable} (
+            lease_key VARCHAR(190) NOT NULL,
+            lease_type VARCHAR(20) NOT NULL,
+            provider_id BIGINT UNSIGNED NULL,
+            owner_token CHAR(64) NOT NULL,
+            expires_at DATETIME NOT NULL,
+            created_at DATETIME NOT NULL,
+            PRIMARY KEY  (lease_key),
+            KEY provider_expiry (lease_type, provider_id, expires_at),
+            KEY expires_at (expires_at)
+        ) {$charsetCollate};";
+
         dbDelta($providersSql);
         dbDelta($messagesSql);
         dbDelta($attemptsSql);
         dbDelta($eventsSql);
+        dbDelta($quotaLeasesSql);
     }
 }

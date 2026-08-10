@@ -37,6 +37,7 @@ The controls are default-deny and do not change core delivery when unavailable.
 | Compliance retention and export profiles | Advanced settings and Activity | `compliance_controls` | Core 30-day retention, filter-based extension, and the safe operational CSV remain available. Pro retention is site-local, bounded to 1–120 days, and does not purge immediately; export profiles are fixed allowlists. See [Email Logs](email-logs.md). |
 | Advanced alert escalation | Advanced settings | `advanced_alerts` | Existing core failure alerts are unchanged. Pro escalation sends only validated email or HTTPS webhook destinations at a configured repeated-failure threshold, with safe operational metadata and throttling. See [Troubleshooting](troubleshooting.md). |
 | Multisite network settings and bounded network log summaries | Network admin Settings → Aculect Mail and network log view | `multisite_management` plus `manage_network_options` | Network defaults and site overrides are allowlisted and resolved at read time. Summaries are bounded and privacy-safe; provider credentials, payloads, bodies, full recipients, headers, and paths remain site-local/excluded. Single-site and normal site-admin behavior remain unchanged. See [Multisite network](multisite-network.md). |
+| Provider sending budgets ([#54](https://github.com/mehul0810/aculect-mail/issues/54)) | Provider connection settings and delivery routing | `provider_quota_budgets` | Bound each provider's minute, hour, and day attempt windows. Quota-exhausted providers are skipped; an all-exhausted eligible pool defers to the earliest next capacity. Attachment-bearing quota deferrals fail closed with `attachment_quota_deferral_not_persisted` before UUID resolution or scheduling, so no retry can omit files. See [Provider setup](provider-setup.md) and [Failover and Rotation](failover-and-rotation.md). |
 
 The status **Available with Pro** is descriptive of the capability boundary,
 not a claim that a plan, license, purchase flow, or upgrade URL is available.
@@ -46,7 +47,7 @@ pricing, tier, site-count, support/SLA, telemetry, or privacy promise.
 ## Visual reference
 
 These fixture-backed captures show the candidate Advanced panel after the
-multisite release tip was merged. The files are committed evidence, contain no
+multisite and provider-quota release tips were merged. The files are committed evidence, contain no
 credentials or message data, and include both desktop and narrow viewport
 states: [desktop panel screenshot](screenshots/issue-57/pro-capabilities-panel-desktop.png)
 and [mobile panel screenshot](screenshots/issue-57/pro-capabilities-panel-mobile.png).
@@ -69,9 +70,6 @@ enabled Pro workflows:
   [#51](https://github.com/mehul0810/aculect-mail/issues/51)).
 - License activation or update mechanisms (issue
   [#66](https://github.com/mehul0810/aculect-mail/issues/66)).
-- Provider quota windows and sending budgets (issue
-  [#54](https://github.com/mehul0810/aculect-mail/issues/54)).
-
 The disabled controls for these boundaries are inert. Do not add an upgrade
 link or purchase instruction until the owner supplies the URL and positioning
 decision.

@@ -75,6 +75,11 @@ final class ProCapabilitiesPanel
                 'description' => __('Escalate repeated terminal failures to validated email or HTTPS webhook destinations without changing core alerts.', 'onesmtp'),
                 'availability' => 'shipped',
             ],
+            FeatureGate::PROVIDER_QUOTA_BUDGETS => [
+                'label' => __('Provider sending budgets', 'onesmtp'),
+                'description' => __('Bound per-provider send attempts across minute, hour, and day windows; attachment-bearing quota deferrals fail closed before scheduling when sanitized retry data cannot reproduce files.', 'onesmtp'),
+                'availability' => 'shipped',
+            ],
         ];
     }
 
