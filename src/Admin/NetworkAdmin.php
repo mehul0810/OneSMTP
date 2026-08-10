@@ -8,6 +8,7 @@ use OneSMTP\Core\Capabilities;
 use OneSMTP\Multisite\NetworkLogRepository;
 use OneSMTP\Multisite\NetworkSettingsRepository;
 use OneSMTP\Product\FeatureGate;
+use OneSMTP\Settings\SettingsRepository;
 use RuntimeException;
 
 final class NetworkAdmin
@@ -188,16 +189,28 @@ final class NetworkAdmin
         echo '<form method="post">';
         wp_nonce_field(self::NONCE_ACTION, self::NONCE_NAME);
         echo '<input type="hidden" name="onesmtp_network_action" value="' . esc_attr(self::SITE_ACTION) . '"><input type="hidden" name="onesmtp_network_site_id" value="' . esc_attr( (string) $siteId) . '">';
-        $limits = $site['settings']['overrides'][ NetworkSettingsRepository::RATE_LIMITS ] ?? [];
+        $network = $this->settings->getNetwork();
+        $limits = $site['settings']['overrides'][ NetworkSettingsRepository::RATE_LIMITS ]
+            ?? $site['local'][ NetworkSettingsRepository::RATE_LIMITS ]
+            ?? [];
         $inheritance = $site['settings']['inheritance'];
+        $inheritRateLimits = array_key_exists(NetworkSettingsRepository::RATE_LIMITS, $inheritance)
+            ? ! empty($inheritance[ NetworkSettingsRepository::RATE_LIMITS ])
+            : ! empty($network['default_inheritance'][ NetworkSettingsRepository::RATE_LIMITS ]);
+        $inheritBackgroundSending = array_key_exists(NetworkSettingsRepository::BACKGROUND_SENDING, $inheritance)
+            ? ! empty($inheritance[ NetworkSettingsRepository::BACKGROUND_SENDING ])
+            : ! empty($network['default_inheritance'][ NetworkSettingsRepository::BACKGROUND_SENDING ]);
+        $inheritAttachmentLogging = array_key_exists(NetworkSettingsRepository::ATTACHMENT_LOGGING, $inheritance)
+            ? ! empty($inheritance[ NetworkSettingsRepository::ATTACHMENT_LOGGING ])
+            : ! empty($network['default_inheritance'][ NetworkSettingsRepository::ATTACHMENT_LOGGING ]);
         $this->numberField('site_rate_limit_per_minute', __('Per minute', 'onesmtp'), (int) ($limits['per_minute'] ?? 0));
         $this->numberField('site_rate_limit_per_hour', __('Per hour', 'onesmtp'), (int) ($limits['per_hour'] ?? 0));
         $this->numberField('site_rate_limit_per_day', __('Per day', 'onesmtp'), (int) ($limits['per_day'] ?? 0));
-        $this->checkbox('site_inherit_rate_limits', __('Inherit network rate limits', 'onesmtp'), ! array_key_exists(NetworkSettingsRepository::RATE_LIMITS, $inheritance) || ! empty($inheritance[ NetworkSettingsRepository::RATE_LIMITS ]));
-        $this->checkbox('site_background_sending_enabled', __('Enable background sending for this site', 'onesmtp'), ! empty($site['settings']['overrides'][ NetworkSettingsRepository::BACKGROUND_SENDING ]['enabled']));
-        $this->checkbox('site_inherit_background_sending', __('Inherit network background sending', 'onesmtp'), ! array_key_exists(NetworkSettingsRepository::BACKGROUND_SENDING, $inheritance) || ! empty($inheritance[ NetworkSettingsRepository::BACKGROUND_SENDING ]));
-        $this->checkbox('site_attachment_logging_enabled', __('Enable attachment logging for this site', 'onesmtp'), ! empty($site['settings']['overrides'][ NetworkSettingsRepository::ATTACHMENT_LOGGING ]['enabled']));
-        $this->checkbox('site_inherit_attachment_logging', __('Inherit network attachment logging', 'onesmtp'), ! array_key_exists(NetworkSettingsRepository::ATTACHMENT_LOGGING, $inheritance) || ! empty($inheritance[ NetworkSettingsRepository::ATTACHMENT_LOGGING ]));
+        $this->checkbox('site_inherit_rate_limits', __('Inherit network rate limits', 'onesmtp'), $inheritRateLimits);
+        $this->checkbox('site_background_sending_enabled', __('Enable background sending for this site', 'onesmtp'), ! empty(($site['settings']['overrides'][ NetworkSettingsRepository::BACKGROUND_SENDING ] ?? $site['local'][ NetworkSettingsRepository::BACKGROUND_SENDING ])['enabled']));
+        $this->checkbox('site_inherit_background_sending', __('Inherit network background sending', 'onesmtp'), $inheritBackgroundSending);
+        $this->checkbox('site_attachment_logging_enabled', __('Enable attachment logging for this site', 'onesmtp'), ! empty(($site['settings']['overrides'][ NetworkSettingsRepository::ATTACHMENT_LOGGING ] ?? $site['local'][ NetworkSettingsRepository::ATTACHMENT_LOGGING ])['enabled']));
+        $this->checkbox('site_inherit_attachment_logging', __('Inherit network attachment logging', 'onesmtp'), $inheritAttachmentLogging);
         submit_button(__('Save site override', 'onesmtp'));
         echo '</form></div></section>';
     }
@@ -309,7 +322,7 @@ final class NetworkAdmin
         ], network_admin_url('settings.php'));
     }
 
-    /** @return array{name:string,settings:array<string,mixed>} */
+    /** @return array{name:string,settings:array<string,mixed>,local:array<string,array<string,mixed>>} */
     private function readSite(int $siteId): array
     {
         $site = [
@@ -319,17 +332,32 @@ final class NetworkAdmin
 				'inheritance' => [],
 				'overrides' => [],
 			],
+			'local' => [
+				NetworkSettingsRepository::RATE_LIMITS => [],
+				NetworkSettingsRepository::BACKGROUND_SENDING => [],
+				NetworkSettingsRepository::ATTACHMENT_LOGGING => [],
+			],
 		];
         if ( ! function_exists('switch_to_blog') || ! switch_to_blog($siteId)) {
             return $site;
         }
-        $site['name'] = function_exists('get_bloginfo') ? sanitize_text_field( (string) get_bloginfo('name')) : $site['name'];
-        $site['settings'] = $this->settings->getSite();
-        if (function_exists('restore_current_blog')) {
-            restore_current_blog();
-        }
 
-        return $site;
+        try {
+            $site['name'] = function_exists('get_bloginfo') ? sanitize_text_field( (string) get_bloginfo('name')) : $site['name'];
+            $site['settings'] = $this->settings->getSite();
+            $localSettings = (new SettingsRepository())->getAll();
+            foreach (NetworkSettingsRepository::groups() as $group) {
+                if (isset($localSettings[ $group ]) && is_array($localSettings[ $group ])) {
+                    $site['local'][ $group ] = $localSettings[ $group ];
+                }
+            }
+
+            return $site;
+        } finally {
+            if (function_exists('restore_current_blog')) {
+                restore_current_blog();
+            }
+        }
     }
 
     private function numberField(string $name, string $label, int $value): void

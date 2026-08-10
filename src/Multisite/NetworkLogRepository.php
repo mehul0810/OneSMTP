@@ -97,24 +97,28 @@ final class NetworkLogRepository
 
         $rows = [];
         foreach ($siteIds as $siteId) {
-            if ( ! switch_to_blog($siteId)) {
-                continue;
-            }
+            $switched = false;
+            try {
+                if ( ! switch_to_blog($siteId)) {
+                    continue;
+                }
+                $switched = true;
 
-            $messages = new MessageRepository();
-            $providers = new ProviderRepository();
-            $providerMap = $this->providerMap($providers->getAllSafe());
-            $siteName = function_exists('get_bloginfo') ? sanitize_text_field( (string) get_bloginfo('name')) : '';
-            /* translators: %d: site ID. */
-            $siteName = $siteName !== '' ? $siteName : sprintf(__('Site %d', 'onesmtp'), $siteId);
-            $siteRows = $messages->listFilteredWithAttemptCounts($filters, 1, self::MAX_ROWS_PER_SITE);
+                $messages = new MessageRepository();
+                $providers = new ProviderRepository();
+                $providerMap = $this->providerMap($providers->getAllSafe());
+                $siteName = function_exists('get_bloginfo') ? sanitize_text_field( (string) get_bloginfo('name')) : '';
+                /* translators: %d: site ID. */
+                $siteName = $siteName !== '' ? $siteName : sprintf(__('Site %d', 'onesmtp'), $siteId);
+                $siteRows = $messages->listFilteredWithAttemptCounts($filters, 1, self::MAX_ROWS_PER_SITE);
 
-            foreach ($siteRows as $message) {
-                $rows[] = $this->summary($message, $siteId, $siteName, $providerMap);
-            }
-
-            if (function_exists('restore_current_blog')) {
-                restore_current_blog();
+                foreach ($siteRows as $message) {
+                    $rows[] = $this->summary($message, $siteId, $siteName, $providerMap);
+                }
+            } finally {
+                if ($switched && function_exists('restore_current_blog')) {
+                    restore_current_blog();
+                }
             }
         }
 

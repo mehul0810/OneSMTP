@@ -179,6 +179,7 @@ final class AdminAccessibilityMarkupTest extends TestCase
         ];
         $GLOBALS['wpdb']->recentMessageRows = [
             $GLOBALS['wpdb']->messageRowsById[99] + [
+                'recipients_hash' => str_repeat('a', 64),
                 'attempt_count' => 2,
                 'created_at' => '2026-06-24 10:00:00',
                 'updated_at' => '2026-06-24 10:05:00',

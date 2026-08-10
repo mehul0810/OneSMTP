@@ -20,6 +20,7 @@ final class NetworkLogRepositoryTest extends TestCase
         $GLOBALS['onesmtp_test_current_user_caps'] = ['manage_network_options' => true];
         $GLOBALS['onesmtp_test_sites'] = [1, 2];
         $GLOBALS['onesmtp_test_current_blog_id'] = 1;
+        $GLOBALS['onesmtp_test_blog_stack'] = [];
         $GLOBALS['onesmtp_test_blog_names'] = [
 			1 => 'Primary site',
 			2 => 'Store site',
@@ -49,7 +50,7 @@ final class NetworkLogRepositoryTest extends TestCase
 
     protected function tearDown(): void
     {
-        unset($GLOBALS['onesmtp_test_multisite'], $GLOBALS['onesmtp_test_network_admin'], $GLOBALS['onesmtp_test_current_user_caps'], $GLOBALS['onesmtp_test_sites'], $GLOBALS['onesmtp_test_current_blog_id'], $GLOBALS['onesmtp_test_blog_names'], $GLOBALS['wpdb']);
+        unset($GLOBALS['onesmtp_test_multisite'], $GLOBALS['onesmtp_test_network_admin'], $GLOBALS['onesmtp_test_current_user_caps'], $GLOBALS['onesmtp_test_sites'], $GLOBALS['onesmtp_test_current_blog_id'], $GLOBALS['onesmtp_test_blog_stack'], $GLOBALS['onesmtp_test_blog_names'], $GLOBALS['wpdb'], $GLOBALS['onesmtp_test_throw_on_sanitize_text_field']);
     }
 
     public function test_network_rows_are_bounded_and_privacy_safe(): void
@@ -83,5 +84,118 @@ final class NetworkLogRepositoryTest extends TestCase
         $repository = new NetworkLogRepository(new NetworkSettingsRepository(new FeatureGate([FeatureGate::MULTISITE_MANAGEMENT => true], true)));
 
         self::assertSame([], $repository->listFiltered());
+    }
+
+    public function test_filter_fixture_excludes_nonmatching_rows_and_counts_matches(): void
+    {
+        $GLOBALS['onesmtp_test_sites'] = [2];
+        $GLOBALS['wpdb']->recentMessageRows = [
+            [
+                'id' => 2,
+                'message_uuid' => 'other-row',
+                'payload_json' => wp_json_encode(['to' => ['other@example.test']]),
+                'status' => 'failed',
+                'selected_provider_id' => 0,
+                'current_attempt' => 1,
+                'max_attempts' => 6,
+                'attempt_count' => 1,
+                'switch_count' => 0,
+                'created_at' => '2026-08-10 10:00:00',
+                'updated_at' => '2026-08-10 10:01:00',
+            ],
+            [
+                'id' => 1,
+                'message_uuid' => 'needle-row',
+                'payload_json' => wp_json_encode(['to' => ['match@example.test']]),
+                'status' => 'failed',
+                'selected_provider_id' => 0,
+                'current_attempt' => 1,
+                'max_attempts' => 6,
+                'attempt_count' => 1,
+                'switch_count' => 0,
+                'created_at' => '2026-08-10 10:00:00',
+                'updated_at' => '2026-08-10 10:01:00',
+            ],
+        ];
+        $gate = new FeatureGate([FeatureGate::MULTISITE_MANAGEMENT => true], true);
+        $repository = new NetworkLogRepository(new NetworkSettingsRepository($gate), $gate);
+
+        $rows = $repository->listFiltered(
+            [
+                'status' => 'failed',
+                'search' => 'needle',
+            ],
+            1,
+            10
+        );
+
+        self::assertCount(1, $rows);
+        self::assertSame('needle-row', $rows[0]['message_uuid']);
+        self::assertSame(
+            1,
+            $repository->countFiltered(
+                [
+                    'status' => 'failed',
+                    'search' => 'needle',
+                ]
+            )
+        );
+    }
+
+    public function test_provider_query_throw_restores_original_blog_context(): void
+    {
+        $GLOBALS['onesmtp_test_sites'] = [2];
+        $GLOBALS['onesmtp_test_current_blog_id'] = 77;
+        $GLOBALS['wpdb']->throwOnProviderQueries = true;
+        $gate = new FeatureGate([FeatureGate::MULTISITE_MANAGEMENT => true], true);
+        $repository = new NetworkLogRepository(new NetworkSettingsRepository($gate), $gate);
+
+        try {
+            $repository->listFiltered();
+            self::fail('Expected the synthetic provider query to throw.');
+        } catch (\RuntimeException $exception) {
+            self::assertSame('Synthetic provider query failure.', $exception->getMessage());
+        }
+
+        self::assertSame(77, get_current_blog_id());
+        self::assertSame([], $GLOBALS['onesmtp_test_blog_stack']);
+    }
+
+    public function test_message_query_throw_restores_original_blog_context(): void
+    {
+        $GLOBALS['onesmtp_test_sites'] = [2];
+        $GLOBALS['onesmtp_test_current_blog_id'] = 77;
+        $GLOBALS['wpdb']->throwOnMessageQueries = true;
+        $gate = new FeatureGate([FeatureGate::MULTISITE_MANAGEMENT => true], true);
+        $repository = new NetworkLogRepository(new NetworkSettingsRepository($gate), $gate);
+
+        try {
+            $repository->listFiltered();
+            self::fail('Expected the synthetic message query to throw.');
+        } catch (\RuntimeException $exception) {
+            self::assertSame('Synthetic message query failure.', $exception->getMessage());
+        }
+
+        self::assertSame(77, get_current_blog_id());
+        self::assertSame([], $GLOBALS['onesmtp_test_blog_stack']);
+    }
+
+    public function test_summary_throw_restores_original_blog_context(): void
+    {
+        $GLOBALS['onesmtp_test_sites'] = [2];
+        $GLOBALS['onesmtp_test_current_blog_id'] = 77;
+        $GLOBALS['onesmtp_test_throw_on_sanitize_text_field'] = 'network-lineage-9';
+        $gate = new FeatureGate([FeatureGate::MULTISITE_MANAGEMENT => true], true);
+        $repository = new NetworkLogRepository(new NetworkSettingsRepository($gate), $gate);
+
+        try {
+            $repository->listFiltered();
+            self::fail('Expected the synthetic summary formatter to throw.');
+        } catch (\RuntimeException $exception) {
+            self::assertSame('Synthetic sanitize_text_field failure.', $exception->getMessage());
+        }
+
+        self::assertSame(77, get_current_blog_id());
+        self::assertSame([], $GLOBALS['onesmtp_test_blog_stack']);
     }
 }

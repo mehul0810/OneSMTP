@@ -100,7 +100,11 @@ $makeMessage = static function (int $id, int $siteId, bool $long): array {
 $rows = [];
 if ($mode === 'long') {
     for ($index = 1; $index <= 75; $index++) {
-        $rows[] = $makeMessage(2000 + $index, 2, true);
+        $message = $makeMessage(2000 + $index, 2, true);
+        $matchesFilters = $index <= 25;
+        $message['status'] = $matchesFilters ? 'failed' : 'sent';
+        $message['message_uuid'] = ($matchesFilters ? 'needle-' : 'other-') . $message['message_uuid'];
+        $rows[] = $message;
     }
 } elseif ($mode !== 'empty') {
     $rows = [

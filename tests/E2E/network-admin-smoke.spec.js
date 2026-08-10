@@ -149,7 +149,8 @@ test.describe( 'Aculect Mail network-admin browser smoke', () => {
 			'tab=logs&site_id=2&status=failed&s=needle&network_logs_per_page=10&network_log_page=2';
 		await loadNetworkFixture( page, 'long', query );
 		const network = page.locator( '.onesmtp-network-admin' );
-		await expect( network ).toContainText( 'Page 2 of 8' );
+		await expect( network ).toContainText( 'Page 2 of 3' );
+		await expect( network ).toContainText( '25 bounded log entries' );
 		await expect( network ).toContainText( 'Network delivery logs' );
 		await expect( network.locator( 'input[name="site_id"]' ) ).toHaveValue(
 			'2'
@@ -161,6 +162,12 @@ test.describe( 'Aculect Mail network-admin browser smoke', () => {
 			network.locator( 'select[name="network_logs_per_page"]' )
 		).toHaveValue( '10' );
 		await expect( network.locator( 'table tbody tr' ) ).toHaveCount( 10 );
+		await expect( network.locator( 'table tbody' ) ).toContainText(
+			'needle-network-message'
+		);
+		await expect( network.locator( 'table tbody' ) ).not.toContainText(
+			'other-network-message'
+		);
 		await expect( page.locator( 'body' ) ).not.toContainText(
 			'private-recipient@example.test'
 		);

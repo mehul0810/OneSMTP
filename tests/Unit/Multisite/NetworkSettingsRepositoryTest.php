@@ -19,11 +19,13 @@ final class NetworkSettingsRepositoryTest extends TestCase
         $GLOBALS['onesmtp_test_network_admin'] = true;
         $GLOBALS['onesmtp_test_options'] = [];
         $GLOBALS['onesmtp_test_current_user_caps'] = ['manage_network_options' => true];
+        $GLOBALS['onesmtp_test_current_blog_id'] = 1;
+        $GLOBALS['onesmtp_test_blog_stack'] = [];
     }
 
     protected function tearDown(): void
     {
-        unset($GLOBALS['onesmtp_test_multisite'], $GLOBALS['onesmtp_test_network_admin'], $GLOBALS['onesmtp_test_options'], $GLOBALS['onesmtp_test_current_user_caps']);
+        unset($GLOBALS['onesmtp_test_multisite'], $GLOBALS['onesmtp_test_network_admin'], $GLOBALS['onesmtp_test_options'], $GLOBALS['onesmtp_test_current_user_caps'], $GLOBALS['onesmtp_test_current_blog_id'], $GLOBALS['onesmtp_test_blog_stack'], $GLOBALS['onesmtp_test_throw_on_update_option']);
     }
 
     public function test_network_defaults_are_allowlisted_and_resolved_only_when_inherited(): void
@@ -77,5 +79,23 @@ final class NetworkSettingsRepositoryTest extends TestCase
 
         $GLOBALS['onesmtp_test_multisite'] = true;
         self::assertSame(false, (new BackgroundSendingSettingsRepository(null, $repository))->get()->isEnabled());
+    }
+
+    public function test_save_site_restores_original_blog_when_update_throws(): void
+    {
+        $gate = new FeatureGate([FeatureGate::MULTISITE_MANAGEMENT => true], true);
+        $repository = new NetworkSettingsRepository($gate);
+        $GLOBALS['onesmtp_test_current_blog_id'] = 77;
+        $GLOBALS['onesmtp_test_throw_on_update_option'] = NetworkSettingsRepository::SITE_OPTION;
+
+        try {
+            $repository->saveSite(2, [], []);
+            self::fail('Expected the synthetic site-option write to throw.');
+        } catch (\RuntimeException $exception) {
+            self::assertSame('Synthetic update_option failure.', $exception->getMessage());
+        }
+
+        self::assertSame(77, get_current_blog_id());
+        self::assertSame([], $GLOBALS['onesmtp_test_blog_stack']);
     }
 }

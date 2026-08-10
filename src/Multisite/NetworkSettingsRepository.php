@@ -121,19 +121,20 @@ final class NetworkSettingsRepository
             return false;
         }
 
-        $normalized = $this->normalizeSite([
-            'overrides' => $overrides,
-            'inheritance' => $inheritance,
-        ]);
-        $saved = (bool) update_option(self::SITE_OPTION, $normalized, false);
+        try {
+            $normalized = $this->normalizeSite([
+                'overrides' => $overrides,
+                'inheritance' => $inheritance,
+            ]);
 
-        if (function_exists('restore_current_blog')) {
-            restore_current_blog();
-        } elseif ($currentBlogId > 0 && function_exists('switch_to_blog')) {
-            switch_to_blog($currentBlogId);
+            return (bool) update_option(self::SITE_OPTION, $normalized, false);
+        } finally {
+            if (function_exists('restore_current_blog')) {
+                restore_current_blog();
+            } elseif ($currentBlogId > 0 && function_exists('switch_to_blog')) {
+                switch_to_blog($currentBlogId);
+            }
         }
-
-        return $saved;
     }
 
     /** @return array<int,string> */

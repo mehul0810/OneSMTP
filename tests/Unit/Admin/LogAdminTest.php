@@ -287,6 +287,7 @@ final class LogAdminTest extends TestCase
                 'id' => 35,
                 'message_uuid' => 'lineage-35',
                 'payload_json' => wp_json_encode(['to' => ['person@example.test']]),
+                'recipients_hash' => $hash,
                 'status' => 'sent',
                 'selected_provider_id' => 0,
                 'current_attempt' => 1,
