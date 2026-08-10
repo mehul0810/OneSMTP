@@ -102,7 +102,7 @@ final class ProviderOAuthLifecycleTest extends TestCase
         self::assertCount(1, $this->http->calls);
         self::assertSame('https://oauth2.googleapis.com/token', $this->http->calls[0]['url']);
         self::assertArrayNotHasKey('code_verifier', $this->http->calls[0]['body']);
-        $savedConfig = json_decode((string) ($GLOBALS['wpdb']->updates[0]['data']['config_json'] ?? ''), true);
+        $savedConfig = json_decode( (string) ($GLOBALS['wpdb']->updates[0]['data']['config_json'] ?? ''), true);
         self::assertIsArray($savedConfig);
         self::assertArrayNotHasKey('access_token', $savedConfig);
         self::assertArrayNotHasKey('access_token_expires_at', $savedConfig);
@@ -164,7 +164,7 @@ final class ProviderOAuthLifecycleTest extends TestCase
         self::assertSame('disconnected_local_blocked', $result['code']);
         self::assertSame([], $repository->getActiveProviders());
         self::assertSame(0, (new ProviderRepository())->find(7)['is_active']);
-        self::assertTrue((bool) get_option('onesmtp_oauth_disconnect_blocked_7', false));
+        self::assertTrue( (bool) get_option( 'onesmtp_oauth_disconnect_blocked_7', false));
     }
 
     public function test_disconnect_keeps_credentials_removed_when_active_update_fails(): void
@@ -188,7 +188,7 @@ final class ProviderOAuthLifecycleTest extends TestCase
             static fn (array $update): bool => isset($update['data']['config_json'])
         ));
         self::assertCount(1, $configWrites);
-        self::assertArrayNotHasKey('access_token', json_decode((string) $configWrites[0]['data']['config_json'], true));
+        self::assertArrayNotHasKey('access_token', json_decode( (string) $configWrites[0]['data']['config_json'], true));
         self::assertSame([], (new ProviderRepository())->getActiveProviders());
     }
 
@@ -266,7 +266,7 @@ final class ProviderOAuthLifecycleTest extends TestCase
         );
 
         self::assertTrue($result->isSuccess());
-        $payload = json_decode((string) $GLOBALS['onesmtp_test_remote_posts'][0]['args']['body'], true);
+        $payload = json_decode( (string) $GLOBALS['onesmtp_test_remote_posts'][0]['args']['body'], true);
         self::assertIsArray($payload);
         $raw = (string) ($payload['raw'] ?? '');
         $raw .= str_repeat('=', (4 - strlen($raw) % 4) % 4);
@@ -290,7 +290,10 @@ final class ProviderOAuthLifecycleTest extends TestCase
         $clock = static fn (): int => 1700000000;
         $store = new WordPressProviderOAuthStateStore($clock);
         $stateHash = str_repeat('a', 64);
-        $record = [ 'provider_id' => 7, 'provider_type' => ProviderTypes::GMAIL ];
+        $record = [
+            'provider_id' => 7,
+            'provider_type' => ProviderTypes::GMAIL,
+        ];
         $claimKey = 'onesmtp_oauth_state_claim_' . $stateHash;
         set_transient('onesmtp_oauth_state_' . $stateHash, $record, 120);
         add_option($claimKey, [ 'expires_at' => 1700000300 ], '', false);
