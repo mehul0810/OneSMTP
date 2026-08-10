@@ -44,6 +44,24 @@ final class FeatureGate
         }
     }
 
+    /**
+     * Build the gate from extension points supplied by a future Pro runtime.
+     *
+     * The free plugin ships with both values disabled. No licensing request or
+     * network lookup is performed here; an installed Pro component may provide
+     * the entitlement and rollout state through these filters.
+     */
+    public static function fromRuntime(): self
+    {
+        $flags = apply_filters('onesmtp_feature_flags', []);
+        $entitled = apply_filters('onesmtp_pro_entitled', false);
+
+        return new self(
+            is_array($flags) ? $flags : [],
+            $entitled === true
+        );
+    }
+
     /** @return array<int,string> */
     public static function featureIds(): array
     {

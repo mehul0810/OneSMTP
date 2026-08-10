@@ -1804,6 +1804,41 @@
     padding: 0;
 }
 
+.onesmtp-routing-rules-panel .inside {
+    min-width: 0;
+}
+
+.onesmtp-routing-table-wrap {
+    margin: 16px 0 24px;
+    overflow-x: auto;
+}
+
+.onesmtp-routing-table-wrap table {
+    min-width: 640px;
+}
+
+.onesmtp-routing-table-wrap form {
+    margin: 0;
+}
+
+.onesmtp-routing-gated-state {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 16px;
+}
+
+.onesmtp-routing-form textarea {
+    max-width: 640px;
+}
+
+@media (max-width: 782px) {
+    .onesmtp-routing-table-wrap table {
+        min-width: 560px;
+    }
+}
+
 .onesmtp-provider-test-step {
     background: #f6f7f7;
     border: 1px solid #dcdcde;

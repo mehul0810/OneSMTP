@@ -25,3 +25,22 @@ When Pro analytics is enabled, the Analytics screen calculates a provider reliab
 The dashboard labels fewer than 20 recorded attempts as a **Limited sample** and 20 or more as an **Established sample**. This label describes evidence volume, not statistical certainty. Scores contain no recipient address, message body, subject, credential, or provider response content.
 
 Reliability scores are operational comparisons inside the selected site and time window. They are not inbox-placement measurements, contractual provider SLAs, or delivery guarantees.
+
+## Conditional routing (Pro)
+
+When the Smart routing capability is enabled, administrators can add bounded
+conditional rules on the Routing screen. Supported fields are sender,
+recipient, subject, content, and source attribution (source type, slug, name,
+or origin). Matching uses case-insensitive equality or bounded text operators;
+regular expressions and arbitrary payload/header fields are not accepted.
+
+Rules are evaluated by ascending priority. A lower number wins, and rules with
+the same priority keep their configured order. Disabled rules, malformed rules,
+inactive providers, and providers with an open circuit are skipped before the
+normal healthy-provider route is used.
+
+Content and source values are read only while a message is being dispatched.
+The routing context is bounded in memory and is never copied into routing
+events, audit records, or new persistent fields. Rule definitions contain only
+the administrator's configured field/operator/value; message bodies,
+recipients, and headers are not added to the logs.

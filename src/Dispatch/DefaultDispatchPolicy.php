@@ -4,15 +4,25 @@ declare(strict_types=1);
 
 namespace OneSMTP\Dispatch;
 
+use OneSMTP\Product\FeatureGate;
+
 final class DefaultDispatchPolicy implements DispatchPolicyInterface
 {
     private const MAX_ATTEMPTS = 6;
 
     private RoutingRuleEvaluator $routingRules;
+    private RoutingRulesRepository $rulesRepository;
+    private RoutingContextBuilder $contextBuilder;
 
-    public function __construct(?RoutingRuleEvaluator $routingRules = null)
-    {
-        $this->routingRules = $routingRules ?? new RoutingRuleEvaluator();
+    public function __construct(
+        ?RoutingRuleEvaluator $routingRules = null,
+        ?FeatureGate $featureGate = null,
+        ?RoutingRulesRepository $rulesRepository = null,
+        ?RoutingContextBuilder $contextBuilder = null
+    ) {
+        $this->routingRules = $routingRules ?? new RoutingRuleEvaluator($featureGate);
+        $this->rulesRepository = $rulesRepository ?? new RoutingRulesRepository();
+        $this->contextBuilder = $contextBuilder ?? new RoutingContextBuilder();
     }
 
     public function chooseNextProvider(int $messageId, int $attemptNumber, array $context): ?int
@@ -36,9 +46,18 @@ final class DefaultDispatchPolicy implements DispatchPolicyInterface
             return $forcedProviderId;
         }
 
+        $routingRules = array_key_exists('routing_rules', $context) && is_array($context['routing_rules'])
+            ? $context['routing_rules']
+            : $this->rulesRepository->get();
+        $routingContext = array_key_exists('routing_context', $context) && is_array($context['routing_context'])
+            ? $context['routing_context']
+            : $this->contextBuilder->fromPayload(
+                is_array($context['payload'] ?? null) ? $context['payload'] : []
+            );
+
         $routingProviderId = $this->routingRules->evaluate(
-            is_array($context['routing_rules'] ?? null) ? $context['routing_rules'] : [],
-            is_array($context['routing_context'] ?? null) ? $context['routing_context'] : [],
+            $routingRules,
+            $routingContext,
             $providers
         );
 
@@ -54,7 +73,7 @@ final class DefaultDispatchPolicy implements DispatchPolicyInterface
         if ($attemptNumber <= 1 || $lastProviderId <= 0) {
             $startIndex = $this->initialPoolIndex($messageId, count($weightedPool));
 
-            return (int) $weightedPool[$startIndex]['id'];
+            return (int) $weightedPool[ $startIndex ]['id'];
         }
 
         // Normal retries keep the current provider for one additional attempt so
@@ -74,7 +93,7 @@ final class DefaultDispatchPolicy implements DispatchPolicyInterface
         $normalized = [];
 
         foreach ($providers as $provider) {
-            if (! is_array($provider)) {
+            if ( ! is_array($provider)) {
                 continue;
             }
 
@@ -127,13 +146,13 @@ final class DefaultDispatchPolicy implements DispatchPolicyInterface
         $count = count($providers);
 
         foreach ($providers as $index => $provider) {
-            if ((int) $provider['id'] !== $lastProviderId) {
+            if ( (int) $provider['id'] !== $lastProviderId) {
                 continue;
             }
 
             $nextIndex = ($index + 1) % $count;
 
-            return (int) $providers[$nextIndex]['id'];
+            return (int) $providers[ $nextIndex ]['id'];
         }
 
         return (int) $providers[0]['id'];
@@ -142,7 +161,7 @@ final class DefaultDispatchPolicy implements DispatchPolicyInterface
     private function providerExists(array $providers, int $providerId): bool
     {
         foreach ($providers as $provider) {
-            if ((int) ($provider['id'] ?? 0) === $providerId) {
+            if ( (int) ($provider['id'] ?? 0) === $providerId) {
                 return true;
             }
         }
