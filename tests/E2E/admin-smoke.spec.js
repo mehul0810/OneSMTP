@@ -502,15 +502,30 @@ test.describe( 'Aculect Mail admin browser smoke', () => {
 			'/var/www/private/invoice.pdf'
 		);
 
-		const acknowledgeForm = alerts.locator( 'form' ).filter( {
+		const acknowledgeForms = alerts.locator( 'form' ).filter( {
 			has: page.locator(
 				'input[name="onesmtp_alert_history_action"][value="acknowledge"]'
+			),
+		} );
+		await expect( acknowledgeForms ).toHaveCount( 2 );
+		const acknowledgeForm = acknowledgeForms.filter( {
+			has: page.locator(
+				'input[name="onesmtp_alert_event_id"][value="45"]'
 			),
 		} );
 		await expect( acknowledgeForm ).toHaveCount( 1 );
 		await expect(
 			acknowledgeForm.locator( 'input[name="onesmtp_alert_event_id"]' )
 		).toHaveValue( '45' );
+		const deferredForm = acknowledgeForms.filter( {
+			has: page.locator(
+				'input[name="onesmtp_alert_event_id"][value="43"]'
+			),
+		} );
+		await expect( deferredForm ).toHaveCount( 1 );
+		await expect(
+			deferredForm.getByRole( 'button', { name: 'Acknowledge' } )
+		).toBeVisible();
 
 		await acknowledgeForm
 			.getByRole( 'button', { name: 'Acknowledge' } )
