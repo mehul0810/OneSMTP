@@ -158,6 +158,7 @@ final class AdminPageTest extends TestCase
         self::assertStringContainsString('id="onesmtp-alerts"', $output);
         self::assertStringContainsString('Pro capabilities', $output);
         self::assertStringContainsString('Requires Pro', $output);
+        self::assertStringNotContainsString('Log retention policy', $output);
     }
 
     public function test_render_blocks_users_without_manage_capability(): void
