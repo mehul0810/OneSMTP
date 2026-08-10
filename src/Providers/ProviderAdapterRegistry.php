@@ -32,10 +32,22 @@ final class ProviderAdapterRegistry
     private array $adapters;
 
     /**
-     * @param array<string,ProviderAdapterInterface>|null $adapters
+     * @var array<string,ProviderAdapterDescriptor|mixed>
      */
-    public function __construct(?array $adapters = null)
+    private array $descriptors = [];
+
+    /** @var array<int,string> */
+    private array $validationErrors = [];
+
+    private bool $catalogMode = false;
+
+    /**
+     * @param array<string,ProviderAdapterInterface>|null $adapters
+     * @param array<string,ProviderAdapterDescriptor>|null $descriptors
+     */
+    public function __construct(?array $adapters = null, ?array $descriptors = null)
     {
+        $usingDefaultAdapters = $adapters === null;
         $this->adapters = $adapters ?? [
             ProviderTypes::SMTP       => new SmtpAdapter(),
             ProviderTypes::AMAZON_SES => new AmazonSesAdapter(),
@@ -57,10 +69,103 @@ final class ProviderAdapterRegistry
             ProviderTypes::EMAILIT => new EmailitAdapter(),
             ProviderTypes::NETCORE => new NetcoreAdapter(),
         ];
+
+        // A descriptor catalog is used for the built-in registry, while
+        // legacy custom registries retain their historical adapter-only mode.
+        // Callers can opt a custom registry into the additive contract by
+        // supplying descriptors explicitly.
+        $this->catalogMode = $usingDefaultAdapters || $descriptors !== null;
+        $this->descriptors = $descriptors ?? ($usingDefaultAdapters
+            ? ProviderAdapterCatalog::fromAdapters($this->adapters)
+            : []);
+        $this->validationErrors = $this->catalogMode
+            ? ProviderAdapterContractValidator::validate($this->descriptors)
+            : self::validateLegacyAdapters($this->adapters);
     }
 
     public function get(string $providerType): ?ProviderAdapterInterface
     {
-        return $this->adapters[$providerType] ?? null;
+        if ($this->validationErrors !== []) {
+            return null;
+        }
+
+        return $this->adapters[ $providerType ] ?? null;
+    }
+
+    /**
+     * @return array<string,ProviderAdapterInterface>
+     */
+    public function all(): array
+    {
+        return $this->validationErrors === [] ? $this->adapters : [];
+    }
+
+    /**
+     * @return array<string,ProviderAdapterDescriptor|mixed>
+     */
+    public function getDescriptors(): array
+    {
+        return $this->descriptors;
+    }
+
+    /**
+     * @return array<int,string>
+     */
+    public function getValidationErrors(): array
+    {
+        return $this->validationErrors;
+    }
+
+    public function isValid(): bool
+    {
+        return $this->validationErrors === [];
+    }
+
+    /**
+     * Add a catalog declaration without changing the existing adapter
+     * interface. Registration is committed only when the complete catalog
+     * remains valid; malformed, duplicate, or unregistered declarations fail
+     * closed and are not made available through get().
+     */
+    public function register(ProviderAdapterDescriptor $descriptor): bool
+    {
+        if ( ! $this->catalogMode || isset($this->descriptors[ $descriptor->getSlug() ])) {
+            return false;
+        }
+
+        $descriptors = $this->descriptors;
+        $descriptors[ $descriptor->getSlug() ] = $descriptor;
+        $errors = ProviderAdapterContractValidator::validate($descriptors);
+        if ($errors !== []) {
+            return false;
+        }
+
+        $this->descriptors = $descriptors;
+        $this->adapters[ $descriptor->getSlug() ] = $descriptor->getAdapter();
+        $this->validationErrors = [];
+
+        return true;
+    }
+
+    /** @param array<string,mixed> $adapters */
+    private static function validateLegacyAdapters(array $adapters): array
+    {
+        $errors = [];
+        foreach ($adapters as $registrationSlug => $adapter) {
+            if ( ! $adapter instanceof ProviderAdapterInterface) {
+                $errors[] = sprintf('Registration %s has no valid adapter.', (string) $registrationSlug);
+                continue;
+            }
+
+            if ( (string) $registrationSlug !== $adapter->getSlug()) {
+                $errors[] = sprintf(
+                    'Registration key %s does not match adapter slug %s.',
+                    (string) $registrationSlug,
+                    $adapter->getSlug()
+                );
+            }
+        }
+
+        return array_values(array_unique($errors));
     }
 }

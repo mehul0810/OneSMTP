@@ -361,6 +361,90 @@ final class ProviderTypes
         ];
     }
 
+    /**
+     * Return the bounded connection fields accepted by each adapter.
+     *
+     * Sender identity fields are intentionally owned by SenderIdentity and
+     * are not part of this provider credential contract.
+     *
+     * @return array<string,array<string,array{type:string,required:bool,secret:bool,max_length:int,enum?:array<int,string>}>>
+     */
+    public static function credentialSchema(): array
+    {
+        $timeout = self::credentialField('integer', false, false, 4);
+        $region = self::credentialField('string', false, false, 32);
+        $apiKey = self::credentialField('string', true, true, 512);
+
+        return [
+            self::SMTP => [
+                'host' => self::credentialField('string', true, false, 255),
+                'port' => self::credentialField('integer', false, false, 5),
+                'username' => self::credentialField('string', false, true, 255),
+                'password' => self::credentialField('string', false, true, 512),
+                'encryption' => self::credentialField('string', false, false, 16, ['tls', 'ssl']),
+                'auth' => self::credentialField('boolean', false, false, 1),
+                'timeout' => $timeout,
+            ],
+            self::AMAZON_SES => [
+                'region' => self::credentialField('string', true, false, 32),
+                'username' => self::credentialField('string', true, true, 255),
+                'password' => self::credentialField('string', true, true, 512),
+                'port' => self::credentialField('integer', false, false, 5),
+                'encryption' => self::credentialField('string', false, false, 16, ['tls', 'ssl']),
+                'timeout' => $timeout,
+            ],
+            self::GMAIL => [
+                'client_id' => self::credentialField('string', true, true, 512),
+                'client_secret' => self::credentialField('string', true, true, 512),
+                'refresh_token' => self::credentialField('string', true, true, 2048),
+            ],
+            self::SENDGRID => ['api_key' => $apiKey, 'timeout' => $timeout],
+            self::POSTMARK => ['api_key' => $apiKey, 'timeout' => $timeout],
+            self::BREVO => ['api_key' => $apiKey, 'timeout' => $timeout],
+            self::MAILGUN => [
+                'api_key' => $apiKey,
+                'domain' => self::credentialField('string', true, false, 255),
+                'region' => $region,
+                'timeout' => $timeout,
+            ],
+            self::RESEND => ['api_key' => $apiKey, 'timeout' => $timeout],
+            self::MAILJET => [
+                'api_key' => $apiKey,
+                'secret_key' => self::credentialField('string', true, true, 512),
+                'timeout' => $timeout,
+            ],
+            self::SPARKPOST => [
+                'api_key' => $apiKey,
+                'region' => $region,
+                'timeout' => $timeout,
+            ],
+            self::MAILERSEND => ['api_key' => $apiKey, 'timeout' => $timeout],
+            self::SMTP2GO => [
+                'api_key' => $apiKey,
+                'region' => self::credentialField('string', false, false, 16, ['global', 'us', 'eu', 'au']),
+                'timeout' => $timeout,
+            ],
+            self::ELASTIC_EMAIL => ['api_key' => $apiKey, 'timeout' => $timeout],
+            self::ZEPTOMAIL => ['api_key' => $apiKey, 'timeout' => $timeout],
+            self::MAILCHIMP_TRANSACTIONAL => ['api_key' => $apiKey, 'timeout' => $timeout],
+            self::ZOHO_MAIL => [
+                'region' => self::credentialField('string', true, false, 16, ['com', 'in', 'eu', 'com.au', 'jp', 'ca', 'com.cn']),
+                'account_id' => self::credentialField('string', true, false, 128),
+                'client_id' => self::credentialField('string', true, true, 512),
+                'client_secret' => self::credentialField('string', true, true, 512),
+                'refresh_token' => self::credentialField('string', true, true, 2048),
+                'timeout' => $timeout,
+            ],
+            self::EMAILIT => ['api_key' => $apiKey, 'timeout' => $timeout],
+            self::NETCORE => [
+                'api_key' => $apiKey,
+                'region' => self::credentialField('string', false, false, 8, ['us', 'eu']),
+                'timeout' => $timeout,
+            ],
+            self::PHP_MAIL => [],
+        ];
+    }
+
     public static function isSupported(string $type): bool
     {
         return in_array($type, self::all(), true);
@@ -371,5 +455,24 @@ final class ProviderTypes
         $metadata = self::metadata();
 
         return ! empty($metadata[$type]['capabilities'][$capability]);
+    }
+
+    /**
+     * @param array<int,string> $enum
+     * @return array{type:string,required:bool,secret:bool,max_length:int,enum?:array<int,string>}
+     */
+    private static function credentialField(string $type, bool $required, bool $secret, int $maxLength, array $enum = []): array
+    {
+        $field = [
+            'type' => $type,
+            'required' => $required,
+            'secret' => $secret,
+            'max_length' => $maxLength,
+        ];
+        if ($enum !== []) {
+            $field['enum'] = $enum;
+        }
+
+        return $field;
     }
 }
