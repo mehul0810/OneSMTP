@@ -7,7 +7,7 @@ Aculect Mail includes adapters for the major transactional providers below:
 - Amazon SES (SMTP credentials)
 - Brevo
 - Elastic Email
-- Gmail (SMTP)
+- Gmail (Gmail API with customer-owned OAuth; generic SMTP remains available separately)
 - Mailchimp Transactional (Mandrill)
 - MailerSend
 - Mailgun
@@ -82,9 +82,37 @@ prevents a later worker from sending the message without its files.
 - Elastic Email requires an API key with SendHttp access.
 - Resend, MailerSend, Mailchimp Transactional, SendGrid, Brevo, and Postmark require their respective API key or token.
 - Amazon SES requires SES SMTP credentials for the selected AWS Region, not regular AWS access keys.
-- Zoho Mail requires an account ID and OAuth access token with `ZohoMail.messages.CREATE` or `ZohoMail.messages.ALL` access.
+- Zoho Mail requires an account ID and customer-owned OAuth client registration. The candidate requests only `ZohoMail.messages.CREATE`; existing manual refresh credentials remain compatible.
 - Emailit requires an API v2 key and verified sender domain.
 - Netcore requires an Email API key and the matching US or EU API region.
+
+## Gmail and Zoho OAuth lifecycle (Pro candidate)
+
+When the `provider_auth_lifecycle` entitlement and rollout flag are enabled,
+save the customer-owned client ID and client secret as an inactive provider,
+then select **Connect with Google** or **Connect with Zoho**. Register the
+exact HTTPS callback URL shown in the drawer in the provider's app console.
+Google requests only `https://www.googleapis.com/auth/gmail.send`, uses
+server-side offline authorization, and deliberately does not claim PKCE support.
+Zoho uses the selected regional accounts host, only
+`ZohoMail.messages.CREATE`, `access_type=offline`, and S256 PKCE. The callback
+requires the logged-in administrator, a one-time two-minute state, the exact
+provider record/type, and a safe same-site return target.
+
+The drawer reports `configured_unverified` until a token exchange or refresh is
+verified; it never labels stored fields as connected. After verification, send a
+test email and activate the provider. Disconnect attempts the provider revoke
+endpoint and always removes local access/refresh credentials and deactivates the
+connection, even when the remote provider is unavailable. Tokens, authorization
+codes, state, client secrets, and provider diagnostics are not logged, audited,
+exported, or shown in the UI.
+
+Use the provider's official registration references when creating the
+customer-owned app: [Google web-server OAuth](https://developers.google.com/workspace/gmail/api/auth/web-server),
+[Gmail send API](https://developers.google.com/gmail/api/reference/rest/v1/users.messages/send),
+and [Zoho Mail OAuth](https://www.zoho.com/mail/help/api/using-oauth-2.html).
+Google app verification and regional Zoho account registration remain
+customer-operated requirements.
 
 ## Mailgun delivery webhooks (Pro candidate)
 

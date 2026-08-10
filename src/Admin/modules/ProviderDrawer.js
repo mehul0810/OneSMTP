@@ -86,7 +86,7 @@ const fieldsByType = {
 const requiredConfigFields = {
 	smtp: [ 'host' ],
 	amazon_ses: [ 'region', 'username', 'password' ],
-	gmail: [ 'client_id', 'client_secret', 'refresh_token' ],
+	gmail: [ 'client_id', 'client_secret' ],
 	sendgrid: [ 'api_key' ],
 	postmark: [ 'api_key' ],
 	brevo: [ 'api_key' ],
@@ -99,16 +99,20 @@ const requiredConfigFields = {
 	elastic_email: [ 'api_key' ],
 	zeptomail: [ 'api_key' ],
 	mailchimp_transactional: [ 'api_key' ],
-	zoho_mail: [
-		'region',
-		'account_id',
-		'client_id',
-		'client_secret',
-		'refresh_token',
-	],
+	zoho_mail: [ 'region', 'account_id', 'client_id', 'client_secret' ],
 	emailit: [ 'api_key' ],
 	netcore: [ 'api_key', 'region' ],
 	php_mail: [],
+};
+
+const oauthStatusLabels = {
+	configured_unverified: __( 'Configured unverified', 'onesmtp' ),
+	connected: __( 'Connected', 'onesmtp' ),
+	disconnected: __( 'Disconnected', 'onesmtp' ),
+	refresh_failed: __( 'Refresh failed', 'onesmtp' ),
+	reauth_required: __( 'Reauthentication required', 'onesmtp' ),
+	revoked: __( 'Revoked', 'onesmtp' ),
+	unknown: __( 'Unknown', 'onesmtp' ),
 };
 
 const initialProviderConfig = ( type ) => {
@@ -199,6 +203,8 @@ const requestConfig = ( providerConfig, isEditing, providerEventsEnabled ) =>
 export default function ProviderInlineSettings( { config } ) {
 	const type = config.type || 'smtp';
 	const providerEventsEnabled = config.providerEventsEnabled === true;
+	const oauthEnabled = config.oauthEnabled === true;
+	const oauthSupported = type === 'gmail' || type === 'zoho_mail';
 	const connections = Array.isArray( config.connections )
 		? config.connections
 		: [];
@@ -222,12 +228,17 @@ export default function ProviderInlineSettings( { config } ) {
 	);
 	const [ isTesting, setIsTesting ] = useState( false );
 	const [ isConfirmingDelete, setIsConfirmingDelete ] = useState( false );
+	const [ authStatus, setAuthStatus ] = useState( null );
 	const panelId = `onesmtp-provider-settings-${ type }`;
 	const headingRef = useRef( null );
 	const isEditing = editingId !== null;
 	const editingConnection = connections.find(
 		( connection ) => Number( connection.id ) === editingId
 	);
+	const oauthCallbackUrl =
+		editingId && config.oauthCallbackBase
+			? `${ config.oauthCallbackBase }${ editingId }/oauth/callback`
+			: '';
 	const hasRequiredConfig = ( requiredConfigFields[ type ] || [] ).every(
 		( field ) => {
 			if ( isEditing && isSensitiveField( field ) ) {
@@ -243,6 +254,33 @@ export default function ProviderInlineSettings( { config } ) {
 			headingRef.current.focus();
 		}
 	}, [ isOpen ] );
+
+	useEffect( () => {
+		if ( ! isOpen || ! oauthEnabled || ! oauthSupported || ! editingId ) {
+			setAuthStatus( null );
+			return;
+		}
+
+		let active = true;
+		apiFetch( {
+			url: `${ config.endpoint }/${ editingId }/oauth/status`,
+			headers: { 'X-WP-Nonce': config.nonce },
+		} )
+			.then( ( response ) => {
+				if ( active ) {
+					setAuthStatus( response?.status || null );
+				}
+			} )
+			.catch( () => {
+				if ( active ) {
+					setAuthStatus( { state: 'unknown' } );
+				}
+			} );
+
+		return () => {
+			active = false;
+		};
+	}, [ isOpen, oauthEnabled, oauthSupported, editingId ] );
 
 	const updateConfig = ( field, value ) =>
 		setProviderConfig( ( current ) => ( {
@@ -269,6 +307,7 @@ export default function ProviderInlineSettings( { config } ) {
 		setProviderQuota( initialProviderQuota() );
 		setNotice( null );
 		setIsConfirmingDelete( false );
+		setAuthStatus( null );
 		setIsOpen( true );
 	};
 	const openExistingConnection = ( connection ) => {
@@ -290,6 +329,8 @@ export default function ProviderInlineSettings( { config } ) {
 		setIsActive( Boolean( connection.isActive ) );
 		setProviderConfig( editableConfig( type, connection.config ) );
 		setProviderQuota( normalizeProviderQuota( connection.config ) );
+		setSavedId( id );
+		setAuthStatus( null );
 		setNotice( null );
 		setIsConfirmingDelete( false );
 		setIsOpen( true );
@@ -350,6 +391,82 @@ export default function ProviderInlineSettings( { config } ) {
 					error?.message ||
 					__( 'Unable to save this provider.', 'onesmtp' ),
 			} );
+			setIsSaving( false );
+		}
+	};
+	const beginOAuth = async () => {
+		if ( ! oauthEnabled || ! oauthSupported || ! savedId ) {
+			return;
+		}
+
+		setIsSaving( true );
+		setNotice( null );
+		try {
+			const response = await apiFetch( {
+				url: `${ config.endpoint }/${ savedId }/oauth/start`,
+				method: 'POST',
+				headers: { 'X-WP-Nonce': config.nonce },
+				data: { return_url: window.location.href },
+			} );
+			if ( response?.authorization_url ) {
+				window.location.href = response.authorization_url;
+				return;
+			}
+			throw new Error(
+				__( 'The authorization link was unavailable.', 'onesmtp' )
+			);
+		} catch ( error ) {
+			setNotice( {
+				status: 'error',
+				message:
+					error?.message ||
+					__( 'Unable to start provider authorization.', 'onesmtp' ),
+			} );
+			setIsSaving( false );
+		}
+	};
+	const disconnectOAuth = async () => {
+		if ( ! oauthEnabled || ! oauthSupported || ! editingId ) {
+			return;
+		}
+
+		setIsSaving( true );
+		setNotice( null );
+		try {
+			const response = await apiFetch( {
+				url: `${ config.endpoint }/${ editingId }/oauth/disconnect`,
+				method: 'POST',
+				headers: { 'X-WP-Nonce': config.nonce },
+			} );
+			setAuthStatus( {
+				state: 'disconnected',
+				can_reconnect: true,
+				can_revoke: false,
+			} );
+			setNotice( {
+				status:
+					response?.code === 'disconnected_remote_retry'
+						? 'warning'
+						: 'success',
+				message:
+					response?.code === 'disconnected_remote_retry'
+						? __(
+								'Local credentials were removed. Retry the provider-side revoke from its console if needed.',
+								'onesmtp'
+						  )
+						: __(
+								'Provider disconnected and local OAuth credentials were removed.',
+								'onesmtp'
+						  ),
+			} );
+		} catch ( error ) {
+			setNotice( {
+				status: 'error',
+				message:
+					error?.message ||
+					__( 'Unable to disconnect this provider.', 'onesmtp' ),
+			} );
+		} finally {
 			setIsSaving( false );
 		}
 	};
@@ -429,6 +546,9 @@ export default function ProviderInlineSettings( { config } ) {
 	let saveButtonLabel = isEditing
 		? __( 'Save changes', 'onesmtp' )
 		: __( 'Connect provider', 'onesmtp' );
+	if ( oauthSupported && ! isActive && ! isEditing ) {
+		saveButtonLabel = __( 'Save inactive', 'onesmtp' );
+	}
 	if ( isSaving ) {
 		saveButtonLabel = (
 			<>
@@ -613,6 +733,98 @@ export default function ProviderInlineSettings( { config } ) {
 									'onesmtp'
 								) }
 							</p>
+						</div>
+					) }
+					{ oauthSupported && (
+						<div
+							className="onesmtp-provider-field-note onesmtp-oauth-guidance"
+							aria-live="polite"
+						>
+							<strong>
+								{ __(
+									'Customer-owned OAuth connection',
+									'onesmtp'
+								) }
+							</strong>
+							{ ! oauthEnabled ? (
+								<p>
+									{ __(
+										'OAuth connect, callback, refresh, and disconnect are unavailable until the Pro provider-auth lifecycle rollout is enabled. Existing credentials remain untouched.',
+										'onesmtp'
+									) }
+								</p>
+							) : (
+								<>
+									<p>
+										{ __(
+											'Save client credentials as inactive first. Then start the site-local HTTPS authorization flow, verify the returned status, send a test, and activate the provider.',
+											'onesmtp'
+										) }
+									</p>
+									{ oauthCallbackUrl && (
+										<>
+											<span className="description">
+												{ __(
+													'Register this exact HTTPS callback URL in the provider app:',
+													'onesmtp'
+												) }
+											</span>
+											<code className="onesmtp-oauth-callback-url">
+												{ oauthCallbackUrl }
+											</code>
+										</>
+									) }
+									<p className="onesmtp-oauth-status">
+										{ __( 'Status:', 'onesmtp' ) }{ ' ' }
+										{ oauthStatusLabels[
+											authStatus?.state
+										] || oauthStatusLabels.unknown }
+									</p>
+									{ savedId &&
+										authStatus?.state !== 'connected' && (
+											<Button
+												variant="secondary"
+												onClick={ beginOAuth }
+												disabled={ isSaving }
+											>
+												{ type === 'gmail'
+													? __(
+															'Connect with Google',
+															'onesmtp'
+													  )
+													: __(
+															'Connect with Zoho',
+															'onesmtp'
+													  ) }
+											</Button>
+										) }
+									{ savedId &&
+										authStatus?.state === 'connected' && (
+											<>
+												<Button
+													variant="secondary"
+													onClick={ beginOAuth }
+													disabled={ isSaving }
+												>
+													{ __(
+														'Reconnect',
+														'onesmtp'
+													) }
+												</Button>
+												<Button
+													variant="secondary"
+													onClick={ disconnectOAuth }
+													disabled={ isSaving }
+												>
+													{ __(
+														'Disconnect',
+														'onesmtp'
+													) }
+												</Button>
+											</>
+										) }
+								</>
+							) }
 						</div>
 					) }
 					{ type === 'amazon_ses' && (

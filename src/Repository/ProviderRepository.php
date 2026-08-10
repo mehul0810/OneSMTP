@@ -233,6 +233,45 @@ final class ProviderRepository
         do_action('onesmtp_provider_state_changed', $providerId, $state);
     }
 
+    /**
+     * Remove only OAuth access/refresh material while preserving customer
+     * client registration fields for a bounded reconnect flow.
+     */
+    public function clearOAuthCredentials(int $providerId): bool
+    {
+        global $wpdb;
+
+        $provider = $this->find($providerId);
+        if (! is_array($provider)) {
+            return false;
+        }
+
+        $config = isset($provider['config']) && is_array($provider['config']) ? $provider['config'] : [];
+        foreach ([ 'access_token', 'access_token_expires_at', 'refresh_token', 'oauth_scope', 'oauth_token_type' ] as $key) {
+            unset($config[$key]);
+        }
+
+        $config = $this->encryptSecrets($config);
+        $updated = $wpdb->update(
+            TableNames::providers(),
+            [
+                'config_json' => wp_json_encode($config),
+                'is_active' => 0,
+                'updated_at' => current_time('mysql', true),
+            ],
+            [ 'id' => $providerId ],
+            [ '%s', '%d', '%s' ],
+            [ '%d' ]
+        );
+        if (! is_numeric($updated) || (int) $updated < 1) {
+            return false;
+        }
+
+        do_action('onesmtp_provider_saved', $providerId);
+
+        return true;
+    }
+
     private function mapProviderRow(array $row): array
     {
         $row['id'] = (int) ($row['id'] ?? 0);

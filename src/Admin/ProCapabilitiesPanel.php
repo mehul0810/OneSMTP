@@ -60,6 +60,11 @@ final class ProCapabilitiesPanel
                 'description' => __('Block a complete message when an authenticated Mailgun hard-bounce or complaint matches a site-local suppression record; default-off and bounded by retention.', 'onesmtp'),
                 'availability' => 'shipped',
             ],
+            FeatureGate::PROVIDER_AUTH_LIFECYCLE => [
+                'label' => __('Provider OAuth lifecycle', 'onesmtp'),
+                'description' => __('Connect customer-owned Gmail or Zoho Mail OAuth credentials through a site-local HTTPS callback, then refresh or disconnect them without a hosted broker.', 'onesmtp'),
+                'availability' => 'shipped',
+            ],
             FeatureGate::ADVANCED_ANALYTICS => [
                 'label' => __('Advanced analytics', 'onesmtp'),
                 'description' => __('Compare bounded provider reliability and delivery report slices from aggregate site history; scores are not inbox-placement or provider-SLA measurements.', 'onesmtp'),

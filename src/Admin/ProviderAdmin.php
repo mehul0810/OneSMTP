@@ -203,6 +203,10 @@ final class ProviderAdmin
                 'webhookEndpoint' => $type === ProviderTypes::MAILGUN && $this->featureGate->isEnabled(FeatureGate::PROVIDER_EVENTS)
                     ? (string) preg_replace('/\Ahttp:/i', 'https:', rest_url('onesmtp/v1/webhooks/mailgun'))
                     : '',
+                'oauthEnabled' => $this->featureGate->isEnabled(FeatureGate::PROVIDER_AUTH_LIFECYCLE),
+                'oauthCallbackBase' => $this->featureGate->isEnabled(FeatureGate::PROVIDER_AUTH_LIFECYCLE)
+                    ? (string) preg_replace('/\Ahttp:/i', 'https:', rest_url('onesmtp/v1/providers/'))
+                    : '',
                 'nonce' => wp_create_nonce('wp_rest'),
                 'adminEmail' => sanitize_email((string) get_option('admin_email')),
                 'quotaEnabled' => $this->featureGate->isEnabled(FeatureGate::PROVIDER_QUOTA_BUDGETS),

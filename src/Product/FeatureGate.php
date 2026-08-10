@@ -20,6 +20,7 @@ final class FeatureGate
     public const ADVANCED_ALERTS = 'advanced_alerts';
     public const PROVIDER_QUOTA_BUDGETS = 'provider_quota_budgets';
     public const BOUNCE_SUPPRESSION = 'bounce_suppression';
+    public const PROVIDER_AUTH_LIFECYCLE = 'provider_auth_lifecycle';
 
     public const STATE_ENABLED = 'enabled';
     public const STATE_FLAG_DISABLED = 'flag_disabled';
@@ -35,6 +36,7 @@ final class FeatureGate
         self::ADVANCED_ALERTS,
         self::PROVIDER_QUOTA_BUDGETS,
         self::BOUNCE_SUPPRESSION,
+        self::PROVIDER_AUTH_LIFECYCLE,
     ];
 
     /** @var array<string,bool> */
