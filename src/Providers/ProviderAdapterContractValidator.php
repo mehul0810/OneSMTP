@@ -55,7 +55,7 @@ final class ProviderAdapterContractValidator
                 $errors[] = sprintf('Adapter %s metadata does not match ProviderTypes.', $slug);
             }
 
-            $capabilities = $descriptor->getMetadata()['capabilities'] ?? [];
+            $capabilities = $descriptor->getCapabilities();
             if ( ! is_array($capabilities)) {
                 $errors[] = sprintf('Adapter %s capability declarations are malformed.', $slug);
                 $capabilities = [];

@@ -148,6 +148,45 @@ final class ProviderAdapterContractTest extends TestCase
         self::assertNull($registry->get(ProviderTypes::SMTP));
         self::assertStringContainsString('capability declarations are malformed', implode(' ', $registry->getValidationErrors()));
     }
+
+    /**
+     * @dataProvider malformedCapabilityShapes
+     */
+    public function test_every_malformed_capability_shape_fails_closed_without_throwing(mixed $capabilities): void
+    {
+        $adapter = new ProviderAdapterContractFixture(ProviderTypes::SMTP);
+        $metadata = ProviderTypes::metadata()[ ProviderTypes::SMTP ];
+        $metadata['capabilities'] = $capabilities;
+        $registry = new ProviderAdapterRegistry(
+            [ProviderTypes::SMTP => $adapter],
+            [
+                ProviderTypes::SMTP => new ProviderAdapterDescriptor(
+                    ProviderTypes::SMTP,
+                    $adapter,
+                    $metadata,
+                    ProviderTypes::credentialSchema()[ ProviderTypes::SMTP ]
+                ),
+            ]
+        );
+
+        self::assertFalse($registry->isValid());
+        self::assertNull($registry->get(ProviderTypes::SMTP));
+        self::assertNotEmpty($registry->getValidationErrors());
+    }
+
+    /**
+     * @return iterable<string,array{0:mixed}>
+     */
+    public static function malformedCapabilityShapes(): iterable
+    {
+        yield 'object' => [new \stdClass()];
+        yield 'array access object' => [new \ArrayObject(['test_send' => true])];
+        yield 'null' => [null];
+        yield 'scalar' => ['true'];
+        yield 'list' => [[true, false]];
+        yield 'associative incomplete' => [['test_send' => true]];
+        yield 'associative non boolean' => [['test_send' => new \stdClass()]];
+    }
 }
 
 final class ProviderAdapterContractFixture implements ProviderAdapterInterface

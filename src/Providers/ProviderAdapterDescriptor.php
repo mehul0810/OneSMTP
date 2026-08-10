@@ -60,6 +60,15 @@ final class ProviderAdapterDescriptor
         return $this->metadata;
     }
 
+    /**
+     * Return the raw capability declaration for validation. It is deliberately
+     * mixed because extension input must be rejected safely at the boundary.
+     */
+    public function getCapabilities(): mixed
+    {
+        return $this->metadata['capabilities'] ?? null;
+    }
+
     /** @return array<string,array{type:string,required:bool,secret:bool,max_length:int,enum?:array<int,string>}> */
     public function getCredentialSchema(): array
     {
@@ -73,7 +82,9 @@ final class ProviderAdapterDescriptor
 
     public function supportsTestSend(): bool
     {
-        return ! empty($this->metadata['capabilities']['test_send']);
+        $capabilities = $this->getCapabilities();
+
+        return is_array($capabilities) && ($capabilities['test_send'] ?? null) === true;
     }
 
     /** @return array{result_class:class-string<SendResult>,failure_classifier:class-string<FailureClassifier>} */
