@@ -8,6 +8,10 @@ use OneSMTP\Admin\SettingsAdmin;
 use OneSMTP\Conflict\MailDeliveryOwnership;
 use OneSMTP\Core\RetentionPolicy;
 use OneSMTP\Product\FeatureGate;
+use OneSMTP\Repository\SuppressionRepository;
+use OneSMTP\Security\SiteSecretHmac;
+use OneSMTP\Suppression\SuppressionService;
+use OneSMTP\Suppression\SuppressionSettingsRepository;
 use OneSMTP\Tests\Support\FakeWpdb;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
@@ -130,6 +134,89 @@ final class SettingsAdminTest extends TestCase
         self::assertStringContainsString('name="onesmtp_return_tab" value="onesmtp-advanced"', $output);
         self::assertStringNotContainsString('Log retention policy', $output);
         self::assertStringNotContainsString('data-onesmtp-component="settings-navigation"', $output);
+    }
+
+    public function test_bounce_suppression_is_default_deny_when_gate_is_off(): void
+    {
+        ob_start();
+        (new SettingsAdmin())->renderAdvanced();
+        $output = (string) ob_get_clean();
+
+        self::assertStringNotContainsString('Bounce and complaint suppression', $output);
+        self::assertStringNotContainsString('bounce_suppression_enabled', $output);
+    }
+
+    public function test_bounce_suppression_panel_is_visible_only_when_enabled(): void
+    {
+        $gate = new FeatureGate([FeatureGate::BOUNCE_SUPPRESSION => true], true);
+        $service = new SuppressionService(
+            $gate,
+            new SuppressionSettingsRepository(),
+            new SuppressionRepository(),
+            new SiteSecretHmac('fixture-site-secret'),
+            recipientContext: 'recipient.site.1'
+        );
+
+        ob_start();
+        (new SettingsAdmin(featureGate: $gate, suppression: $service))->renderAdvanced();
+        $output = (string) ob_get_clean();
+
+        self::assertStringContainsString('Bounce and complaint suppression', $output);
+        self::assertStringContainsString('bounce_suppression_enabled', $output);
+        self::assertStringContainsString('Remove by exact recipient', $output);
+        self::assertStringContainsString('30-day default', $output);
+        self::assertStringContainsString('data-onesmtp-dataviews="suppression-records"', $output);
+        self::assertStringContainsString('data-onesmtp-dataviews-config="suppression-records"', $output);
+        self::assertStringContainsString('Legacy suppression table', $output);
+    }
+
+    public function test_exact_removal_works_after_enforcement_is_disabled_and_audits_actual_match(): void
+    {
+        $gate = new FeatureGate([FeatureGate::BOUNCE_SUPPRESSION => true], true);
+        $settings = new SuppressionSettingsRepository();
+        $settings->save(new \OneSMTP\Suppression\SuppressionSettings(true));
+        $repository = new SuppressionRepository();
+        $service = new SuppressionService(
+            $gate,
+            $settings,
+            $repository,
+            new SiteSecretHmac('fixture-site-secret'),
+            recipientContext: 'recipient.site.1'
+        );
+        $event = new \OneSMTP\Events\ProviderEvent(
+            \OneSMTP\Events\ProviderEventType::COMPLAINT,
+            'mailgun',
+            'admin-removal-event',
+            new \DateTimeImmutable('2026-08-10 00:00:00', new \DateTimeZone('UTC')),
+            (new SiteSecretHmac('fixture-site-secret'))->digest('recipient@example.test', 'recipient.site.1'),
+            'provider-message',
+            'example.test'
+        );
+        self::assertTrue($service->derive($event, 7));
+        $settings->save(new \OneSMTP\Suppression\SuppressionSettings(false));
+
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = [
+            'onesmtp_settings_action' => 'remove_bounce_suppression',
+            'onesmtp_settings_nonce' => 'test-nonce',
+            'suppression_recipient' => 'recipient@example.test',
+        ];
+        try {
+            (new SettingsAdmin(
+                featureGate: $gate,
+                suppression: $service,
+                suppressionSettings: $settings,
+                suppressionRepository: $repository
+            ))->handleRequest();
+        } catch (RuntimeException $exception) {
+            self::assertSame('Aculect Mail settings admin redirected.', $exception->getMessage());
+        }
+
+        self::assertSame([], $GLOBALS['wpdb']->suppressionRowsByFingerprint);
+        $audit = end($GLOBALS['wpdb']->inserts);
+        $context = json_decode((string) ($audit['data']['context_json'] ?? ''), true);
+        self::assertTrue($context['matched'] ?? false);
+        self::assertStringNotContainsString('recipient@example.test', (string) ($audit['data']['context_json'] ?? ''));
     }
 
     public function test_pro_compliance_render_exposes_bounded_retention_control(): void

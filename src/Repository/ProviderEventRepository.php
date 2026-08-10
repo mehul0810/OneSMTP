@@ -187,6 +187,7 @@ final class ProviderEventRepository
                     $event->getOccurredAt()->setTimezone(new \DateTimeZone('UTC'))->format(DATE_ATOM),
                     (string) ($event->getProviderMessageId() ?? ''),
                     (string) ($event->getRecipientFingerprint() ?? ''),
+                    (string) ($event->getRecipientDomain() ?? ''),
                 ]
             )
         );

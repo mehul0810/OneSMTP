@@ -19,6 +19,8 @@ final class DatabaseSchema
         $quotaLeasesTable = TableNames::quotaLeases();
         $providerEventsTable = TableNames::providerEvents();
         $providerEventReplaysTable = TableNames::providerEventReplays();
+        $suppressionsTable = TableNames::suppressions();
+        $suppressionDerivationsTable = TableNames::suppressionDerivations();
 
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
@@ -153,6 +155,41 @@ final class DatabaseSchema
             KEY created_at (created_at)
         ) {$charsetCollate};";
 
+        $suppressionsSql = "CREATE TABLE {$suppressionsTable} (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            recipient_fingerprint CHAR(64) NOT NULL,
+            recipient_domain VARCHAR(253) NOT NULL,
+            reason_code VARCHAR(32) NOT NULL,
+            provider VARCHAR(64) NOT NULL,
+            provider_id BIGINT UNSIGNED NULL,
+            first_seen DATETIME NOT NULL,
+            last_seen DATETIME NOT NULL,
+            expiry_at DATETIME NOT NULL,
+            occurrence_count INT UNSIGNED NOT NULL DEFAULT 1,
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL,
+            PRIMARY KEY (id),
+            UNIQUE KEY recipient_fingerprint (recipient_fingerprint),
+            KEY expiry_at (expiry_at),
+            KEY recipient_domain (recipient_domain),
+            KEY reason_code (reason_code),
+            KEY updated_at (updated_at)
+        ) {$charsetCollate};";
+
+        $suppressionDerivationsSql = "CREATE TABLE {$suppressionDerivationsTable} (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            external_event_hash CHAR(64) NOT NULL,
+            claim_token CHAR(64) NULL,
+            status VARCHAR(16) NOT NULL DEFAULT 'processing',
+            created_at DATETIME NOT NULL,
+            updated_at DATETIME NOT NULL,
+            processed_at DATETIME NULL,
+            PRIMARY KEY (id),
+            UNIQUE KEY external_event_hash (external_event_hash),
+            KEY status_updated_at (status, updated_at),
+            KEY updated_at (updated_at)
+        ) {$charsetCollate};";
+
         dbDelta($providersSql);
         dbDelta($messagesSql);
         dbDelta($attemptsSql);
@@ -160,6 +197,8 @@ final class DatabaseSchema
         dbDelta($quotaLeasesSql);
         dbDelta($providerEventsSql);
         dbDelta($providerEventReplaysSql);
+        dbDelta($suppressionsSql);
+        dbDelta($suppressionDerivationsSql);
     }
 
     /**
@@ -178,6 +217,8 @@ final class DatabaseSchema
             TableNames::quotaLeases(),
             TableNames::providerEvents(),
             TableNames::providerEventReplays(),
+            TableNames::suppressions(),
+            TableNames::suppressionDerivations(),
         ];
     }
 
@@ -195,6 +236,47 @@ final class DatabaseSchema
             $foundTable = $wpdb->get_var($sql);
             if ( (string) $foundTable !== $table ) {
                 return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Return additive columns that must exist before the schema can be marked
+     * current. The map is intentionally bounded to columns introduced by a
+     * plugin-owned migration rather than mirroring every table definition.
+     *
+     * @return array<string,array<int,string>>
+     */
+    public static function requiredColumns(): array
+    {
+        return [
+            TableNames::suppressionDerivations() => [ 'claim_token' ],
+        ];
+    }
+
+    public static function verifyRequiredColumns(): bool
+    {
+        global $wpdb;
+
+        foreach (self::requiredColumns() as $table => $columns) {
+            foreach ($columns as $column) {
+                // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared -- Table names are returned only by the plugin-owned required-column map.
+                $sql = $wpdb->prepare(
+                    'SHOW COLUMNS FROM ' . $table . ' LIKE %s',
+                    $wpdb->esc_like($column)
+                );
+                // phpcs:enable WordPress.DB.PreparedSQL.NotPrepared
+                if ( ! is_string($sql) ) {
+                    return false;
+                }
+
+                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- The query is prepared immediately above.
+                $foundColumn = $wpdb->get_var($sql);
+                if ( (string) $foundColumn !== $column ) {
+                    return false;
+                }
             }
         }
 

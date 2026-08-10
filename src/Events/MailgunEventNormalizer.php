@@ -49,6 +49,7 @@ final class MailgunEventNormalizer implements ProviderEventNormalizerInterface
         $providerMessageId = $this->providerMessageId($eventData);
         $occurredAt = $this->occurredAt($eventData);
         $recipientFingerprint = null;
+        $recipientDomain = null;
 
         if ($type->isSuppressionSignal()) {
             $recipient = $this->recipientNormalizer->normalize(
@@ -56,6 +57,10 @@ final class MailgunEventNormalizer implements ProviderEventNormalizerInterface
             );
             if ($recipient !== null) {
                 $recipientFingerprint = $this->recipientHmac->digest($recipient, $this->recipientContext);
+                $at = strrpos($recipient, '@');
+                if ($at !== false) {
+                    $recipientDomain = substr($recipient, $at + 1);
+                }
             }
         }
 
@@ -66,7 +71,8 @@ final class MailgunEventNormalizer implements ProviderEventNormalizerInterface
                 $eventId,
                 $occurredAt,
                 $recipientFingerprint,
-                $providerMessageId
+                $providerMessageId,
+                $recipientDomain
             );
         } catch (\InvalidArgumentException) {
             return null;

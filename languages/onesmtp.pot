@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Aculect Mail 0.1.0\n"
 "Report-Msgid-Bugs-To: https://github.com/mehul0810/aculect-mail/issues\n"
-"POT-Creation-Date: 2026-08-10 11:46+0000\n"
+"POT-Creation-Date: 2026-08-10 12:21+0000\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -139,6 +139,10 @@ msgstr ""
 msgid "Active"
 msgstr ""
 
+#: src/Admin/SettingsAdmin.php:789
+msgid "Active suppression records"
+msgstr ""
+
 #: src/Admin/AdminPage.php:433
 msgid "Activity"
 msgstr ""
@@ -171,9 +175,9 @@ msgstr ""
 #: src/Admin/ProviderAdmin.php:56
 #: src/Admin/QueueDiagnosticsAdmin.php:44
 #: src/Admin/DashboardAdmin.php:48
-#: src/Admin/SettingsAdmin.php:89
-#: src/Admin/SettingsAdmin.php:723
-#: src/Admin/SettingsAdmin.php:759
+#: src/Admin/SettingsAdmin.php:98
+#: src/Admin/SettingsAdmin.php:813
+#: src/Admin/SettingsAdmin.php:849
 msgid "Aculect Mail access denied"
 msgstr ""
 
@@ -214,7 +218,7 @@ msgid "Aculect Mail escalated failure alert"
 msgstr ""
 
 #: src/Admin/LogAdmin.php:707
-#: src/Admin/SettingsAdmin.php:732
+#: src/Admin/SettingsAdmin.php:822
 msgid "Aculect Mail export denied"
 msgstr ""
 
@@ -234,7 +238,7 @@ msgstr ""
 msgid "Aculect Mail has overdue retry jobs, so queue processing may be blocked. Review diagnostics before resending or changing provider settings."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:768
+#: src/Admin/SettingsAdmin.php:858
 msgid "Aculect Mail import denied"
 msgstr ""
 
@@ -270,11 +274,11 @@ msgstr ""
 msgid "Aculect Mail sends through the highest-priority healthy provider."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:675
+#: src/Admin/SettingsAdmin.php:750
 msgid "Aculect Mail settings could not be saved."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:672
+#: src/Admin/SettingsAdmin.php:747
 msgid "Aculect Mail settings imported. Secrets and recipient fields were excluded."
 msgstr ""
 
@@ -330,7 +334,7 @@ msgstr ""
 msgid "Add the provider DKIM selector when available so Aculect Mail can check the selector-specific TXT name."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:335
+#: src/Admin/SettingsAdmin.php:373
 msgid "Admin email alerts"
 msgstr ""
 
@@ -338,31 +342,31 @@ msgstr ""
 msgid "Advanced"
 msgstr ""
 
-#: src/Admin/ProCapabilitiesPanel.php:74
+#: src/Admin/ProCapabilitiesPanel.php:79
 msgid "Advanced alert escalation"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:408
+#: src/Admin/SettingsAdmin.php:477
 msgid "Advanced alert routing"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:413
+#: src/Admin/SettingsAdmin.php:482
 msgid "Advanced alert routing is available with an enabled Pro entitlement. Existing core failure alerts remain unchanged."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:418
+#: src/Admin/SettingsAdmin.php:487
 msgid "Advanced alert routing is disabled until at least one destination is configured."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:140
+#: src/Admin/SettingsAdmin.php:149
 msgid "Advanced alert routing requires an enabled Pro entitlement."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:651
+#: src/Admin/SettingsAdmin.php:720
 msgid "Advanced alert routing settings saved."
 msgstr ""
 
-#: src/Admin/ProCapabilitiesPanel.php:59
+#: src/Admin/ProCapabilitiesPanel.php:64
 msgid "Advanced analytics"
 msgstr ""
 
@@ -398,7 +402,7 @@ msgstr ""
 msgid "Alert history"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:338
+#: src/Admin/SettingsAdmin.php:376
 msgid "Alert recipients"
 msgstr ""
 
@@ -435,6 +439,10 @@ msgstr ""
 msgid "Analyze SureMail setup"
 msgstr ""
 
+#: src/Admin/SettingsAdmin.php:744
+msgid "Any matching suppression was removed."
+msgstr ""
+
 #: src/Admin/LogAdmin.php:516
 msgid "Any provider"
 msgstr ""
@@ -448,7 +456,7 @@ msgstr ""
 msgid "Apply"
 msgstr ""
 
-#: src/Admin/ProCapabilitiesPanel.php:65
+#: src/Admin/ProCapabilitiesPanel.php:70
 msgid "Apply bounded site-local retention presets or custom duration and fixed privacy-safe export profiles."
 msgstr ""
 
@@ -456,15 +464,15 @@ msgstr ""
 msgid "Attachment"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:504
+#: src/Admin/SettingsAdmin.php:573
 msgid "Attachment logging"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:509
+#: src/Admin/SettingsAdmin.php:578
 msgid "Attachment logging is off. Aculect Mail removes raw attachment paths from stored log payloads by default."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:663
+#: src/Admin/SettingsAdmin.php:732
 msgid "Attachment logging settings saved."
 msgstr ""
 
@@ -472,7 +480,7 @@ msgstr ""
 msgid "Attachment metadata"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:516
+#: src/Admin/SettingsAdmin.php:585
 msgid "Attachment metadata is deleted with the parent email log according to the current %d-day log retention policy. Messages with file attachments may not preserve attachments for background retries or manual resend unless the source can provide them again."
 msgstr ""
 
@@ -509,7 +517,7 @@ msgstr ""
 msgid "Available"
 msgstr ""
 
-#: src/Admin/ProCapabilitiesPanel.php:95
+#: src/Admin/ProCapabilitiesPanel.php:100
 #: src/Admin/RoutingAdmin.php:255
 msgid "Available with Pro"
 msgstr ""
@@ -518,19 +526,36 @@ msgstr ""
 msgid "Average latency"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:307
+#: src/Admin/SettingsAdmin.php:345
 msgid "BCC"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:487
+#: src/Admin/SettingsAdmin.php:556
 msgid "Background sending"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:654
+#: src/Admin/SettingsAdmin.php:723
 msgid "Background sending settings saved."
 msgstr ""
 
-#: src/Admin/ProCapabilitiesPanel.php:80
+#: src/Admin/ProCapabilitiesPanel.php:60
+msgid "Block a complete message when an authenticated Mailgun hard-bounce or complaint matches a site-local suppression record; default-off and bounded by retention."
+msgstr ""
+
+#: src/Admin/ProCapabilitiesPanel.php:59
+#: src/Admin/SettingsAdmin.php:448
+msgid "Bounce and complaint suppression"
+msgstr ""
+
+#: src/Admin/SettingsAdmin.php:741
+msgid "Bounce and complaint suppression settings saved."
+msgstr ""
+
+#: src/Admin/SettingsAdmin.php:256
+msgid "Bounce suppression requires an enabled Pro entitlement and a site secret."
+msgstr ""
+
+#: src/Admin/ProCapabilitiesPanel.php:85
 msgid "Bound per-provider send attempts across minute, hour, and day windows; attachment-bearing quota deferrals fail closed before scheduling when sanitized retry data cannot reproduce files."
 msgstr ""
 
@@ -587,7 +612,7 @@ msgstr ""
 msgid "Choose how Aculect Mail selects a provider for each message."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:536
+#: src/Admin/SettingsAdmin.php:605
 msgid "Choose how long Aculect Mail keeps operational email records on this site. Retention is bounded to 1-120 days and pruning follows the selected policy."
 msgstr ""
 
@@ -616,7 +641,7 @@ msgstr ""
 msgid "Circuit open"
 msgstr ""
 
-#: src/Admin/ProCapabilitiesPanel.php:60
+#: src/Admin/ProCapabilitiesPanel.php:65
 msgid "Compare bounded provider reliability and delivery report slices from aggregate site history; scores are not inbox-placement or provider-SLA measurements."
 msgstr ""
 
@@ -640,7 +665,7 @@ msgstr ""
 msgid "Complete the essentials for reliable WordPress email delivery."
 msgstr ""
 
-#: src/Admin/ProCapabilitiesPanel.php:64
+#: src/Admin/ProCapabilitiesPanel.php:69
 msgid "Compliance controls"
 msgstr ""
 
@@ -671,7 +696,7 @@ msgstr ""
 msgid "Configure a provider From email or sender identity From Email to see SPF, DKIM, and DMARC guidance for sender domains."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:297
+#: src/Admin/SettingsAdmin.php:335
 msgid "Configure default sender headers for outgoing WordPress mail. Existing headers are preserved unless the matching force option is enabled."
 msgstr ""
 
@@ -739,6 +764,10 @@ msgstr ""
 msgid "Context"
 msgstr ""
 
+#: src/Admin/SettingsAdmin.php:794
+msgid "Count"
+msgstr ""
+
 #: src/Admin/ProviderAdmin.php:350
 msgid "Count production send attempts for this provider across bounded windows. Enter 0 to disable a window; values above 1,000,000 are safely clamped."
 msgstr ""
@@ -766,11 +795,11 @@ msgstr ""
 msgid "Current saved rules"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:551
+#: src/Admin/SettingsAdmin.php:620
 msgid "Custom duration (1-120 days)"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:553
+#: src/Admin/SettingsAdmin.php:622
 msgid "Custom duration in days"
 msgstr ""
 
@@ -794,7 +823,7 @@ msgstr ""
 msgid "DNS authentication readiness"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:479
+#: src/Admin/SettingsAdmin.php:548
 msgid "Daily limit"
 msgstr ""
 
@@ -804,6 +833,10 @@ msgstr ""
 
 #: src/Admin/AdminPage.php:366
 msgid "Default delivery route"
+msgstr ""
+
+#: src/Admin/SettingsAdmin.php:449
+msgid "Default-off site-local protection. Authenticated Mailgun hard-bounce and complaint events can block a complete message when any canonical recipient is still suppressed. Raw recipients and webhook payloads are never stored."
 msgstr ""
 
 #: src/Admin/RoutingAdmin.php:309
@@ -818,12 +851,12 @@ msgstr ""
 msgid "Delivery attempts will appear here after WordPress sends its first message."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:645
+#: src/Admin/SettingsAdmin.php:714
 msgid "Delivery rate limit settings saved."
 msgstr ""
 
 #: src/Admin/NetworkAdmin.php:149
-#: src/Admin/SettingsAdmin.php:468
+#: src/Admin/SettingsAdmin.php:537
 msgid "Delivery rate limits"
 msgstr ""
 
@@ -859,7 +892,12 @@ msgstr ""
 msgid "Disabled"
 msgstr ""
 
+#: src/Admin/SettingsAdmin.php:460
+msgid "Disabling stops new derivation and blocking; existing rows expire under the 30-day default (maximum 120 days). A match blocks the entire message across initial, queued, retry, and manual resend paths."
+msgstr ""
+
 #: src/Admin/ProviderAdmin.php:485
+#: src/Admin/SettingsAdmin.php:794
 msgid "Domain"
 msgstr ""
 
@@ -867,7 +905,7 @@ msgstr ""
 msgid "Domain authentication"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:619
+#: src/Admin/SettingsAdmin.php:688
 msgid "Download a privacy-safe JSON settings file for migration or backup. Provider secrets, credentials, tokens, passwords, API keys, webhook URLs, raw recipients, message bodies, raw headers, and payload JSON are excluded by default."
 msgstr ""
 
@@ -875,7 +913,7 @@ msgstr ""
 msgid "Download diagnostic report"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:621
+#: src/Admin/SettingsAdmin.php:690
 msgid "Download safe settings export"
 msgstr ""
 
@@ -915,15 +953,15 @@ msgstr ""
 msgid "Emailit"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:340
+#: src/Admin/SettingsAdmin.php:378
 msgid "Enable HTTPS webhook alerts."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:426
+#: src/Admin/SettingsAdmin.php:495
 msgid "Enable Pro advanced alert escalation."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:336
+#: src/Admin/SettingsAdmin.php:374
 msgid "Enable admin email alerts."
 msgstr ""
 
@@ -939,7 +977,7 @@ msgstr ""
 msgid "Enable background sending by default"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:496
+#: src/Admin/SettingsAdmin.php:565
 msgid "Enable background sending for normal mail."
 msgstr ""
 
@@ -947,11 +985,15 @@ msgstr ""
 msgid "Enable background sending for this site"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:526
+#: src/Admin/SettingsAdmin.php:459
+msgid "Enable hard-bounce and complaint suppression on this site."
+msgstr ""
+
+#: src/Admin/SettingsAdmin.php:595
 msgid "Enable privacy-safe attachment metadata in email logs."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:460
+#: src/Admin/SettingsAdmin.php:529
 msgid "Enable simulation mode on this site."
 msgstr ""
 
@@ -959,11 +1001,11 @@ msgstr ""
 msgid "Enable this rule"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:367
+#: src/Admin/SettingsAdmin.php:405
 msgid "Enable weekly delivery summary email."
 msgstr ""
 
-#: src/Admin/ProCapabilitiesPanel.php:93
+#: src/Admin/ProCapabilitiesPanel.php:98
 #: src/Admin/RoutingAdmin.php:309
 msgid "Enabled"
 msgstr ""
@@ -980,23 +1022,23 @@ msgstr ""
 msgid "Enter at least one sample field before simulating."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:591
+#: src/Admin/SettingsAdmin.php:660
 msgid "Enter one email address per line or separate addresses with commas."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:409
+#: src/Admin/SettingsAdmin.php:478
 msgid "Escalate repeated terminal failures to multiple email and HTTPS webhook destinations."
 msgstr ""
 
-#: src/Admin/ProCapabilitiesPanel.php:75
+#: src/Admin/ProCapabilitiesPanel.php:80
 msgid "Escalate repeated terminal failures to validated email or HTTPS webhook destinations without changing core alerts."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:434
+#: src/Admin/SettingsAdmin.php:503
 msgid "Escalation destinations"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:437
+#: src/Admin/SettingsAdmin.php:506
 msgid "Escalation occurs when a production terminal-failure event reaches the configured attempt threshold. Raw message content is never inspected or sent."
 msgstr ""
 
@@ -1015,6 +1057,10 @@ msgstr ""
 #: src/Admin/DashboardAdmin.php:140
 #: src/Admin/DashboardAdmin.php:151
 msgid "Evidence"
+msgstr ""
+
+#: src/Admin/SettingsAdmin.php:794
+msgid "Expires"
 msgstr ""
 
 #: src/Admin/LogAdmin.php:568
@@ -1062,15 +1108,15 @@ msgstr ""
 msgid "Failovers"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:648
+#: src/Admin/SettingsAdmin.php:717
 msgid "Failure alert settings saved."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:323
+#: src/Admin/SettingsAdmin.php:361
 msgid "Failure alerts"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:328
+#: src/Admin/SettingsAdmin.php:366
 msgid "Failure alerts are disabled until an email recipient or HTTPS webhook is enabled."
 msgstr ""
 
@@ -1090,27 +1136,35 @@ msgstr ""
 msgid "Filter network logs"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:446
+#: src/Admin/SettingsAdmin.php:794
+msgid "Fingerprint"
+msgstr ""
+
+#: src/Admin/SettingsAdmin.php:794
+msgid "First seen"
+msgstr ""
+
+#: src/Admin/SettingsAdmin.php:515
 msgid "For staging and development only. Aculect Mail captures outgoing messages in the email log as Simulated and never contacts a provider or reports them as delivered."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:313
+#: src/Admin/SettingsAdmin.php:351
 msgid "Force BCC when a message already has BCC."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:310
+#: src/Admin/SettingsAdmin.php:348
 msgid "Force From Email when a message already has a From header."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:311
+#: src/Admin/SettingsAdmin.php:349
 msgid "Force From Name when a message already has a From header."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:312
+#: src/Admin/SettingsAdmin.php:350
 msgid "Force Reply-To when a message already has Reply-To."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:309
+#: src/Admin/SettingsAdmin.php:347
 msgid "Force settings"
 msgstr ""
 
@@ -1127,11 +1181,11 @@ msgstr ""
 msgid "From"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:304
+#: src/Admin/SettingsAdmin.php:342
 msgid "From Email"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:305
+#: src/Admin/SettingsAdmin.php:343
 msgid "From Name"
 msgstr ""
 
@@ -1161,7 +1215,7 @@ msgstr ""
 msgid "Guidance"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:478
+#: src/Admin/SettingsAdmin.php:547
 msgid "Hourly limit"
 msgstr ""
 
@@ -1181,15 +1235,15 @@ msgstr ""
 msgid "Import needs these required fields before it can continue: %s."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:631
+#: src/Admin/SettingsAdmin.php:700
 msgid "Import safe settings"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:628
+#: src/Admin/SettingsAdmin.php:697
 msgid "Import safe settings JSON"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:778
+#: src/Admin/SettingsAdmin.php:868
 msgid "Imported %1$d settings groups and %2$d providers. Excluded %3$d unsafe fields."
 msgstr ""
 
@@ -1296,11 +1350,11 @@ msgstr ""
 msgid "Load site"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:535
+#: src/Admin/SettingsAdmin.php:604
 msgid "Log retention policy"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:669
+#: src/Admin/SettingsAdmin.php:738
 msgid "Log retention policy saved. Scheduled pruning will follow the selected duration."
 msgstr ""
 
@@ -1329,7 +1383,7 @@ msgid "Mailgun"
 msgstr ""
 
 #: src/Admin/ProCapabilitiesPanel.php:55
-msgid "Mailgun delivery events are ingested into privacy-safe site-local records when enabled. Bounce and complaint suppression controls remain planned."
+msgid "Mailgun delivery events are ingested into privacy-safe site-local records when enabled. Bounce and complaint suppression is separately gated and default-off."
 msgstr ""
 
 #: src/Admin/ProviderAdmin.php:411
@@ -1340,7 +1394,7 @@ msgstr ""
 msgid "Mailjet"
 msgstr ""
 
-#: src/Admin/ProCapabilitiesPanel.php:70
+#: src/Admin/ProCapabilitiesPanel.php:75
 msgid "Manage allowlisted network settings, explicit site inheritance, and bounded privacy-safe log summaries; provider credentials and payload data remain site-local."
 msgstr ""
 
@@ -1400,11 +1454,11 @@ msgstr ""
 msgid "Minimal record"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:564
+#: src/Admin/SettingsAdmin.php:633
 msgid "Move safe Aculect Mail configuration between environments without exposing secrets, credentials, raw recipients, headers, or payload data."
 msgstr ""
 
-#: src/Admin/ProCapabilitiesPanel.php:69
+#: src/Admin/ProCapabilitiesPanel.php:74
 msgid "Multisite management"
 msgstr ""
 
@@ -1589,6 +1643,10 @@ msgstr ""
 msgid "No supported default SureMail connection was found. Nothing will be imported."
 msgstr ""
 
+#: src/Admin/SettingsAdmin.php:791
+msgid "No suppression records are currently stored."
+msgstr ""
+
 #: src/Admin/LogAdmin.php:1282
 #: src/Admin/LogAdmin.php:1574
 msgid "None"
@@ -1600,7 +1658,7 @@ msgstr ""
 msgid "None scheduled"
 msgstr ""
 
-#: src/Admin/ProCapabilitiesPanel.php:102
+#: src/Admin/ProCapabilitiesPanel.php:107
 msgid "Not available yet"
 msgstr ""
 
@@ -1608,7 +1666,7 @@ msgstr ""
 msgid "Not connected"
 msgstr ""
 
-#: src/Admin/ProCapabilitiesPanel.php:94
+#: src/Admin/ProCapabilitiesPanel.php:99
 msgid "Not enabled"
 msgstr ""
 
@@ -1661,7 +1719,7 @@ msgstr ""
 msgid "Only safe delivery summaries are shown. Message bodies, recipients, headers, provider credentials, and raw payloads stay within each site boundary."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:630
+#: src/Admin/SettingsAdmin.php:699
 msgid "Only supported non-secret settings are imported. Secret, credential, webhook URL, raw recipient, message body, raw header, and payload fields are ignored."
 msgstr ""
 
@@ -1763,7 +1821,7 @@ msgstr ""
 msgid "Per-minute attempts"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:477
+#: src/Admin/SettingsAdmin.php:546
 msgid "Per-minute limit"
 msgstr ""
 
@@ -1771,7 +1829,7 @@ msgstr ""
 msgid "Per-provider sending budgets are available with Pro and remain disabled on this installation."
 msgstr ""
 
-#: src/Admin/ProCapabilitiesPanel.php:89
+#: src/Admin/ProCapabilitiesPanel.php:94
 msgid "Planned"
 msgstr ""
 
@@ -1785,7 +1843,7 @@ msgstr ""
 msgid "Plugin: Unknown plugin"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:546
+#: src/Admin/SettingsAdmin.php:615
 msgid "Policy preset"
 msgstr ""
 
@@ -1854,6 +1912,7 @@ msgstr ""
 #: src/Admin/DashboardAdmin.php:271
 #: src/Admin/DashboardAdmin.php:480
 #: src/Admin/DashboardAdmin.php:512
+#: src/Admin/SettingsAdmin.php:794
 msgid "Provider"
 msgstr ""
 
@@ -1943,7 +2002,7 @@ msgstr ""
 msgid "Provider sending budget"
 msgstr ""
 
-#: src/Admin/ProCapabilitiesPanel.php:79
+#: src/Admin/ProCapabilitiesPanel.php:84
 msgid "Provider sending budgets"
 msgstr ""
 
@@ -1979,7 +2038,7 @@ msgstr ""
 msgid "Queue diagnostics"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:488
+#: src/Admin/SettingsAdmin.php:557
 msgid "Queue normal WordPress mail for asynchronous delivery so user-facing requests are not held by provider latency. Provider test emails and manual resends continue to run synchronously."
 msgstr ""
 
@@ -1998,6 +2057,10 @@ msgstr ""
 
 #: src/Admin/ProviderAdmin.php:770
 msgid "Ready to import:"
+msgstr ""
+
+#: src/Admin/SettingsAdmin.php:794
+msgid "Reason"
 msgstr ""
 
 #: src/Admin/LogAdmin.php:357
@@ -2058,11 +2121,19 @@ msgstr ""
 msgid "Remind me later about the Aculect Mail conflict notice"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:436
+#: src/Admin/SettingsAdmin.php:468
+msgid "Remove by exact recipient"
+msgstr ""
+
+#: src/Admin/SettingsAdmin.php:470
+msgid "Remove matching suppression"
+msgstr ""
+
+#: src/Admin/SettingsAdmin.php:505
 msgid "Repeated failure threshold"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:306
+#: src/Admin/SettingsAdmin.php:344
 msgid "Reply-To"
 msgstr ""
 
@@ -2078,7 +2149,7 @@ msgstr ""
 msgid "Request could not be accepted."
 msgstr ""
 
-#: src/Admin/ProCapabilitiesPanel.php:107
+#: src/Admin/ProCapabilitiesPanel.php:112
 #: src/Admin/RoutingAdmin.php:255
 msgid "Requires Pro"
 msgstr ""
@@ -2103,7 +2174,7 @@ msgstr ""
 msgid "Result"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:544
+#: src/Admin/SettingsAdmin.php:613
 msgid "Retention duration"
 msgstr ""
 
@@ -2246,23 +2317,23 @@ msgstr ""
 msgid "Sample message fields"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:439
+#: src/Admin/SettingsAdmin.php:508
 msgid "Save advanced alert routing"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:528
+#: src/Admin/SettingsAdmin.php:597
 msgid "Save attachment logging"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:498
+#: src/Admin/SettingsAdmin.php:567
 msgid "Save background sending"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:481
+#: src/Admin/SettingsAdmin.php:550
 msgid "Save delivery rate limits"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:348
+#: src/Admin/SettingsAdmin.php:386
 msgid "Save failure alerts"
 msgstr ""
 
@@ -2278,16 +2349,16 @@ msgstr ""
 msgid "Save provider"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:556
+#: src/Admin/SettingsAdmin.php:625
 msgid "Save retention policy"
 msgstr ""
 
 #: src/Admin/SetupWizard.php:165
-#: src/Admin/SettingsAdmin.php:315
+#: src/Admin/SettingsAdmin.php:353
 msgid "Save sender identity"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:462
+#: src/Admin/SettingsAdmin.php:531
 msgid "Save simulation mode"
 msgstr ""
 
@@ -2295,7 +2366,11 @@ msgstr ""
 msgid "Save site override"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:371
+#: src/Admin/SettingsAdmin.php:461
+msgid "Save suppression setting"
+msgstr ""
+
+#: src/Admin/SettingsAdmin.php:409
 msgid "Save weekly delivery summary"
 msgstr ""
 
@@ -2365,7 +2440,7 @@ msgstr ""
 msgid "Send a test email to verify everything is working."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:355
+#: src/Admin/SettingsAdmin.php:393
 msgid "Send a weekly privacy-safe delivery health summary with aggregate sent, failed, retried, pending, and failover counts. Message bodies, raw recipients, headers, secrets, attachment paths, and diagnostic payload JSON are never included."
 msgstr ""
 
@@ -2373,7 +2448,7 @@ msgstr ""
 msgid "Send mail token"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:324
+#: src/Admin/SettingsAdmin.php:362
 msgid "Send privacy-safe alerts for terminal delivery failures. Alert payloads include IDs, hashes, status, provider summary, reason, and category only."
 msgstr ""
 
@@ -2466,11 +2541,11 @@ msgstr ""
 
 #: src/Admin/SetupWizard.php:157
 #: src/Admin/ProviderAdmin.php:549
-#: src/Admin/SettingsAdmin.php:296
+#: src/Admin/SettingsAdmin.php:334
 msgid "Sender identity"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:642
+#: src/Admin/SettingsAdmin.php:711
 msgid "Sender identity settings saved."
 msgstr ""
 
@@ -2497,7 +2572,7 @@ msgstr ""
 msgid "Separate multiple recipients with commas."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:469
+#: src/Admin/SettingsAdmin.php:538
 msgid "Set optional site-wide delivery caps. When a cap is exhausted, Aculect Mail defers queued mail until capacity is available. Use 0 to disable a limit."
 msgstr ""
 
@@ -2509,7 +2584,7 @@ msgstr ""
 msgid "Settings"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:563
+#: src/Admin/SettingsAdmin.php:632
 msgid "Settings import/export"
 msgstr ""
 
@@ -2559,23 +2634,23 @@ msgstr ""
 msgid "Simulation active"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:445
+#: src/Admin/SettingsAdmin.php:514
 msgid "Simulation mode"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:178
+#: src/Admin/SettingsAdmin.php:187
 msgid "Simulation mode cannot be enabled while SureMail owns live WordPress delivery. Complete or pause the migration first."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:660
+#: src/Admin/SettingsAdmin.php:729
 msgid "Simulation mode cannot be enabled while another plugin owns live delivery."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:453
+#: src/Admin/SettingsAdmin.php:522
 msgid "Simulation mode is active. WordPress mail calls return successfully, but no email is sent."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:657
+#: src/Admin/SettingsAdmin.php:726
 msgid "Simulation mode settings saved."
 msgstr ""
 
@@ -2701,19 +2776,23 @@ msgstr ""
 msgid "Summary"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:366
+#: src/Admin/SettingsAdmin.php:404
 msgid "Summary email"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:369
+#: src/Admin/SettingsAdmin.php:407
 msgid "Summary recipients"
+msgstr ""
+
+#: src/Admin/SettingsAdmin.php:453
+msgid "Suppression is unavailable until WordPress provides a site secret."
 msgstr ""
 
 #: src/Admin/ProviderAdmin.php:763
 msgid "SureMail compatibility"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:450
+#: src/Admin/SettingsAdmin.php:519
 msgid "SureMail currently owns live WordPress delivery. Aculect Mail simulation mode cannot guarantee that messages are captured instead of sent until delivery ownership is migrated."
 msgstr ""
 
@@ -2785,16 +2864,20 @@ msgstr ""
 msgid "The Aculect Mail log export link has expired. Refresh the page and try again."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:731
+#: src/Admin/SettingsAdmin.php:821
 msgid "The Aculect Mail settings export link has expired. Refresh the page and try again."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:767
+#: src/Admin/SettingsAdmin.php:857
 msgid "The Aculect Mail settings import form has expired. Refresh the page and try again."
 msgstr ""
 
 #: src/Admin/ProviderAdmin.php:744
 msgid "The SureMail analysis expired or the source configuration changed. Analyze it again before importing."
+msgstr ""
+
+#: src/Admin/SettingsAdmin.php:471
+msgid "The address is hashed transiently for lookup and is not stored or written to audit context."
 msgstr ""
 
 #: src/Admin/RoutingAdmin.php:439
@@ -2805,7 +2888,7 @@ msgstr ""
 msgid "The candidate set is one bounded rule with the same fields and operators used by saved routing rules."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:545
+#: src/Admin/SettingsAdmin.php:614
 msgid "The current policy is site-local. Existing records are not purged immediately when you save; the scheduled pruner applies this duration on its next run."
 msgstr ""
 
@@ -2879,7 +2962,7 @@ msgstr ""
 msgid "Three essentials make WordPress email ready for production."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:346
+#: src/Admin/SettingsAdmin.php:384
 msgid "Throttle window in seconds"
 msgstr ""
 
@@ -2907,7 +2990,7 @@ msgstr ""
 msgid "Unavailable"
 msgstr ""
 
-#: src/Admin/ProCapabilitiesPanel.php:106
+#: src/Admin/ProCapabilitiesPanel.php:111
 msgid "Unavailable on this site"
 msgstr ""
 
@@ -2985,7 +3068,7 @@ msgstr ""
 msgid "Use an Emailit API key and a verified sending domain."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:344
+#: src/Admin/SettingsAdmin.php:382
 msgid "Use an HTTPS endpoint. Raw recipients, headers, message bodies, provider credentials, and stored payload JSON are never sent."
 msgstr ""
 
@@ -2997,7 +3080,7 @@ msgstr ""
 msgid "Use normal provider selection"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:435
+#: src/Admin/SettingsAdmin.php:504
 msgid "Use one email:address@example.test or webhook:https://hooks.example.test/path per line. Destinations are validated server-side and never written to alert or audit context."
 msgstr ""
 
@@ -3017,7 +3100,7 @@ msgstr ""
 msgid "Use this provider for delivery."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:555
+#: src/Admin/SettingsAdmin.php:624
 msgid "Used when Custom duration is selected."
 msgstr ""
 
@@ -3041,23 +3124,23 @@ msgstr ""
 msgid "Waiting for first attempt"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:342
+#: src/Admin/SettingsAdmin.php:380
 msgid "Webhook URL"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:339
+#: src/Admin/SettingsAdmin.php:377
 msgid "Webhook alerts"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:359
+#: src/Admin/SettingsAdmin.php:397
 msgid "Weekly delivery summaries are disabled until the summary email is enabled and at least one recipient is configured."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:354
+#: src/Admin/SettingsAdmin.php:392
 msgid "Weekly delivery summary"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:666
+#: src/Admin/SettingsAdmin.php:735
 msgid "Weekly delivery summary settings saved."
 msgstr ""
 
@@ -3065,7 +3148,7 @@ msgstr ""
 msgid "Weight"
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:505
+#: src/Admin/SettingsAdmin.php:574
 msgid "When enabled, Aculect Mail stores attachment metadata only: count, safe filename, extension, and file size when available. File contents and raw server paths are not copied into logs."
 msgstr ""
 
@@ -3085,7 +3168,7 @@ msgstr ""
 msgid "You are not allowed to manage Aculect Mail routing rules."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:88
+#: src/Admin/SettingsAdmin.php:97
 msgid "You are not allowed to manage Aculect Mail settings."
 msgstr ""
 
@@ -3117,7 +3200,7 @@ msgstr ""
 msgid "You do not have permission to export Aculect Mail logs."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:722
+#: src/Admin/SettingsAdmin.php:812
 msgid "You do not have permission to export Aculect Mail settings."
 msgstr ""
 
@@ -3129,7 +3212,7 @@ msgstr ""
 msgid "You do not have permission to forward this log summary."
 msgstr ""
 
-#: src/Admin/SettingsAdmin.php:758
+#: src/Admin/SettingsAdmin.php:848
 msgid "You do not have permission to import Aculect Mail settings."
 msgstr ""
 

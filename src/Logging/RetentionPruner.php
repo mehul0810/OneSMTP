@@ -6,6 +6,8 @@ namespace OneSMTP\Logging;
 
 use OneSMTP\Core\RetentionPolicy;
 use OneSMTP\Core\TableNames;
+use OneSMTP\Repository\SuppressionDerivationRepository;
+use OneSMTP\Repository\SuppressionRepository;
 
 final class RetentionPruner
 {
@@ -73,6 +75,8 @@ final class RetentionPruner
             [$cutoff],
             $batchSize
         );
+        (new SuppressionRepository())->prune($cutoff);
+        (new SuppressionDerivationRepository())->prune($cutoff);
     }
 
     private function deleteInBatches(string $tableName, string $whereSql, array $params, int $batchSize): void

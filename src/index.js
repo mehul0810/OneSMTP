@@ -95,6 +95,10 @@ const mountDataViews = async ( section ) => {
 				'Provider reliability scores',
 				'onesmtp'
 			),
+			'suppression-records': __(
+				'Aculect Mail suppression records',
+				'onesmtp'
+			),
 		};
 		mounts.forEach( ( mount ) => {
 			const key = mount.dataset.onesmtpDataviews;

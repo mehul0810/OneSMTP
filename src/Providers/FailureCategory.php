@@ -12,6 +12,7 @@ final class FailureCategory
     public const QUOTA          = 'quota';
     public const TIMEOUT        = 'timeout';
     public const POLICY         = 'policy';
+    public const RECIPIENT_SUPPRESSED = 'recipient_suppressed';
 
     private const CATEGORIES = [
         self::RETRYABLE,
@@ -20,6 +21,7 @@ final class FailureCategory
         self::QUOTA,
         self::TIMEOUT,
         self::POLICY,
+        self::RECIPIENT_SUPPRESSED,
     ];
 
     public static function normalize(?string $category): string

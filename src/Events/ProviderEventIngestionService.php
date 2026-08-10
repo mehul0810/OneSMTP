@@ -25,7 +25,9 @@ final class ProviderEventIngestionService
         /** @var callable(string):ProviderEventVerifierInterface */
         private $verifierFactory,
         /** @var callable():bool|null */
-        private $httpsCheck = null
+        private $httpsCheck = null,
+        /** @var callable(ProviderEvent,?int):bool|null */
+        private $acceptedEventHandler = null
     ) {
         $this->httpsCheck = $httpsCheck ?? static fn (): bool => function_exists('is_ssl') ? (bool) is_ssl() : true;
     }
@@ -89,7 +91,16 @@ final class ProviderEventIngestionService
         $providerId = (int) ($provider['id'] ?? 0);
         $messageId = $this->events->findMessageId($providerId, $event->getProviderMessageId());
 
-        return $this->events->record($event, $providerId > 0 ? $providerId : null, $messageId, $replayTokenHash)->isAccepted();
+        $result = $this->events->record($event, $providerId > 0 ? $providerId : null, $messageId, $replayTokenHash);
+        $shouldHandleAcceptedEvent = $result === ProviderEventStoreResult::INSERTED
+            || ($result === ProviderEventStoreResult::DUPLICATE && $event->getType()->isSuppressionSignal());
+        if ($shouldHandleAcceptedEvent && is_callable($this->acceptedEventHandler)) {
+            if (($this->acceptedEventHandler)($event, $providerId > 0 ? $providerId : null) !== true) {
+                return false;
+            }
+        }
+
+        return $result->isAccepted();
     }
 
     private function isJsonContentType(string $contentType): bool

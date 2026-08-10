@@ -29,7 +29,10 @@ bounded compliance retention and privacy-safe export profiles, advanced
 terminal-failure alert escalation, multisite network settings and bounded
 network log summaries, and per-provider minute/hour/day sending budgets behind
 `provider_quota_budgets`, plus Mailgun provider-event ingestion behind
-`provider_events` (suppression enforcement remains a separate planned follow-up).
+`provider_events`, and default-off site-local bounce/complaint suppression
+behind `bounce_suppression`. Suppression derives only from authenticated
+normalized Mailgun hard-bounce and complaint events and blocks a complete
+message on an active match.
 Quota deferrals for attachment-bearing messages fail
 closed without scheduling a retry when sanitized data cannot reproduce the
 files. Core provider setup, sending, failover, queues, retries, logs, manual

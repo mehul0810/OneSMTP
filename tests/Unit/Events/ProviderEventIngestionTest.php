@@ -13,8 +13,12 @@ use OneSMTP\Events\ProviderEventStoreResult;
 use OneSMTP\Product\FeatureGate;
 use OneSMTP\Repository\ProviderEventRepository;
 use OneSMTP\Repository\ProviderRepository;
+use OneSMTP\Repository\SuppressionRepository;
 use OneSMTP\Security\SecretVault;
 use OneSMTP\Security\SiteSecretHmac;
+use OneSMTP\Suppression\SuppressionService;
+use OneSMTP\Suppression\SuppressionSettings;
+use OneSMTP\Suppression\SuppressionSettingsRepository;
 use OneSMTP\Tests\Support\FakeWpdb;
 use PHPUnit\Framework\TestCase;
 use WP_Error;
@@ -89,6 +93,63 @@ final class ProviderEventIngestionTest extends TestCase
 
         self::assertCount(1, $GLOBALS['wpdb']->providerEventRowsByHash);
         self::assertCount(2, $GLOBALS['wpdb']->providerEventReplayRowsByHash);
+    }
+
+    public function test_suppression_failure_stays_pending_and_a_provider_retry_completes_once(): void
+    {
+        $settings = new SuppressionSettingsRepository();
+        $settings->save(new SuppressionSettings(true));
+        $suppression = new SuppressionService(
+            new FeatureGate([FeatureGate::BOUNCE_SUPPRESSION => true], true),
+            $settings,
+            new SuppressionRepository(),
+            new SiteSecretHmac('fixture-site-secret'),
+            recipientContext: 'recipient.site.1'
+        );
+        $service = $this->service(
+            true,
+            true,
+            static function ($event, $providerId) use ($suppression): bool {
+                return $suppression->derive($event, $providerId);
+            }
+        );
+        $body = $this->signedBody('hard_bounce', 'suppression-retry-event');
+        $GLOBALS['wpdb']->failSuppressionUpsert = true;
+
+        self::assertFalse($service->ingest($body, 'application/json', []));
+        self::assertCount(1, $GLOBALS['wpdb']->providerEventRowsByHash);
+        self::assertCount(0, $GLOBALS['wpdb']->suppressionRowsByFingerprint);
+        self::assertCount(1, $GLOBALS['wpdb']->suppressionDerivationRowsByHash);
+        self::assertSame('pending', array_values($GLOBALS['wpdb']->suppressionDerivationRowsByHash)[0]['status'] ?? null);
+
+        $GLOBALS['wpdb']->failSuppressionUpsert = false;
+        self::assertTrue($service->ingest($body, 'application/json', []));
+        self::assertTrue($service->ingest($body, 'application/json', []));
+        self::assertCount(1, $GLOBALS['wpdb']->suppressionRowsByFingerprint);
+        self::assertSame(1, array_values($GLOBALS['wpdb']->suppressionRowsByFingerprint)[0]['occurrence_count'] ?? null);
+        self::assertSame('processed', array_values($GLOBALS['wpdb']->suppressionDerivationRowsByHash)[0]['status'] ?? null);
+    }
+
+    public function test_rejected_mutated_suppression_event_does_not_run_the_accepted_handler(): void
+    {
+        $handled = 0;
+        $service = $this->service(
+            true,
+            true,
+            static function ($event, $providerId) use (&$handled): bool {
+                unset($event, $providerId);
+                $handled++;
+
+                return true;
+            }
+        );
+        $body = $this->signedBody('hard_bounce', 'mutated-suppression-event');
+        self::assertTrue($service->ingest($body, 'application/json', []));
+
+        $mutated = json_decode($body, true, 32, JSON_THROW_ON_ERROR);
+        $mutated['event-data']['event'] = 'complained';
+        self::assertFalse($service->ingest( (string) wp_json_encode($mutated), 'application/json', []));
+        self::assertSame(1, $handled);
     }
 
     public function test_nullable_correlation_fields_are_persisted_as_sql_null(): void
@@ -262,7 +323,7 @@ final class ProviderEventIngestionTest extends TestCase
         ];
     }
 
-    private function service(bool $gateEnabled, bool $https): ProviderEventIngestionService
+    private function service(bool $gateEnabled, bool $https, ?callable $acceptedEventHandler = null): ProviderEventIngestionService
     {
         if ( ! isset($GLOBALS['wpdb']->activeProviders) || $GLOBALS['wpdb']->activeProviders === [] ) {
             $vault = new SecretVault();
@@ -292,7 +353,8 @@ final class ProviderEventIngestionTest extends TestCase
             $gate,
             new MailgunEventNormalizer(new SiteSecretHmac('fixture-site-secret'), clock: static fn (): \DateTimeImmutable => new \DateTimeImmutable('@' . self::NOW)),
             static fn (string $key): MailgunEventVerifier => new MailgunEventVerifier($key, $clock),
-            static fn (): bool => $https
+            static fn (): bool => $https,
+            $acceptedEventHandler
         );
     }
 

@@ -23,6 +23,15 @@ use OneSMTP\Repository\EventRepository;
 use OneSMTP\Repository\MessageRepository;
 use OneSMTP\Repository\ProviderRepository;
 use OneSMTP\Settings\RateLimitSettingsRepository;
+use OneSMTP\Security\SiteSecretHmac;
+use OneSMTP\Repository\SuppressionRepository;
+use OneSMTP\Suppression\SuppressionService;
+use OneSMTP\Suppression\SuppressionSettingsRepository;
+use OneSMTP\Suppression\SuppressionSettings;
+use OneSMTP\Events\ProviderEvent;
+use OneSMTP\Events\ProviderEventType;
+use DateTimeImmutable;
+use DateTimeZone;
 use OneSMTP\Tests\Support\FakeWpdb;
 use PHPUnit\Framework\TestCase;
 
@@ -79,6 +88,43 @@ final class SendPipelineIntegrationTest extends TestCase
         $sentEvent = $this->findEventInsert('message_sent');
         self::assertNotNull($sentEvent);
         self::assertSame(10, $sentEvent['data']['provider_id']);
+    }
+
+    public function test_active_suppression_blocks_whole_initial_message_without_attempt_or_provider_call(): void
+    {
+        $this->seedProvider(10, 'test_success');
+        $gate = new FeatureGate([FeatureGate::BOUNCE_SUPPRESSION => true], true);
+        $settings = new SuppressionSettingsRepository();
+        $settings->save(new SuppressionSettings(true));
+        $hmac = new SiteSecretHmac('fixture-site-secret');
+        $suppression = new SuppressionService($gate, $settings, new SuppressionRepository(), $hmac, recipientContext: 'recipient.site.1');
+        $suppression->derive(new ProviderEvent(
+            ProviderEventType::HARD_BOUNCE,
+            'mailgun',
+            'dispatch-suppression-event',
+            new DateTimeImmutable('2026-08-10 00:00:00', new DateTimeZone('UTC')),
+            $hmac->digest('blocked@example.test', 'recipient.site.1'),
+            'provider-message',
+            'example.test'
+        ), 10);
+        $adapter = new CountingAdapter('test_success', new SendResult(true, 'sent', 'Must not send.'));
+        $pipeline = $this->buildPipeline($adapter, null, null, null, null, $suppression);
+
+        self::assertFalse($pipeline->handlePreWpMail(null, [
+            'to' => ['safe@example.test'],
+            'cc' => ['Blocked <blocked@example.test>'],
+            'subject' => 'Suppressed message',
+            'message' => 'fixture body',
+            'headers' => [],
+        ]));
+        self::assertSame(0, $adapter->sendCount);
+        self::assertNull($this->findInsert('onesmtp_attempts'));
+        $terminal = $this->findEventInsert('terminal_failure');
+        self::assertNotNull($terminal);
+        $contextJson = (string) $terminal['data']['context_json'];
+        self::assertStringContainsString('recipient_suppressed', $contextJson);
+        self::assertStringNotContainsString('blocked@example.test', $contextJson);
+        self::assertStringNotContainsString('example.test', $contextJson);
     }
 
     public function test_retryable_failure_immediately_switches_to_secondary_provider_and_logs_failover(): void
@@ -844,7 +890,7 @@ final class SendPipelineIntegrationTest extends TestCase
         self::assertSame('provider_quota_scheduler_unavailable', $context['reason'] ?? null);
     }
 
-    private function buildPipeline(ProviderAdapterInterface $adapter, ?callable $clock = null, ?EventRepository $events = null, ?FeatureGate $featureGate = null, ?int $quotaNow = null): SendPipeline
+    private function buildPipeline(ProviderAdapterInterface $adapter, ?callable $clock = null, ?EventRepository $events = null, ?FeatureGate $featureGate = null, ?int $quotaNow = null, ?SuppressionService $suppression = null): SendPipeline
     {
         $dispatch = new DefaultDispatchPolicy();
         $messages = new MessageRepository();
@@ -859,7 +905,7 @@ final class SendPipelineIntegrationTest extends TestCase
         $deliveryEngine = new DeliveryEngine($providers, $attempts, $dispatch, $deliveryManager, $events, null, $quota);
         $rateLimiter = new RateLimiter($attempts, new RateLimitSettingsRepository(), $clock);
 
-        return new SendPipeline($messages, $attempts, $providers, $events, $retryScheduler, $deliveryEngine, $rateLimiter);
+        return new SendPipeline($messages, $attempts, $providers, $events, $retryScheduler, $deliveryEngine, $rateLimiter, null, null, null, null, $suppression);
     }
 
     /** @param array<string,mixed> $config */

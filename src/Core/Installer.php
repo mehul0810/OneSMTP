@@ -9,7 +9,7 @@ final class Installer
     public const VERSION_OPTION       = 'onesmtp_version';
     public const SCHEMA_VERSION_OPTION = 'onesmtp_schema_version';
     public const RETENTION_DAYS_OPTION = 'onesmtp_log_retention_days';
-    public const SCHEMA_VERSION        = 1;
+    public const SCHEMA_VERSION        = 3;
 
     public static function activate(): void
     {
@@ -29,10 +29,6 @@ final class Installer
 
         $version = self::currentVersion();
         $stored  = (string) get_option(self::VERSION_OPTION, '');
-
-        if ($stored === $version && (int) get_option(self::SCHEMA_VERSION_OPTION, 0) === self::SCHEMA_VERSION) {
-            return;
-        }
 
         if (! self::ensureSchema()) {
             return;
@@ -74,12 +70,15 @@ final class Installer
 
     private static function ensureSchema(): bool
     {
-        if ((int) get_option(self::SCHEMA_VERSION_OPTION, 0) === self::SCHEMA_VERSION) {
+        if ((int) get_option(self::SCHEMA_VERSION_OPTION, 0) === self::SCHEMA_VERSION
+            && DatabaseSchema::verifyRequiredTables()
+            && DatabaseSchema::verifyRequiredColumns()
+        ) {
             return true;
         }
 
         DatabaseSchema::createTables();
-        if (! DatabaseSchema::verifyRequiredTables()) {
+        if ( ! DatabaseSchema::verifyRequiredTables() || ! DatabaseSchema::verifyRequiredColumns() ) {
             return false;
         }
 

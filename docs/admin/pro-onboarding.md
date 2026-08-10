@@ -36,7 +36,8 @@ The controls are default-deny and do not change core delivery when unavailable.
 | Provider reliability and advanced reports | Analytics | `advanced_analytics` plus log visibility | Core summary analytics and provider tables remain available. Pro views use bounded aggregate history; they exclude bodies, recipients, credentials, payloads, and raw event context. Scores are operational comparisons, not inbox-placement or provider-SLA measurements. See [Advanced reports](advanced-reports.md). |
 | Compliance retention and export profiles | Advanced settings and Activity | `compliance_controls` | Core 30-day retention, filter-based extension, and the safe operational CSV remain available. Pro retention is site-local, bounded to 1–120 days, and does not purge immediately; export profiles are fixed allowlists. See [Email Logs](email-logs.md). |
 | Advanced alert escalation | Advanced settings | `advanced_alerts` | Existing core failure alerts are unchanged. Pro escalation sends only validated email or HTTPS webhook destinations at a configured repeated-failure threshold, with safe operational metadata and throttling. See [Troubleshooting](troubleshooting.md). |
-| Mailgun provider-event ingestion | Providers → Mailgun connection | `provider_events` | Candidate-shipped Mailgun-only HTTPS JSON webhooks verify the Webhook Signing Key, atomically burn replay tokens, retain normalized privacy-safe records, and keep bounce/complaint suppression deferred to issue #64. See [Provider setup](provider-setup.md). |
+| Mailgun provider-event ingestion | Providers → Mailgun connection | `provider_events` | Candidate-shipped Mailgun-only HTTPS JSON webhooks verify the Webhook Signing Key, atomically burn replay tokens, and retain normalized privacy-safe records. Suppression is separately gated below. See [Provider setup](provider-setup.md). |
+| Bounce and complaint suppression | Advanced settings | `bounce_suppression` plus `provider_events` | Default-off site-local suppression derives only from authenticated normalized Mailgun hard-bounce and complaint events. An unexpired exact HMAC match blocks the complete message across initial, queued, retry, and manual resend paths; rows inherit bounded retention. |
 | Multisite network settings and bounded network log summaries | Network admin Settings → Aculect Mail and network log view | `multisite_management` plus `manage_network_options` | Network defaults and site overrides are allowlisted and resolved at read time. Summaries are bounded and privacy-safe; provider credentials, payloads, bodies, full recipients, headers, and paths remain site-local/excluded. Single-site and normal site-admin behavior remain unchanged. See [Multisite network](multisite-network.md). |
 | Provider sending budgets ([#54](https://github.com/mehul0810/aculect-mail/issues/54)) | Provider connection settings and delivery routing | `provider_quota_budgets` | Bound each provider's minute, hour, and day attempt windows. Quota-exhausted providers are skipped; an all-exhausted eligible pool defers to the earliest next capacity. Attachment-bearing quota deferrals fail closed with `attachment_quota_deferral_not_persisted` before UUID resolution or scheduling, so no retry can omit files. See [Provider setup](provider-setup.md) and [Failover and Rotation](failover-and-rotation.md). |
 
@@ -59,10 +60,6 @@ For the full claim context and captions, see the [0.4.0 claim ledger](../release
 The following are not shipped by this candidate and must not be presented as
 enabled Pro workflows:
 
-- Bounce, complaint, or suppression enforcement (issue
-  [#64](https://github.com/mehul0810/aculect-mail/issues/64)). Candidate-shipped
-  provider-event ingestion is documented above; suppression decisions remain
-  disabled.
 - Open/click tracking (issue
   [#40](https://github.com/mehul0810/aculect-mail/issues/40)).
 - OAuth connection lifecycle (issue

@@ -11,7 +11,11 @@ const repoRoot = path.resolve( __dirname, '..', '..' );
 const adminUrl =
 	'https://example.org/wp-admin/options-general.php?page=onesmtp';
 
-function renderAdminFixture( pro = false, proRouting = false ) {
+function renderAdminFixture(
+	pro = false,
+	proRouting = false,
+	suppressions = ''
+) {
 	return execFileSync( 'php', [ fixturePath ], {
 		cwd: repoRoot,
 		encoding: 'utf8',
@@ -20,6 +24,7 @@ function renderAdminFixture( pro = false, proRouting = false ) {
 			ONESMTP_PLAYWRIGHT_SMOKE: '1',
 			ONESMTP_PLAYWRIGHT_PRO: pro ? '1' : '0',
 			ONESMTP_PLAYWRIGHT_PRO_ROUTING: proRouting ? '1' : '0',
+			ONESMTP_PLAYWRIGHT_SUPPRESSIONS: suppressions,
 		},
 	} );
 }
@@ -430,7 +435,7 @@ test.describe( 'Aculect Mail admin browser smoke', () => {
 		await expect( proCapabilities ).toContainText( 'Available with Pro' );
 		await expect(
 			proCapabilities.getByRole( 'button', { name: 'Requires Pro' } )
-		).toHaveCount( 7 );
+		).toHaveCount( 8 );
 		await expect(
 			proCapabilities
 				.getByRole( 'button', { name: 'Requires Pro' } )
@@ -452,7 +457,7 @@ test.describe( 'Aculect Mail admin browser smoke', () => {
 		).not.toContainText( 'smtp.local.test' );
 	} );
 
-	test( 'renders candidate provider-event capability state with screenshots', async ( {
+	test( 'renders candidate suppression capability state with screenshots', async ( {
 		page,
 	} ) => {
 		const proHtml = renderAdminFixture( true );
@@ -478,19 +483,84 @@ test.describe( 'Aculect Mail admin browser smoke', () => {
 			'Mailgun delivery events are ingested into privacy-safe site-local records'
 		);
 		await expect( proCapabilities ).toContainText(
-			'Bounce and complaint suppression controls remain planned'
+			'Bounce and complaint suppression is separately gated and default-off'
 		);
 		await expect(
 			proCapabilities.getByText( 'Enabled', { exact: true } )
-		).toHaveCount( 4 );
+		).toHaveCount( 5 );
+		const suppressionPanel = page
+			.locator(
+				'section.onesmtp-settings-panel:not(.onesmtp-pro-capabilities)'
+			)
+			.filter( { hasText: 'Bounce and complaint suppression' } )
+			.first();
+		await expect( suppressionPanel ).toContainText(
+			'Default-off site-local protection'
+		);
+		await expect( suppressionPanel ).toContainText(
+			'No suppression records are currently stored'
+		);
+		await expect(
+			page.locator( '[data-onesmtp-dataviews="suppression-records"]' )
+		).toHaveCount( 1 );
 		await page.screenshot( {
-			path: 'output/playwright/screenshots/issue-63-provider-events-capabilities-desktop.png',
+			path: 'output/playwright/screenshots/issue-64-bounce-suppression-desktop.png',
 			fullPage: true,
 		} );
 
 		await page.setViewportSize( { width: 390, height: 844 } );
 		await page.screenshot( {
-			path: 'output/playwright/screenshots/issue-63-provider-events-capabilities-mobile.png',
+			path: 'output/playwright/screenshots/issue-64-bounce-suppression-mobile.png',
+			fullPage: true,
+		} );
+	} );
+
+	test( 'renders long suppression records through the DataViews contract at desktop and 390px', async ( {
+		page,
+	} ) => {
+		const proHtml = renderAdminFixture( true, false, 'long' );
+		await page.unroute(
+			'https://example.org/wp-admin/options-general.php**'
+		);
+		await page.route(
+			'https://example.org/wp-admin/options-general.php**',
+			async ( route ) => {
+				await route.fulfill( {
+					status: 200,
+					contentType: 'text/html; charset=utf-8',
+					body: proHtml,
+				} );
+			}
+		);
+		await page.goto(
+			`${ adminUrl }?tab=onesmtp-advanced#onesmtp-advanced`
+		);
+
+		const suppressionPanel = page
+			.locator(
+				'section.onesmtp-settings-panel:not(.onesmtp-pro-capabilities)'
+			)
+			.filter( { hasText: 'Bounce and complaint suppression' } )
+			.first();
+		await expect(
+			suppressionPanel.locator(
+				'[data-onesmtp-dataviews="suppression-records"]'
+			)
+		).toHaveCount( 1 );
+		await expect( suppressionPanel ).toContainText(
+			'bounce-24.synthetic.example.test'
+		);
+		await page.screenshot( {
+			path: 'output/playwright/screenshots/issue-64-bounce-suppression-long-desktop.png',
+			fullPage: true,
+		} );
+
+		await page.setViewportSize( { width: 390, height: 844 } );
+		await expect( suppressionPanel ).toContainText(
+			'bounce-24.synthetic.example.test'
+		);
+		await page.screenshot( {
+			path: 'output/playwright/screenshots/issue-64-bounce-suppression-long-mobile.png',
 			fullPage: true,
 		} );
 	} );
