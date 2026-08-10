@@ -15,6 +15,7 @@ final class InstallerTest extends TestCase
         $GLOBALS['wpdb'] = new FakeWpdb();
         $GLOBALS['onesmtp_test_options'] = [];
         $GLOBALS['onesmtp_test_dbdelta_queries'] = [];
+        unset($GLOBALS['onesmtp_test_throw_on_update_option'], $GLOBALS['onesmtp_test_throw_on_get_option']);
         $GLOBALS['onesmtp_test_roles'] = [
             'administrator' => new class {
                 /** @var array<string,bool> */
@@ -51,8 +52,9 @@ final class InstallerTest extends TestCase
     {
         Installer::activate();
 
-        self::assertCount(6, $GLOBALS['onesmtp_test_dbdelta_queries']);
+        self::assertCount(7, $GLOBALS['onesmtp_test_dbdelta_queries']);
         self::assertSame((string) constant('ONESMTP_VERSION'), get_option(Installer::VERSION_OPTION));
+        self::assertSame(Installer::SCHEMA_VERSION, get_option(Installer::SCHEMA_VERSION_OPTION));
         self::assertSame(30, get_option(Installer::RETENTION_DAYS_OPTION));
 
         $GLOBALS['onesmtp_test_options'][Installer::VERSION_OPTION]['value'] = '0.0.1';
@@ -60,8 +62,9 @@ final class InstallerTest extends TestCase
 
         Installer::activate();
 
-        self::assertCount(12, $GLOBALS['onesmtp_test_dbdelta_queries']);
+        self::assertCount(7, $GLOBALS['onesmtp_test_dbdelta_queries']);
         self::assertSame((string) constant('ONESMTP_VERSION'), get_option(Installer::VERSION_OPTION));
+        self::assertSame(Installer::SCHEMA_VERSION, get_option(Installer::SCHEMA_VERSION_OPTION));
         self::assertSame(90, get_option(Installer::RETENTION_DAYS_OPTION));
     }
 
@@ -72,20 +75,60 @@ final class InstallerTest extends TestCase
         Installer::uninstall();
 
         self::assertSame((string) constant('ONESMTP_VERSION'), get_option(Installer::VERSION_OPTION));
+        self::assertSame(Installer::SCHEMA_VERSION, get_option(Installer::SCHEMA_VERSION_OPTION));
         self::assertSame(30, get_option(Installer::RETENTION_DAYS_OPTION));
     }
 
-    public function test_maybe_upgrade_runs_schema_when_stored_version_is_stale(): void
+    public function test_maybe_upgrade_migrates_existing_current_plugin_version_when_schema_is_missing(): void
     {
-        $GLOBALS['onesmtp_test_options'][Installer::VERSION_OPTION]['value'] = '0.1.0-stale';
+        // Production installs on this branch have plugin version 0.3.0. The
+        // schema migration must not depend on a plugin-version change.
+        $GLOBALS['onesmtp_test_options'][Installer::VERSION_OPTION]['value'] = '0.3.0';
 
         Installer::maybeUpgrade();
 
-        self::assertCount(6, $GLOBALS['onesmtp_test_dbdelta_queries']);
+        self::assertCount(7, $GLOBALS['onesmtp_test_dbdelta_queries']);
         self::assertSame((string) constant('ONESMTP_VERSION'), get_option(Installer::VERSION_OPTION));
+        self::assertSame(Installer::SCHEMA_VERSION, get_option(Installer::SCHEMA_VERSION_OPTION));
 
         Installer::maybeUpgrade();
 
-        self::assertCount(6, $GLOBALS['onesmtp_test_dbdelta_queries']);
+        self::assertCount(7, $GLOBALS['onesmtp_test_dbdelta_queries']);
+    }
+
+    public function test_maybe_upgrade_migrates_old_schema_even_when_plugin_version_is_current(): void
+    {
+        $GLOBALS['onesmtp_test_options'][Installer::VERSION_OPTION]['value'] = (string) constant('ONESMTP_VERSION');
+        $GLOBALS['onesmtp_test_options'][Installer::SCHEMA_VERSION_OPTION]['value'] = Installer::SCHEMA_VERSION - 1;
+
+        Installer::maybeUpgrade();
+
+        self::assertCount(7, $GLOBALS['onesmtp_test_dbdelta_queries']);
+        self::assertSame(Installer::SCHEMA_VERSION, get_option(Installer::SCHEMA_VERSION_OPTION));
+    }
+
+    public function test_maybe_upgrade_is_noop_when_plugin_and_schema_versions_are_current(): void
+    {
+        $GLOBALS['onesmtp_test_options'][Installer::VERSION_OPTION]['value'] = (string) constant('ONESMTP_VERSION');
+        $GLOBALS['onesmtp_test_options'][Installer::SCHEMA_VERSION_OPTION]['value'] = Installer::SCHEMA_VERSION;
+
+        Installer::maybeUpgrade();
+
+        self::assertCount(0, $GLOBALS['onesmtp_test_dbdelta_queries']);
+    }
+
+    public function test_maybe_upgrade_does_not_mark_schema_when_schema_option_write_fails(): void
+    {
+        $GLOBALS['onesmtp_test_throw_on_update_option'] = Installer::SCHEMA_VERSION_OPTION;
+
+        try {
+            Installer::maybeUpgrade();
+            self::fail('Expected the synthetic schema option write to fail.');
+        } catch (\RuntimeException $exception) {
+            self::assertSame('Synthetic update_option failure.', $exception->getMessage());
+        }
+
+        self::assertFalse(get_option(Installer::SCHEMA_VERSION_OPTION, false));
+        self::assertCount(7, $GLOBALS['onesmtp_test_dbdelta_queries']);
     }
 }

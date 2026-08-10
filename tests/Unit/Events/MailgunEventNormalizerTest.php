@@ -78,6 +78,51 @@ final class MailgunEventNormalizerTest extends TestCase
         self::assertNull($normalizer->normalize(['event-data' => ['event' => 'delivered']]));
     }
 
+    /** @dataProvider boundedTimestampProvider */
+    public function test_invalid_or_sane_range_timestamps_fall_back_to_the_receipt_clock(mixed $timestamp): void
+    {
+        $receiptTime = new DateTimeImmutable('2026-08-10T00:00:00+00:00');
+        $normalizer = new MailgunEventNormalizer(new SiteSecretHmac('fixture-site-secret'), clock: static fn (): DateTimeImmutable => $receiptTime);
+        $event = $normalizer->normalize([
+            'event-data' => [
+                'id' => 'bounded-' . md5( (string) $timestamp ),
+                'event' => 'delivered',
+                'timestamp' => $timestamp,
+            ],
+        ]);
+
+        self::assertNotNull($event);
+        self::assertSame($receiptTime->getTimestamp(), $event->getOccurredAt()->getTimestamp());
+    }
+
+    /** @return array<string,array{0:mixed}> */
+    public static function boundedTimestampProvider(): array
+    {
+        return [
+            'short epoch' => [9999],
+            'far past date' => ['1999-12-31T23:59:59Z'],
+            'huge numeric input' => ['999999999999999999999999999999'],
+            'invalid date' => ['not-a-date'],
+        ];
+    }
+
+    public function test_site_context_separates_recipient_fingerprints_with_the_same_site_secret(): void
+    {
+        $payload = [
+            'event-data' => [
+                'id' => 'site-context-event',
+                'event' => 'complained',
+                'recipient' => 'Recipient@example.test',
+            ],
+        ];
+        $siteOne = (new MailgunEventNormalizer(new SiteSecretHmac('fixture-site-secret'), recipientContext: 'recipient.site.1'))->normalize($payload);
+        $siteTwo = (new MailgunEventNormalizer(new SiteSecretHmac('fixture-site-secret'), recipientContext: 'recipient.site.2'))->normalize($payload);
+
+        self::assertNotNull($siteOne);
+        self::assertNotNull($siteTwo);
+        self::assertNotSame($siteOne->getRecipientFingerprint(), $siteTwo->getRecipientFingerprint());
+    }
+
     /** @return array<string,array{0:string,1:ProviderEventType}> */
     public static function eventTypeProvider(): array
     {
@@ -90,7 +135,7 @@ final class MailgunEventNormalizerTest extends TestCase
             'complained' => ['complained', ProviderEventType::COMPLAINT],
             'deferred' => ['deferred', ProviderEventType::DEFERRED],
             'temporary fail defaults deferred' => ['temporary_fail', ProviderEventType::DEFERRED],
-            'permanent fail is hard bounce' => ['permanent_fail', ProviderEventType::HARD_BOUNCE],
+            'permanent fail requires explicit severity' => ['permanent_fail', ProviderEventType::UNKNOWN],
             'unknown' => ['future-provider-state', ProviderEventType::UNKNOWN],
         ];
     }

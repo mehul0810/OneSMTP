@@ -17,12 +17,15 @@ final class MailgunEventNormalizer implements ProviderEventNormalizerInterface
 {
     private const MAX_EVENT_ID_LENGTH = 128;
     private const MAX_MESSAGE_ID_LENGTH = 128;
+    private const MIN_OCCURRENCE_TIMESTAMP = 946684800;
+    private const MAX_OCCURRENCE_TIMESTAMP = 4102444800;
 
     public function __construct(
         private SiteSecretHmac $recipientHmac,
         private ?RecipientNormalizer $recipientNormalizer = null,
         /** @var callable():DateTimeImmutable|null */
-        private $clock = null
+        private $clock = null,
+        private string $recipientContext = 'recipient'
     ) {
         $this->recipientNormalizer = $recipientNormalizer ?? new RecipientNormalizer();
         $this->clock = $clock ?? static fn (): DateTimeImmutable => new DateTimeImmutable('now', new DateTimeZone('UTC'));
@@ -52,7 +55,7 @@ final class MailgunEventNormalizer implements ProviderEventNormalizerInterface
                 $this->scalarString($eventData['recipient'] ?? $payload['recipient'] ?? '')
             );
             if ($recipient !== null) {
-                $recipientFingerprint = $this->recipientHmac->digest($recipient);
+                $recipientFingerprint = $this->recipientHmac->digest($recipient, $this->recipientContext);
             }
         }
 
@@ -86,7 +89,9 @@ final class MailgunEventNormalizer implements ProviderEventNormalizerInterface
         }
 
         if ($normalizedRawType === 'permanent_fail') {
-            return ProviderEventType::HARD_BOUNCE;
+            return strtolower($this->failureSeverity($eventData)) === 'permanent'
+                ? ProviderEventType::HARD_BOUNCE
+                : ProviderEventType::UNKNOWN;
         }
 
         $type = ProviderEventType::fromProviderValue($rawType);
@@ -144,20 +149,27 @@ final class MailgunEventNormalizer implements ProviderEventNormalizerInterface
     private function occurredAt(array $eventData): DateTimeImmutable
     {
         $timestamp = $eventData['timestamp'] ?? $eventData['occurred_at'] ?? null;
-        if (is_numeric($timestamp) && (int) $timestamp > 0 && (int) $timestamp <= 4102444800) {
-            return (new DateTimeImmutable('@' . (int) $timestamp))->setTimezone(new DateTimeZone('UTC'));
+        $timestampValue = is_scalar($timestamp) ? trim( (string) $timestamp ) : '';
+        if (strlen($timestampValue) <= 20 && preg_match('/\A\d{1,12}(?:\.\d{1,6})?\z/D', $timestampValue) === 1) {
+            $seconds = (int) $timestampValue;
+            if ($seconds >= self::MIN_OCCURRENCE_TIMESTAMP && $seconds <= self::MAX_OCCURRENCE_TIMESTAMP) {
+                return (new DateTimeImmutable('@' . $seconds))->setTimezone(new DateTimeZone('UTC'));
+            }
         }
 
-        if (is_string($timestamp) && trim($timestamp) !== '') {
+        if (is_string($timestamp) && strlen($timestamp) <= 64 && preg_match('/\A\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})\z/D', trim($timestamp)) === 1) {
             try {
-                return (new DateTimeImmutable($timestamp))->setTimezone(new DateTimeZone('UTC'));
+                $date = (new DateTimeImmutable($timestamp))->setTimezone(new DateTimeZone('UTC'));
+                if ($date->getTimestamp() >= self::MIN_OCCURRENCE_TIMESTAMP && $date->getTimestamp() <= self::MAX_OCCURRENCE_TIMESTAMP) {
+                    return $date;
+                }
             } catch (\Exception $exception) {
                 // Fall back to the bounded receipt clock for malformed provider dates.
                 unset($exception);
             }
         }
 
-        return ($this->clock)();
+        return ($this->clock)()->setTimezone(new DateTimeZone('UTC'));
     }
 
     private function scalarString(mixed $value): string

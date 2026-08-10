@@ -64,6 +64,13 @@ final class ProviderEventIngestionService
             return false;
         }
 
+        $replayTokenHash = $verifier instanceof ReplayTokenHashProviderInterface
+            ? $verifier->getReplayTokenHash()
+            : null;
+        if ($replayTokenHash === null) {
+            return false;
+        }
+
         try {
             $payload = json_decode($body, true, 32, JSON_THROW_ON_ERROR);
         } catch (JsonException) {
@@ -82,7 +89,7 @@ final class ProviderEventIngestionService
         $providerId = (int) ($provider['id'] ?? 0);
         $messageId = $this->events->findMessageId($providerId, $event->getProviderMessageId());
 
-        return $this->events->record($event, $providerId > 0 ? $providerId : null, $messageId)->isAccepted();
+        return $this->events->record($event, $providerId > 0 ? $providerId : null, $messageId, $replayTokenHash)->isAccepted();
     }
 
     private function isJsonContentType(string $contentType): bool

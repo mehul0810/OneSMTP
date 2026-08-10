@@ -62,6 +62,12 @@ final class RetentionPruner
             $batchSize
         );
         $this->deleteInBatches(
+            TableNames::providerEventReplays(),
+            'created_at < %s',
+            [$cutoff],
+            $batchSize
+        );
+        $this->deleteInBatches(
             TableNames::messages(),
             "created_at < %s AND status IN ('sent','failed','simulated')",
             [$cutoff],

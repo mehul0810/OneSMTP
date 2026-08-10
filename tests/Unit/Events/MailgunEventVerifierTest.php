@@ -21,6 +21,7 @@ final class MailgunEventVerifierTest extends TestCase
             ProviderEventVerificationResult::VERIFIED,
             $verifier->verify($this->signedPayload(self::NOW), ['content-type' => 'application/json'])
         );
+        self::assertSame(hash('sha256', 'fixture-token'), $verifier->getReplayTokenHash());
     }
 
     public function test_signature_is_rejected_when_tampered_or_expired(): void
@@ -48,6 +49,40 @@ final class MailgunEventVerifierTest extends TestCase
         self::assertSame(
             ProviderEventVerificationResult::REJECTED,
             (new MailgunEventVerifier(self::KEY, static fn (): int => self::NOW))->verify('{', [])
+        );
+    }
+
+    public function test_parent_signature_is_accepted_for_mailgun_subaccount_payloads(): void
+    {
+        $verifier = new MailgunEventVerifier(self::KEY, static fn (): int => self::NOW);
+        $payload = json_decode($this->signedPayload(self::NOW), true, 32, JSON_THROW_ON_ERROR);
+        $payload['signature']['signature'] = str_repeat('0', 64);
+        $payload['signature']['parent-signature'] = hash_hmac('sha256', (string) self::NOW . 'fixture-token', self::KEY);
+
+        $parentPayload = (string) wp_json_encode($payload);
+        self::assertSame(
+            ProviderEventVerificationResult::VERIFIED,
+            $verifier->verify($parentPayload, [])
+        );
+    }
+
+    public function test_parent_signature_can_use_the_documented_root_fields(): void
+    {
+        $verifier = new MailgunEventVerifier(self::KEY, static fn (): int => self::NOW);
+        $payload = [
+            'timestamp' => (string) self::NOW,
+            'token' => 'fixture-root-token',
+            'parent-signature' => hash_hmac('sha256', (string) self::NOW . 'fixture-root-token', self::KEY),
+            'event-data' => [
+                'id' => 'fixture-root-event-001',
+                'event' => 'delivered',
+            ],
+        ];
+
+        $rootPayload = (string) wp_json_encode($payload);
+        self::assertSame(
+            ProviderEventVerificationResult::VERIFIED,
+            $verifier->verify($rootPayload, [])
         );
     }
 

@@ -104,17 +104,27 @@ Mailgun connection exists, the Pro `provider_events` entitlement and rollout
 flag are enabled, the site has a real WordPress salt, and Mailgun's timestamp,
 token, and HMAC-SHA256 signature verify. Requests must be HTTPS, JSON, and no
 larger than 64 KiB; timestamps more than five minutes from the site clock are
-rejected. Replayed event identities are acknowledged without a second write.
+rejected. WordPress REST/PHP can buffer a request before the callback, so
+enforce the 64 KiB cap at the reverse proxy or PHP/server layer as well as in
+the plugin. Mailgun's timestamp+token is HMAC-verified; every verified token is
+atomically claimed in a separate hashed replay store, so an exact retry is
+acknowledged while a reused token with changed normalized data is rejected. A
+new token for an already-seen event is also burned and acknowledged without a
+second event row.
 
 Only `delivered`, `hard_bounce`, `soft_bounce`, `complaint`, `deferred`, and
 `unknown` are retained as normalized categories. Mailgun `accepted` means
 queued and is deliberately recorded as `unknown`, never as delivered. A
 `temporary_fail` is deferred unless Mailgun explicitly supplies temporary
-bounce severity; `permanent_fail` and an explicit permanent failure are hard
-bounces. Bounce and complaint records keep only an individual recipient HMAC;
-raw payloads, recipients, headers, IPs, user agents, diagnostics, and provider
-metadata are discarded after validation. Suppression enforcement remains a
-separate, owner-gated follow-up (#64).
+bounce severity; `permanent_fail` is hard only when Mailgun explicitly supplies
+permanent severity. Bounce and complaint records keep only an individual
+recipient HMAC.
+The opaque provider `message-id` is retained only as a correlation reference;
+other provider metadata, raw payloads, plaintext recipients, headers, IPs, user
+agents, diagnostics, and signing tokens are discarded after validation.
+Subaccount payloads may include Mailgun's `parent-signature`; it is verified
+with the configured primary Webhook Signing Key. Suppression enforcement
+remains a separate, owner-gated follow-up (#64).
 
 See Mailgun's [webhook security guidance](https://documentation.mailgun.com/docs/mailgun/user-manual/webhooks/securing-webhooks)
 and [webhook payload reference](https://documentation.mailgun.com/docs/mailgun/user-manual/webhooks/webhook-payloads)

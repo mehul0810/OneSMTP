@@ -105,6 +105,15 @@ final class FakeWpdb
     /** @var array<string,int> */
     public array $providerEventRowsByHash = [];
 
+    /** @var array<string,array<string,mixed>> */
+    public array $providerEventReplayRowsByHash = [];
+
+    /** @var array<string,array<string,mixed>> */
+    public array $providerEventRowsByReplayToken = [];
+
+    /** @var array<int|string,array<string,mixed>> */
+    public array $providerEventRows = [];
+
     /** @var array<string,int> */
     public array $providerEventMessageIds = [];
 
@@ -189,13 +198,29 @@ final class FakeWpdb
         if (str_contains($sql, $this->prefix . 'onesmtp_provider_events')) {
             $this->queries[] = $sql;
             $args = is_array($this->lastPrepared) ? ($this->lastPrepared['args'] ?? []) : [];
+
+            if (str_starts_with(strtoupper(ltrim($sql)), 'UPDATE')) {
+                $messageId = (int) ($args[0] ?? 0);
+                $providerId = (int) ($args[1] ?? 0);
+                $providerMessageId = (string) ($args[2] ?? '');
+                foreach ($this->providerEventRows as &$row) {
+                    if ((int) ($row['provider_id'] ?? 0) === $providerId && (string) ($row['provider_message_id'] ?? '') === $providerMessageId && ($row['message_id'] ?? null) === null) {
+                        $row['message_id'] = $messageId;
+                    }
+                }
+                unset($row);
+
+                return 1;
+            }
+
             $hash = '';
+            $hashes = [];
             foreach ($args as $arg) {
                 if (is_string($arg) && preg_match('/\A[a-f0-9]{64}\z/D', $arg) === 1) {
-                    $hash = $arg;
-                    break;
+                    $hashes[] = $arg;
                 }
             }
+            $hash = $hashes[0] ?? '';
             if ($hash !== '') {
                 if (isset($this->providerEventRowsByHash[$hash])) {
                     return 0;
@@ -203,7 +228,33 @@ final class FakeWpdb
 
                 $this->insert_id++;
                 $this->providerEventRowsByHash[$hash] = $this->insert_id;
+                $this->providerEventRowsByReplayToken[$hashes[2] ?? ''] = [
+                    'id' => $this->insert_id,
+                    'external_event_hash' => $hash,
+                    'event_data_hash' => $hashes[1] ?? null,
+                ];
             }
+
+            return 1;
+        }
+
+        if (str_contains($sql, $this->prefix . 'onesmtp_provider_event_replays') && str_contains(strtoupper($sql), 'INSERT INTO')) {
+            $this->queries[] = $sql;
+            $args = is_array($this->lastPrepared) ? ($this->lastPrepared['args'] ?? []) : [];
+            $replayHash = (string) ($args[1] ?? '');
+            if ($replayHash === '') {
+                return false;
+            }
+            if (isset($this->providerEventReplayRowsByHash[$replayHash])) {
+                return 0;
+            }
+
+            $this->insert_id++;
+            $this->providerEventReplayRowsByHash[$replayHash] = [
+                'id' => $this->insert_id,
+                'event_data_hash' => (string) ($args[2] ?? ''),
+                'external_event_hash' => (string) ($args[3] ?? ''),
+            ];
 
             return 1;
         }
@@ -251,6 +302,36 @@ final class FakeWpdb
             $messageId = isset($args[0]) ? (int) $args[0] : 0;
 
             return $this->messageRowsById[$messageId] ?? null;
+        }
+
+        if (str_contains($query, $this->prefix . 'onesmtp_provider_events')) {
+            if (str_contains($query, 'replay_token_hash = %s')) {
+                $replayHash = (string) ($args[0] ?? '');
+                if (isset($this->providerEventRowsByReplayToken[$replayHash])) {
+                    return $this->providerEventRowsByReplayToken[$replayHash];
+                }
+            }
+
+            if (str_contains($query, 'external_event_hash = %s')) {
+                $externalHash = (string) ($args[1] ?? '');
+                foreach ($this->providerEventRowsByReplayToken as $row) {
+                    if (($row['external_event_hash'] ?? '') === $externalHash) {
+                        return $row;
+                    }
+                }
+                if (isset($this->providerEventRowsByHash[$externalHash])) {
+                    return [
+                        'external_event_hash' => $externalHash,
+                        'event_data_hash' => null,
+                    ];
+                }
+            }
+        }
+
+        if (str_contains($query, $this->prefix . 'onesmtp_provider_event_replays') && str_contains($query, 'replay_token_hash = %s')) {
+            $replayHash = (string) ($args[0] ?? '');
+
+            return $this->providerEventReplayRowsByHash[$replayHash] ?? null;
         }
 
         if (

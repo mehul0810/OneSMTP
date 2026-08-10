@@ -61,7 +61,7 @@ release or licensing API. It does not enable suppression enforcement.
   context after each per-site read/write path. Provider credentials and raw
   payload data are never copied into network settings or summaries.
 - Mailgun webhooks are site-local, HTTPS-only, bounded JSON POSTs. Signature
-  verification, replay hashing, and retention happen before any normalized row
+  verification, atomic replay-token claiming, and retention happen before any normalized row
   is written; no provider payload or plaintext recipient crosses the storage or
   admin boundary.
 - Provider budgets are stored as bounded non-secret provider configuration. Only
@@ -77,7 +77,7 @@ The filters above are internal integration points for the candidate runtime and
 fixtures, not a supported way to activate paid behavior. Do not add license
 activation, purchase URLs, pricing, tiers, hosted-service claims, telemetry,
 privacy promises, or public schema changes here. Owner-gated issues #40, #50,
-#51, #63, #64, and #66 remain planned/excluded from this candidate. Provider
+#51, #64, and #66 remain planned/excluded from this candidate. Provider
 quota budgets from [issue #54](https://github.com/mehul0810/aculect-mail/issues/54) are candidate-shipped by merged [PR #166](https://github.com/mehul0810/aculect-mail/pull/166);
 the issue is closed and its release-tip evidence is recorded in the claim ledger.
 

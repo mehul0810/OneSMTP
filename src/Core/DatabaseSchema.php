@@ -18,6 +18,7 @@ final class DatabaseSchema
         $eventsTable    = TableNames::events();
         $quotaLeasesTable = TableNames::quotaLeases();
         $providerEventsTable = TableNames::providerEvents();
+        $providerEventReplaysTable = TableNames::providerEventReplays();
 
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
@@ -124,14 +125,31 @@ final class DatabaseSchema
             event_type VARCHAR(20) NOT NULL,
             occurred_at DATETIME NOT NULL,
             external_event_hash CHAR(64) NOT NULL,
+            event_data_hash CHAR(64) NULL,
+            replay_token_hash CHAR(64) NULL,
             recipient_fingerprint CHAR(64) NULL,
             created_at DATETIME NOT NULL,
             PRIMARY KEY  (id),
             UNIQUE KEY external_event_hash (external_event_hash),
+            UNIQUE KEY replay_token_hash (replay_token_hash),
             KEY provider_message_id (provider_id, provider_message_id),
             KEY message_id (message_id),
+            KEY event_data_hash (event_data_hash),
             KEY event_type (event_type),
             KEY occurred_at (occurred_at),
+            KEY created_at (created_at)
+        ) {$charsetCollate};";
+
+        $providerEventReplaysSql = "CREATE TABLE {$providerEventReplaysTable} (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            provider VARCHAR(64) NOT NULL,
+            replay_token_hash CHAR(64) NOT NULL,
+            event_data_hash CHAR(64) NOT NULL,
+            external_event_hash CHAR(64) NOT NULL,
+            created_at DATETIME NOT NULL,
+            PRIMARY KEY  (id),
+            UNIQUE KEY replay_token_hash (replay_token_hash),
+            KEY external_event_hash (external_event_hash),
             KEY created_at (created_at)
         ) {$charsetCollate};";
 
@@ -141,5 +159,6 @@ final class DatabaseSchema
         dbDelta($eventsSql);
         dbDelta($quotaLeasesSql);
         dbDelta($providerEventsSql);
+        dbDelta($providerEventReplaysSql);
     }
 }

@@ -570,6 +570,38 @@ export default function ProviderInlineSettings( { config } ) {
 								/>
 							)
 					) }
+					{ type === 'mailgun' && (
+						<div className="onesmtp-provider-field-note onesmtp-mailgun-webhook-guidance">
+							<strong>
+								{ __( 'Mailgun delivery webhook', 'onesmtp' ) }
+							</strong>
+							<p>
+								{ __(
+									'In Mailgun, open Webhooks, add a JSON POST webhook, and paste this HTTPS endpoint:',
+									'onesmtp'
+								) }
+							</p>
+							<code className="onesmtp-mailgun-webhook-endpoint">
+								{ config.webhookEndpoint ||
+									__(
+										'Save the site URL before configuring Mailgun.',
+										'onesmtp'
+									) }
+							</code>
+							<p>
+								{ __(
+									'Select delivered, permanent failure, temporary failure, and spam complaint events. The signing key above verifies the timestamp and token; a subaccount parent-signature is accepted with the primary account key.',
+									'onesmtp'
+								) }
+							</p>
+							<p>
+								{ __(
+									'Use HTTPS end to end and enforce a 64 KiB request cap at your proxy/PHP layer. WordPress may buffer the request before this callback; oversized bodies are still rejected before ingestion.',
+									'onesmtp'
+								) }
+							</p>
+						</div>
+					) }
 					{ type === 'amazon_ses' && (
 						<p className="onesmtp-provider-field-note">
 							{ __(

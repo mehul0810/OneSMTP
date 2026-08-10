@@ -81,12 +81,13 @@ final class Plugin
         $siteSecret = function_exists('wp_salt') ? trim( (string) wp_salt('auth') ) : '';
         $providerEventIngestion = null;
         if ($siteSecret !== '') {
+            $siteId = function_exists('get_current_blog_id') ? max(1, (int) get_current_blog_id()) : 1;
             $providerEvents = new ProviderEventRepository();
             $providerEventIngestion = new ProviderEventIngestionService(
                 $providers,
                 $providerEvents,
                 $featureGate,
-                new MailgunEventNormalizer(new SiteSecretHmac($siteSecret)),
+                new MailgunEventNormalizer(new SiteSecretHmac($siteSecret), recipientContext: 'recipient.site.' . $siteId),
                 static fn (string $signingKey): MailgunEventVerifier => new MailgunEventVerifier($signingKey)
             );
         }

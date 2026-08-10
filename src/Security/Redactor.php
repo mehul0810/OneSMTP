@@ -8,6 +8,7 @@ final class Redactor
 {
     private const MASK = '[REDACTED]';
     private const SECRET_PATTERNS = [
+        '/((["\']?)webhook[_-]?signing[_-]?key\2\s*[=:]\s*)(["\']?)([^"\'\s,;}]+)\3/i',
         '/(api(?:_|-)?key\s*[=:]\s*)([^\s,;]+)/i',
         '/(token\s*[=:]\s*)([^\s,;]+)/i',
         '/(authorization\s*:\s*bearer\s+)([^\s,;]+)/i',
