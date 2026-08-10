@@ -1,5 +1,8 @@
 # Multisite network controls
 
+This page describes the unreleased `release/0.4.0` candidate. It is not a
+public availability, licensing, or upgrade announcement.
+
 Multisite network controls are a Pro capability. They are available only from
 the WordPress network admin when the `multisite_management` entitlement and
 rollout flag are both enabled. Free/core installs, single-site installs, and

@@ -20,6 +20,8 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Pro-gated conditional routing rules for sender, recipient, subject, content, and source attribution with bounded in-memory matching and deterministic priority conflict resolution.
 - Pro routing simulation for saved or unsaved candidate rules with bounded sample fields, provider eligibility explanations, and no-delivery/no-persistence guarantees.
 - Pro-gated per-provider sending budgets for bounded minute, hour, and day windows, deterministic capacity-aware routing, and typed queue deferrals without message or recipient metadata.
+- Attachment-bearing quota deferrals fail closed before UUID resolution or scheduling with safe terminal metadata when sanitized retry data cannot reproduce files.
+- Candidate Pro onboarding, default-deny fallback boundaries, planned exclusions, and claim evidence are documented without purchase, licensing, pricing, or upgrade claims.
 
 ## [0.3.0] - Unreleased
 
