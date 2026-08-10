@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Aculect Mail 0.1.0\n"
 "Report-Msgid-Bugs-To: https://github.com/mehul0810/aculect-mail/issues\n"
-"POT-Creation-Date: 2026-08-10 07:44+0000\n"
+"POT-Creation-Date: 2026-08-10 07:55+0000\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -22,6 +22,7 @@ msgid "%1$d configured connection · %2$d active"
 msgstr ""
 
 #: src/Admin/LogAdmin.php:1060
+#: src/Multisite/NetworkLogRepository.php:222
 msgid "%1$d recipients across %2$s"
 msgstr ""
 
@@ -30,6 +31,7 @@ msgid "%1$s · Priority %2$d · Weight %3$d"
 msgstr ""
 
 #: src/Admin/LogAdmin.php:1094
+#: src/Multisite/NetworkLogRepository.php:238
 msgid "%d attachment"
 msgstr ""
 
@@ -63,6 +65,8 @@ msgid "0 attachments"
 msgstr ""
 
 #: src/Admin/LogAdmin.php:1042
+#: src/Multisite/NetworkLogRepository.php:192
+#: src/Multisite/NetworkLogRepository.php:214
 msgid "0 recipients"
 msgstr ""
 
@@ -145,7 +149,13 @@ msgstr ""
 
 #: src/Admin/AdminPage.php:236
 #: src/Admin/AdminPage.php:237
+#: src/Admin/NetworkAdmin.php:49
 msgid "Aculect Mail"
+msgstr ""
+
+#: src/Admin/NetworkAdmin.php:48
+#: src/Admin/NetworkAdmin.php:120
+msgid "Aculect Mail Network"
 msgstr ""
 
 #: src/Admin/AdminPage.php:249
@@ -226,6 +236,14 @@ msgstr ""
 
 #: src/Admin/SettingsAdmin.php:768
 msgid "Aculect Mail import denied"
+msgstr ""
+
+#: src/Admin/NetworkAdmin.php:417
+msgid "Aculect Mail network access denied"
+msgstr ""
+
+#: src/Admin/NetworkAdmin.php:122
+msgid "Aculect Mail network sections"
 msgstr ""
 
 #: src/Admin/QueueDiagnosticsAdmin.php:87
@@ -384,6 +402,18 @@ msgstr ""
 msgid "Alert recipients"
 msgstr ""
 
+#: src/Admin/NetworkAdmin.php:158
+msgid "Allow sites to inherit attachment logging"
+msgstr ""
+
+#: src/Admin/NetworkAdmin.php:156
+msgid "Allow sites to inherit background sending"
+msgstr ""
+
+#: src/Admin/NetworkAdmin.php:153
+msgid "Allow sites to inherit these rate limits"
+msgstr ""
+
 #: src/Providers/ProviderTypes.php:77
 #: src/Admin/ProviderAdmin.php:547
 msgid "Amazon SES"
@@ -410,6 +440,7 @@ msgid "Any provider"
 msgstr ""
 
 #: src/Admin/LogAdmin.php:508
+#: src/Admin/NetworkAdmin.php:264
 msgid "Any status"
 msgstr ""
 
@@ -566,6 +597,10 @@ msgstr ""
 
 #: src/Admin/SetupWizard.php:158
 msgid "Choose the name and email address Aculect Mail should use when sending WordPress email."
+msgstr ""
+
+#: src/Admin/NetworkAdmin.php:144
+msgid "Choose which operational controls sites inherit. Sites can explicitly opt out and keep their own site-level values."
 msgstr ""
 
 #: src/Admin/ProviderAdmin.php:649
@@ -779,6 +814,7 @@ msgstr ""
 msgid "Delivery rate limit settings saved."
 msgstr ""
 
+#: src/Admin/NetworkAdmin.php:149
 #: src/Admin/SettingsAdmin.php:468
 msgid "Delivery rate limits"
 msgstr ""
@@ -883,8 +919,24 @@ msgstr ""
 msgid "Enable admin email alerts."
 msgstr ""
 
+#: src/Admin/NetworkAdmin.php:212
+msgid "Enable attachment logging for this site"
+msgstr ""
+
+#: src/Admin/NetworkAdmin.php:157
+msgid "Enable attachment metadata logging by default"
+msgstr ""
+
+#: src/Admin/NetworkAdmin.php:155
+msgid "Enable background sending by default"
+msgstr ""
+
 #: src/Admin/SettingsAdmin.php:496
 msgid "Enable background sending for normal mail."
+msgstr ""
+
+#: src/Admin/NetworkAdmin.php:210
+msgid "Enable background sending for this site"
 msgstr ""
 
 #: src/Admin/SettingsAdmin.php:526
@@ -1026,6 +1078,10 @@ msgstr ""
 msgid "Filter logs"
 msgstr ""
 
+#: src/Admin/NetworkAdmin.php:273
+msgid "Filter network logs"
+msgstr ""
+
 #: src/Admin/SettingsAdmin.php:446
 msgid "For staging and development only. Aculect Mail captures outgoing messages in the email log as Simulated and never contacts a provider or reports them as delivered."
 msgstr ""
@@ -1149,6 +1205,22 @@ msgstr ""
 msgid "Inconclusive"
 msgstr ""
 
+#: src/Admin/NetworkAdmin.php:213
+msgid "Inherit network attachment logging"
+msgstr ""
+
+#: src/Admin/NetworkAdmin.php:211
+msgid "Inherit network background sending"
+msgstr ""
+
+#: src/Admin/NetworkAdmin.php:209
+msgid "Inherit network rate limits"
+msgstr ""
+
+#: src/Admin/NetworkAdmin.php:188
+msgid "Inheritance is explicit per control. Turning inheritance off keeps only this site’s allowlisted values; provider credentials remain site-local."
+msgstr ""
+
 #: src/Core/RetentionPolicy.php:38
 msgid "Keep a longer operational and audit window."
 msgstr ""
@@ -1212,6 +1284,10 @@ msgstr ""
 msgid "Load or repair Action Scheduler so Aculect Mail can enqueue background retries."
 msgstr ""
 
+#: src/Admin/NetworkAdmin.php:186
+msgid "Load site"
+msgstr ""
+
 #: src/Admin/SettingsAdmin.php:535
 msgid "Log retention policy"
 msgstr ""
@@ -1246,6 +1322,10 @@ msgstr ""
 
 #: src/Providers/ProviderTypes.php:205
 msgid "Mailjet"
+msgstr ""
+
+#: src/Admin/ProCapabilitiesPanel.php:70
+msgid "Manage allowlisted network settings, explicit site inheritance, and bounded privacy-safe log summaries; provider credentials and payload data remain site-local."
 msgstr ""
 
 #: src/Admin/AdminPage.php:462
@@ -1320,11 +1400,36 @@ msgstr ""
 msgid "Netcore"
 msgstr ""
 
-#: src/Admin/ProCapabilitiesPanel.php:70
-msgid "Network-level settings and log views are planned; current settings and logs remain site-local."
+#: src/Admin/NetworkAdmin.php:390
+msgid "Network defaults could not be saved."
+msgstr ""
+
+#: src/Admin/NetworkAdmin.php:121
+msgid "Network defaults never include provider credentials, alert destinations, sender recipients, message bodies, or raw headers."
+msgstr ""
+
+#: src/Admin/NetworkAdmin.php:388
+msgid "Network defaults saved."
+msgstr ""
+
+#: src/Admin/NetworkAdmin.php:234
+msgid "Network delivery logs"
+msgstr ""
+
+#: src/Admin/NetworkAdmin.php:125
+msgid "Network logs"
+msgstr ""
+
+#: src/Admin/NetworkAdmin.php:229
+msgid "Network logs could not be loaded. Try again or narrow the filter."
+msgstr ""
+
+#: src/Admin/NetworkAdmin.php:124
+msgid "Network settings"
 msgstr ""
 
 #: src/Admin/LogAdmin.php:603
+#: src/Admin/NetworkAdmin.php:290
 msgid "Next"
 msgstr ""
 
@@ -1415,6 +1520,18 @@ msgstr ""
 msgid "No messages match these filters"
 msgstr ""
 
+#: src/Admin/NetworkAdmin.php:238
+msgid "No network email activity yet."
+msgstr ""
+
+#: src/Admin/NetworkAdmin.php:238
+msgid "No network messages match these filters."
+msgstr ""
+
+#: src/Multisite/NetworkLogRepository.php:164
+msgid "No provider"
+msgstr ""
+
 #: src/Admin/DashboardAdmin.php:266
 msgid "No provider attempts were recorded in this window."
 msgstr ""
@@ -1437,6 +1554,10 @@ msgstr ""
 
 #: src/Admin/RoutingAdmin.php:441
 msgid "No saved routing rules are configured. The normal healthy-provider route would handle this sample."
+msgstr ""
+
+#: src/Admin/NetworkAdmin.php:169
+msgid "No sites are available for a site-level override."
 msgstr ""
 
 #: src/Admin/DashboardAdmin.php:253
@@ -1476,6 +1597,7 @@ msgid "Not enabled"
 msgstr ""
 
 #: src/Admin/LogAdmin.php:1070
+#: src/Multisite/NetworkLogRepository.php:233
 msgid "Not logged"
 msgstr ""
 
@@ -1517,6 +1639,10 @@ msgstr ""
 
 #: src/Admin/LogAdmin.php:1391
 msgid "Only queued or scheduled messages can be moved to the front of the queue."
+msgstr ""
+
+#: src/Admin/NetworkAdmin.php:235
+msgid "Only safe delivery summaries are shown. Message bodies, recipients, headers, provider credentials, and raw payloads stay within each site boundary."
 msgstr ""
 
 #: src/Admin/SettingsAdmin.php:630
@@ -1568,7 +1694,12 @@ msgid "PHP mail"
 msgstr ""
 
 #: src/Admin/LogAdmin.php:596
+#: src/Admin/NetworkAdmin.php:288
 msgid "Page %1$d of %2$d"
+msgstr ""
+
+#: src/Admin/NetworkAdmin.php:244
+msgid "Page %1$d of %2$d (%3$d bounded log entries)"
 msgstr ""
 
 #: src/Admin/LogAdmin.php:376
@@ -1584,7 +1715,23 @@ msgstr ""
 msgid "Pending messages"
 msgstr ""
 
+#: src/Admin/NetworkAdmin.php:152
+#: src/Admin/NetworkAdmin.php:208
+msgid "Per day"
+msgstr ""
+
+#: src/Admin/NetworkAdmin.php:151
+#: src/Admin/NetworkAdmin.php:207
+msgid "Per hour"
+msgstr ""
+
+#: src/Admin/NetworkAdmin.php:150
+#: src/Admin/NetworkAdmin.php:206
+msgid "Per minute"
+msgstr ""
+
 #: src/Admin/LogAdmin.php:541
+#: src/Admin/NetworkAdmin.php:268
 msgid "Per page"
 msgstr ""
 
@@ -1597,10 +1744,12 @@ msgid "Planned"
 msgstr ""
 
 #: src/Admin/LogAdmin.php:1157
+#: src/Multisite/NetworkLogRepository.php:256
 msgid "Plugin: %s"
 msgstr ""
 
 #: src/Admin/LogAdmin.php:1160
+#: src/Multisite/NetworkLogRepository.php:256
 msgid "Plugin: Unknown plugin"
 msgstr ""
 
@@ -1614,6 +1763,7 @@ msgid "Postmark"
 msgstr ""
 
 #: src/Admin/LogAdmin.php:590
+#: src/Admin/NetworkAdmin.php:285
 msgid "Previous"
 msgstr ""
 
@@ -2048,6 +2198,10 @@ msgstr ""
 msgid "Safe log summary forwarded to the verified site admin address."
 msgstr ""
 
+#: src/Admin/NetworkAdmin.php:143
+msgid "Safe network defaults"
+msgstr ""
+
 #: src/Admin/RoutingAdmin.php:380
 msgid "Sample message fields"
 msgstr ""
@@ -2076,6 +2230,10 @@ msgstr ""
 msgid "Save first provider. Add and activate a provider before sending a setup test email."
 msgstr ""
 
+#: src/Admin/NetworkAdmin.php:159
+msgid "Save network defaults"
+msgstr ""
+
 #: src/Admin/ProviderAdmin.php:317
 msgid "Save provider"
 msgstr ""
@@ -2091,6 +2249,10 @@ msgstr ""
 
 #: src/Admin/SettingsAdmin.php:462
 msgid "Save simulation mode"
+msgstr ""
+
+#: src/Admin/NetworkAdmin.php:214
+msgid "Save site override"
 msgstr ""
 
 #: src/Admin/SettingsAdmin.php:371
@@ -2117,6 +2279,7 @@ msgid "Scores combine successful and failed attempts, retries, provider switches
 msgstr ""
 
 #: src/Admin/LogAdmin.php:535
+#: src/Admin/NetworkAdmin.php:268
 msgid "Search"
 msgstr ""
 
@@ -2380,6 +2543,32 @@ msgstr ""
 msgid "Since %s UTC"
 msgstr ""
 
+#: src/Admin/NetworkAdmin.php:179
+msgid "Site"
+msgstr ""
+
+#: src/Admin/NetworkAdmin.php:182
+#: src/Admin/NetworkAdmin.php:330
+#: src/Multisite/NetworkLogRepository.php:112
+msgid "Site %d"
+msgstr ""
+
+#: src/Admin/NetworkAdmin.php:268
+msgid "Site ID"
+msgstr ""
+
+#: src/Admin/NetworkAdmin.php:167
+msgid "Site inheritance and overrides"
+msgstr ""
+
+#: src/Admin/NetworkAdmin.php:391
+msgid "Site override could not be saved."
+msgstr ""
+
+#: src/Admin/NetworkAdmin.php:389
+msgid "Site override saved."
+msgstr ""
+
 #: src/Admin/LogAdmin.php:1013
 msgid "Size"
 msgstr ""
@@ -2433,6 +2622,7 @@ msgstr ""
 #: src/Admin/LogAdmin.php:482
 #: src/Admin/LogAdmin.php:506
 #: src/Admin/LogAdmin.php:851
+#: src/Admin/NetworkAdmin.php:264
 #: src/Admin/DashboardAdmin.php:288
 #: src/Admin/DashboardAdmin.php:322
 msgid "Status"
@@ -2624,10 +2814,12 @@ msgid "The selected provider is not eligible for manual resend."
 msgstr ""
 
 #: src/Admin/LogAdmin.php:1167
+#: src/Multisite/NetworkLogRepository.php:260
 msgid "Theme: %s"
 msgstr ""
 
 #: src/Admin/LogAdmin.php:1170
+#: src/Multisite/NetworkLogRepository.php:260
 msgid "Theme: Unknown theme"
 msgstr ""
 
@@ -2711,6 +2903,8 @@ msgstr ""
 
 #: src/Admin/LogAdmin.php:1142
 #: src/Admin/LogAdmin.php:1177
+#: src/Multisite/NetworkLogRepository.php:248
+#: src/Multisite/NetworkLogRepository.php:263
 msgid "Unknown source"
 msgstr ""
 
@@ -2855,6 +3049,10 @@ msgstr ""
 msgid "You are not allowed to manage Aculect Mail settings."
 msgstr ""
 
+#: src/Admin/NetworkAdmin.php:416
+msgid "You do not have permission to access Aculect Mail network controls."
+msgstr ""
+
 #: src/Admin/AdminPage.php:248
 msgid "You do not have permission to access Aculect Mail settings."
 msgstr ""
@@ -2976,6 +3174,7 @@ msgid "unknown"
 msgstr ""
 
 #: src/Admin/LogAdmin.php:1062
+#: src/Multisite/NetworkLogRepository.php:224
 msgid "unknown domains"
 msgstr ""
 
