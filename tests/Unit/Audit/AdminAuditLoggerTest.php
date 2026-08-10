@@ -41,4 +41,20 @@ final class AdminAuditLoggerTest extends TestCase
         self::assertStringNotContainsString('secret-password', $json);
         self::assertStringNotContainsString('provider-token', $json);
     }
+
+    public function test_routing_rule_audit_contains_metadata_only(): void
+    {
+        $logger = new AdminAuditLogger();
+
+        $logger->logRoutingRuleChange('created', 3, 7, 10, 1, true);
+
+        self::assertCount(1, $GLOBALS['wpdb']->inserts);
+        self::assertSame('audit_routing_rule_changed', $GLOBALS['wpdb']->inserts[0]['data']['event_type']);
+
+        $json = (string) $GLOBALS['wpdb']->inserts[0]['data']['context_json'];
+        self::assertStringContainsString('condition_count', $json);
+        self::assertStringNotContainsString('message', $json);
+        self::assertStringNotContainsString('recipient', $json);
+        self::assertStringNotContainsString('content', $json);
+    }
 }

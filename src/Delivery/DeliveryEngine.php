@@ -109,6 +109,7 @@ final class DeliveryEngine
                 'consecutive_failures_for_last_provider' => $consecutive,
                 'forced_provider_id' => $forcedProviderId ?? 0,
                 'failover_on_first_failure' => $failoverOnFirstFailure,
+                'payload' => $payload,
             ]
         );
 

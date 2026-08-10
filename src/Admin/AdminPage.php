@@ -37,6 +37,7 @@ final class AdminPage
     private MailDeliveryOwnership $deliveryOwnership;
     private SimulationModeSettingsRepository $simulationMode;
     private FeatureGate $featureGate;
+    private RoutingAdmin $routing;
 
     public function __construct(
         ?ProviderAdmin $providers = null,
@@ -50,7 +51,8 @@ final class AdminPage
         ?SenderIdentityRepository $senderIdentityRepository = null,
         ?MailDeliveryOwnership $deliveryOwnership = null,
         ?SimulationModeSettingsRepository $simulationMode = null,
-        ?FeatureGate $featureGate = null
+        ?FeatureGate $featureGate = null,
+        ?RoutingAdmin $routing = null
     )
     {
         $this->providerRepository = $providerRepository ?? new ProviderRepository();
@@ -58,6 +60,10 @@ final class AdminPage
         $this->deliveryOwnership = $deliveryOwnership ?? new MailDeliveryOwnership();
         $this->simulationMode = $simulationMode ?? new SimulationModeSettingsRepository();
         $this->featureGate = $featureGate ?? new FeatureGate();
+        $this->routing = $routing ?? new RoutingAdmin(
+            featureGate: $this->featureGate,
+            providers: $this->providerRepository
+        );
         $this->dashboard = $dashboard ?? new DashboardAdmin();
         $this->providers = $providers ?? new ProviderAdmin($this->providerRepository);
         $this->setupWizard = $setupWizard ?? new SetupWizard($this->providerRepository);
@@ -80,6 +86,7 @@ final class AdminPage
         add_action('admin_init', [$this->providers, 'handleRequest']);
         add_action('admin_init', [$this->logs, 'handleRequest']);
         add_action('admin_init', [$this->settings, 'handleRequest']);
+        add_action('admin_init', [$this->routing, 'handleRequest']);
         add_action('admin_init', [$this->diagnostics, 'handleRequest']);
         add_action('admin_init', [$this->alerts, 'handleRequest']);
     }
@@ -412,6 +419,7 @@ final class AdminPage
             __('Choose how Aculect Mail selects a provider for each message.', 'onesmtp'),
             function (array $activeProviders): void {
                 $this->renderRoutingOverview($activeProviders);
+                $this->routing->render($activeProviders);
             }
         ));
         $registry->register(new AdminScreenDefinition(

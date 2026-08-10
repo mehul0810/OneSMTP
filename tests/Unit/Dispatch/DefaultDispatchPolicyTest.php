@@ -5,13 +5,14 @@ declare(strict_types=1);
 namespace OneSMTP\Tests\Unit\Dispatch;
 
 use OneSMTP\Dispatch\DefaultDispatchPolicy;
+use OneSMTP\Product\FeatureGate;
 use PHPUnit\Framework\TestCase;
 
 final class DefaultDispatchPolicyTest extends TestCase
 {
     public function test_selects_first_provider_for_first_attempt(): void
     {
-        $policy = new DefaultDispatchPolicy();
+        $policy = $this->enabledPolicy();
 
         self::assertSame(11, $policy->chooseNextProvider(10, 1, [
             'providers' => [
@@ -23,7 +24,7 @@ final class DefaultDispatchPolicyTest extends TestCase
 
     public function test_keeps_same_provider_before_two_consecutive_failures(): void
     {
-        $policy = new DefaultDispatchPolicy();
+        $policy = $this->enabledPolicy();
 
         self::assertSame(22, $policy->chooseNextProvider(10, 2, [
             'providers' => [
@@ -104,7 +105,7 @@ final class DefaultDispatchPolicyTest extends TestCase
 
     public function test_routing_rule_match_selects_provider_before_default_dispatch(): void
     {
-        $policy = new DefaultDispatchPolicy();
+        $policy = $this->enabledPolicy();
 
         self::assertSame(202, $policy->chooseNextProvider(77, 1, [
             'providers' => [
@@ -125,7 +126,7 @@ final class DefaultDispatchPolicyTest extends TestCase
 
     public function test_routing_rule_no_match_keeps_existing_default_dispatch(): void
     {
-        $policy = new DefaultDispatchPolicy();
+        $policy = $this->enabledPolicy();
 
         self::assertSame(101, $policy->chooseNextProvider(0, 1, [
             'providers' => [
@@ -155,6 +156,60 @@ final class DefaultDispatchPolicyTest extends TestCase
 
         self::assertSame(22, $policy->chooseNextProvider(1, 1, ['providers' => $providers]));
         self::assertSame(22, $policy->chooseNextProvider(2, 1, ['providers' => $providers]));
+    }
+
+    public function test_free_installation_keeps_advanced_rules_disabled(): void
+    {
+        $policy = new DefaultDispatchPolicy();
+
+        self::assertSame(101, $policy->chooseNextProvider(0, 1, [
+            'providers' => [
+                ['id' => 101, 'priority' => 1, 'weight' => 1, 'is_active' => 1],
+                ['id' => 202, 'priority' => 2, 'weight' => 1, 'is_active' => 1],
+            ],
+            'routing_rules' => [
+                [
+                    'provider_id' => 202,
+                    'conditions' => ['source_type' => 'commerce'],
+                ],
+            ],
+            'routing_context' => ['source_type' => 'commerce'],
+        ]));
+    }
+
+    public function test_payload_context_is_built_without_persisting_message_content(): void
+    {
+        $policy = $this->enabledPolicy();
+
+        self::assertSame(202, $policy->chooseNextProvider(0, 1, [
+            'providers' => [
+                ['id' => 101, 'priority' => 1, 'weight' => 1, 'is_active' => 1],
+                ['id' => 202, 'priority' => 2, 'weight' => 1, 'is_active' => 1],
+            ],
+            'routing_rules' => [
+                [
+                    'provider_id' => 202,
+                    'conditions' => [
+                        [
+                            'field' => 'content',
+                            'operator' => 'contains',
+                            'value' => 'fixture phrase',
+                        ],
+                    ],
+                ],
+            ],
+            'payload' => [
+                'subject' => 'Synthetic subject',
+                'message' => 'A fixture phrase in memory only.',
+            ],
+        ]));
+    }
+
+    private function enabledPolicy(): DefaultDispatchPolicy
+    {
+        return new DefaultDispatchPolicy(
+            featureGate: new FeatureGate([FeatureGate::SMART_ROUTING => true], true)
+        );
     }
 
     public function test_open_provider_circuit_is_skipped_until_closed_or_expired(): void

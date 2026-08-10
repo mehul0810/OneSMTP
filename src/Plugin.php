@@ -12,6 +12,7 @@ use OneSMTP\Conflict\MailDeliveryOwnership;
 use OneSMTP\Diagnostics\DiagnosticReportGenerator;
 use OneSMTP\Delivery\DeliveryEngine;
 use OneSMTP\Dispatch\DefaultDispatchPolicy;
+use OneSMTP\Product\FeatureGate;
 use OneSMTP\Logging\RetentionPruner;
 use OneSMTP\Pipeline\SenderIdentityApplier;
 use OneSMTP\Pipeline\SendPipeline;
@@ -36,7 +37,8 @@ final class Plugin
     {
         Installer::maybeUpgrade();
 
-        $dispatchPolicy = new DefaultDispatchPolicy();
+        $featureGate = FeatureGate::fromRuntime();
+        $dispatchPolicy = new DefaultDispatchPolicy(featureGate: $featureGate);
         $deliveryOwnership = new MailDeliveryOwnership();
 
         $messages  = new MessageRepository();
@@ -84,7 +86,10 @@ final class Plugin
             null,
             null,
             null,
-            $deliveryOwnership
+            $deliveryOwnership,
+            null,
+            $featureGate,
+            new Admin\RoutingAdmin(null, $providers, $featureGate)
         );
         $adminPage->registerHooks();
 

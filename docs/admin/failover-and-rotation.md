@@ -17,3 +17,22 @@ Analytics separates failovers **to** a provider from switches **away** from a pr
 If all healthy providers fail, the message is returned to the Action Scheduler retry queue with exponential backoff. A terminal failure is recorded when no safe alternate or retry path remains. Delivery is best-effort and depends on provider acceptance, recipient-domain policy, DNS, and downstream mailbox availability; no plugin can guarantee 100% inbox delivery.
 
 The normal retry policy can keep a provider for one additional attempt when immediate failover is not requested. Retry processing and background delivery opt into immediate failover so queued messages can move to another provider after the first failure.
+
+## Conditional routing (Pro)
+
+When the Smart routing capability is enabled, administrators can add bounded
+conditional rules on the Routing screen. Supported fields are sender,
+recipient, subject, content, and source attribution (source type, slug, name,
+or origin). Matching uses case-insensitive equality or bounded text operators;
+regular expressions and arbitrary payload/header fields are not accepted.
+
+Rules are evaluated by ascending priority. A lower number wins, and rules with
+the same priority keep their configured order. Disabled rules, malformed rules,
+inactive providers, and providers with an open circuit are skipped before the
+normal healthy-provider route is used.
+
+Content and source values are read only while a message is being dispatched.
+The routing context is bounded in memory and is never copied into routing
+events, audit records, or new persistent fields. Rule definitions contain only
+the administrator's configured field/operator/value; message bodies,
+recipients, and headers are not added to the logs.

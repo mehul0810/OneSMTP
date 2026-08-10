@@ -304,6 +304,7 @@ final class RetryScheduler
                 'last_provider_id'                        => $lastId,
                 'consecutive_failures_for_last_provider'  => $consecutive,
                 'failover_on_first_failure'               => true,
+                'payload'                                  => $payload,
             ]
         );
 
@@ -355,6 +356,7 @@ final class RetryScheduler
                 'providers' => $this->providers->getActiveProviders(),
                 'last_provider_id' => 0,
                 'consecutive_failures_for_last_provider' => 0,
+                'payload' => $payload,
             ]
         );
 
