@@ -41,7 +41,14 @@ final class SuppressionServiceTest extends TestCase
         $event = $this->event(ProviderEventType::HARD_BOUNCE);
         $service->derive($event, 7);
         self::assertCount(1, $GLOBALS['wpdb']->suppressionRowsByFingerprint);
-        self::assertTrue($service->suppresses(['to' => ['safe@example.test'], 'cc' => ['recipient@example.test']]));
+        self::assertTrue(
+            $service->suppresses(
+                [
+                    'to' => [ 'safe@example.test' ],
+                    'cc' => [ 'recipient@example.test' ],
+                ]
+            )
+        );
         self::assertFalse($service->suppresses(['to' => ['safe@example.test']]));
 
         $service->derive($this->event(ProviderEventType::SOFT_BOUNCE), 7);
@@ -56,7 +63,7 @@ final class SuppressionServiceTest extends TestCase
         $service->derive($this->event(ProviderEventType::COMPLAINT), 9);
         $row = array_values($GLOBALS['wpdb']->suppressionRowsByFingerprint)[0];
         self::assertSame('example.test', $row['recipient_domain']);
-        self::assertSame(64, strlen((string) $row['recipient_fingerprint']));
+        self::assertSame(64, strlen( (string) $row['recipient_fingerprint'] ));
         self::assertArrayNotHasKey('recipient', $row);
         self::assertStringNotContainsString('recipient@example.test', (string) wp_json_encode($row));
     }
@@ -69,7 +76,7 @@ final class SuppressionServiceTest extends TestCase
         self::assertNotNull($fingerprint);
         self::assertTrue($service->suppresses(['to' => ['Recipient <recipient@example.test>']]));
 
-        $GLOBALS['wpdb']->suppressionRowsByFingerprint[(string) $fingerprint]['expiry_at'] = '2000-01-01 00:00:00';
+        $GLOBALS['wpdb']->suppressionRowsByFingerprint[ (string) $fingerprint ]['expiry_at'] = '2000-01-01 00:00:00';
         self::assertFalse($service->suppresses(['to' => ['recipient@example.test']]));
     }
 

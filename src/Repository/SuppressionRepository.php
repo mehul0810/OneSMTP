@@ -34,6 +34,7 @@ final class SuppressionRepository
         }
         array_push($args, $firstSeen, $now, $expiryAt, $now);
 
+        // phpcs:ignore WordPress.DB.PreparedSQLPlaceholders.ReplacementsWrongNumber -- Conditional nullable placeholders are assembled with the matching arguments above.
         $sql = $wpdb->prepare(
             'INSERT INTO ' . TableNames::suppressions() . ' (recipient_fingerprint, recipient_domain, reason_code, provider, provider_id, provider_message_id, first_seen, last_seen, expiry_at, occurrence_count, created_at, updated_at) VALUES (%s, %s, %s, %s, ' . $providerValue . ', ' . $messageValue . ', %s, %s, %s, 1, %s, %s) ON DUPLICATE KEY UPDATE reason_code = VALUES(reason_code), provider = VALUES(provider), provider_id = VALUES(provider_id), provider_message_id = VALUES(provider_message_id), last_seen = VALUES(last_seen), expiry_at = VALUES(expiry_at), occurrence_count = occurrence_count + 1, updated_at = VALUES(updated_at)',
             ...$args

@@ -34,7 +34,7 @@ final class SuppressionService
 
     public function derive(ProviderEvent $event, ?int $providerId): void
     {
-        if (! $this->isOperational() || ! $event->getType()->isSuppressionSignal()) {
+        if ( ! $this->isOperational() || ! $event->getType()->isSuppressionSignal() ) {
             return;
         }
 
@@ -65,12 +65,12 @@ final class SuppressionService
      */
     public function suppresses(array $payload): bool
     {
-        if (! $this->isOperational() || ! $this->hmac instanceof SiteSecretHmac) {
+        if ( ! $this->isOperational() || ! $this->hmac instanceof SiteSecretHmac ) {
             return false;
         }
 
-        foreach (['to', 'cc', 'bcc'] as $field) {
-            foreach ($this->recipients($payload[$field] ?? []) as $recipient) {
+        foreach ( [ 'to', 'cc', 'bcc' ] as $field ) {
+            foreach ($this->recipients($payload[ $field ] ?? []) as $recipient) {
                 $normalized = $this->normalizer->normalize($recipient);
                 if ($normalized === null) {
                     continue;
@@ -88,7 +88,7 @@ final class SuppressionService
 
     public function fingerprintForLookup(string $recipient): ?string
     {
-        if (! $this->isOperational() || ! $this->hmac instanceof SiteSecretHmac) {
+        if ( ! $this->isOperational() || ! $this->hmac instanceof SiteSecretHmac ) {
             return null;
         }
 
@@ -103,14 +103,14 @@ final class SuppressionService
         if (is_string($value)) {
             $value = preg_split('/[,;\r\n]+/', $value) ?: [];
         }
-        if (! is_array($value)) {
+        if ( ! is_array($value) ) {
             return [];
         }
 
         $result = [];
         foreach ($value as $item) {
             if (is_scalar($item)) {
-                $result[] = trim((string) $item);
+                $result[] = trim( (string) $item );
             }
         }
 

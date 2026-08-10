@@ -10,7 +10,7 @@ final class SuppressionSettingsRepository
 
     public function get(): SuppressionSettings
     {
-        return new SuppressionSettings((bool) get_option(self::OPTION, false));
+        return new SuppressionSettings( (bool) get_option(self::OPTION, false) );
     }
 
     public function save(SuppressionSettings $settings): bool
