@@ -624,6 +624,113 @@ final class SendPipelineIntegrationTest extends TestCase
         self::assertNotNull($this->findEventInsert('terminal_failure'));
     }
 
+    public function test_attachment_quota_deferral_fails_closed_without_scheduler_or_sensitive_event_data(): void
+    {
+        $now = 1700000000;
+        $since = gmdate('Y-m-d H:i:s', $now - 60);
+        $this->seedProvider(10, 'smtp', ['quota_per_minute' => 1]);
+        $GLOBALS['wpdb']->providerAttemptWindowStatsByProviderSince['10|' . $since] = [
+            'attempt_count' => 1,
+            'oldest_created_at' => gmdate('Y-m-d H:i:s', $now - 30),
+        ];
+
+        $adapter = new CountingAdapter('smtp', new SendResult(true, 'sent', 'Must not send.'));
+        $pipeline = $this->buildPipeline(
+            $adapter,
+            null,
+            null,
+            new FeatureGate([FeatureGate::PROVIDER_QUOTA_BUDGETS => true], true),
+            $now
+        );
+        $path = '/private/secret/invoice-private.pdf';
+        $body = 'PRIVATE ATTACHMENT BODY';
+
+        $result = $pipeline->handlePreWpMail(null, [
+            'to' => ['qa@example.com'],
+            'subject' => 'Attachment quota safety',
+            'message' => $body,
+            'headers' => [],
+            'attachments' => [$path],
+        ]);
+
+        self::assertFalse($result);
+        self::assertSame(0, $adapter->sendCount);
+        self::assertSame([], $GLOBALS['onesmtp_test_scheduled_actions']);
+        self::assertNotNull($this->findUpdate('onesmtp_messages', 'failed'));
+        self::assertNull($this->findEventInsert('provider_quota_deferred'));
+
+        $terminal = $this->findEventInsert('terminal_failure');
+        self::assertNotNull($terminal);
+        $contextJson = (string) $terminal['data']['context_json'];
+        $context = json_decode($contextJson, true);
+        self::assertSame('attachment_quota_deferral_not_persisted', $context['reason'] ?? null);
+        self::assertStringNotContainsString($path, $contextJson);
+        self::assertStringNotContainsString('invoice-private.pdf', $contextJson);
+        self::assertStringNotContainsString($body, $contextJson);
+    }
+
+    public function test_failover_quota_deferral_with_attachments_fails_closed_without_retry(): void
+    {
+        $now = 1700000000;
+        $this->seedProviders([
+            [
+                'id' => 10,
+                'adapter_type' => 'smtp',
+                'priority' => 1,
+                'config_json' => wp_json_encode(['quota_per_minute' => 1]),
+            ],
+            [
+                'id' => 20,
+                'adapter_type' => 'smtp',
+                'priority' => 2,
+                'config_json' => wp_json_encode(['quota_per_minute' => 1]),
+            ],
+        ]);
+        $adapter = new QuotaExhaustingAdapter(
+            'smtp',
+            new SendResult(false, 'provider_timeout', 'Timed out.', null, FailureCategory::TIMEOUT),
+            $now,
+            [10, 20]
+        );
+        $pipeline = $this->buildPipeline(
+            $adapter,
+            null,
+            null,
+            new FeatureGate([FeatureGate::PROVIDER_QUOTA_BUDGETS => true], true),
+            $now
+        );
+        $path = '/private/secret/failover-private.pdf';
+        $body = 'PRIVATE FAILOVER BODY';
+
+        $result = $pipeline->handlePreWpMail(null, [
+            'to' => ['qa@example.com'],
+            'subject' => 'Failover attachment quota safety',
+            'message' => $body,
+            'headers' => [],
+            'attachments' => [$path],
+        ]);
+
+        self::assertFalse($result);
+        self::assertSame(1, $adapter->sendCount);
+        self::assertSame([], $GLOBALS['onesmtp_test_scheduled_actions']);
+        self::assertNotNull($this->findUpdate('onesmtp_messages', 'failed'));
+        self::assertCount(1, array_filter(
+            $GLOBALS['wpdb']->inserts,
+            static fn (array $insert): bool => str_ends_with($insert['table'], 'onesmtp_attempts')
+        ));
+        self::assertNull($this->findEventInsert('provider_quota_deferred'));
+
+        $terminal = $this->findEventInsert('terminal_failure');
+        self::assertNotNull($terminal);
+        $contextJson = (string) $terminal['data']['context_json'];
+        $context = json_decode($contextJson, true);
+        self::assertSame('attachment_quota_deferral_not_persisted', $context['reason'] ?? null);
+        self::assertArrayNotHasKey('trigger', $context);
+        self::assertStringNotContainsString($path, $contextJson);
+        self::assertStringNotContainsString('failover-private.pdf', $contextJson);
+        self::assertStringNotContainsString($body, $contextJson);
+    }
+
     public function test_all_quota_exhausted_providers_defer_without_recording_a_fake_attempt(): void
     {
         $now = 1700000000;
@@ -877,6 +984,37 @@ final class CountingAdapter extends StaticAdapter
     public function send(array $message, ProviderConfig $config): SendResult
     {
         $this->sendCount++;
+
+        return parent::send($message, $config);
+    }
+}
+
+final class QuotaExhaustingAdapter extends StaticAdapter
+{
+    public int $sendCount = 0;
+
+    /** @param array<int,int> $providerIds */
+    public function __construct(
+        string $slug,
+        SendResult $result,
+        private int $now,
+        private array $providerIds
+    ) {
+        parent::__construct($slug, $result);
+    }
+
+    public function send(array $message, ProviderConfig $config): SendResult
+    {
+        $this->sendCount++;
+        if ($this->sendCount === 1 && isset($GLOBALS['wpdb']) && $GLOBALS['wpdb'] instanceof FakeWpdb) {
+            $since = gmdate('Y-m-d H:i:s', $this->now - 60);
+            foreach ($this->providerIds as $providerId) {
+                $GLOBALS['wpdb']->providerAttemptWindowStatsByProviderSince[$providerId . '|' . $since] = [
+                    'attempt_count' => 1,
+                    'oldest_created_at' => gmdate('Y-m-d H:i:s', $this->now - 30),
+                ];
+            }
+        }
 
         return parent::send($message, $config);
     }

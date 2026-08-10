@@ -516,6 +516,21 @@ final class SendPipeline
         DeliveryOutcome $outcome,
         ?string $messageUuid = null
     ): bool {
+        if ($this->hasAttachments($payload)) {
+            $this->messages->markFailedTerminal($messageId, max(1, $attemptNo));
+            $this->events->add(
+                'terminal_failure',
+                [
+                    'attempt' => $attemptNo,
+                    'trigger' => $triggerType,
+                    'reason' => 'attachment_quota_deferral_not_persisted',
+                ],
+                $messageId
+            );
+
+            return false;
+        }
+
         if ($messageUuid === null || $messageUuid === '') {
             $messageUuid = $this->extractMessageUuidFromHeaders($payload['headers'] ?? []);
         }

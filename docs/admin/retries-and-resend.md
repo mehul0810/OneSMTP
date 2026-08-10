@@ -7,6 +7,7 @@
 - A retryable provider failure immediately tries each other healthy active provider once. Each switch is recorded as a `provider_failover` event and the attempt lineage marks the attempt trigger as `failover`.
 - If the active provider pool is exhausted, the message remains in the queue and Action Scheduler applies exponential backoff for the next retry cycle.
 - If Action Scheduler cannot accept a retry job, Aculect Mail fails closed: it records a retry scheduling failure event and does not queue a hidden retry.
+- Attachment-bearing messages that hit a provider-budget deferral also fail closed: raw attachment references are not persisted in retry payloads, so no retry is enqueued that could omit the files. The message is marked failed with the safe `attachment_quota_deferral_not_persisted` reason.
 - Failures are classified into safe retryable, terminal, authentication, quota, timeout, or policy categories where provider responses allow it.
 - Terminal, authentication, and policy failures stop automatic retry scheduling because another attempt is not expected to succeed without operator action.
 
@@ -42,4 +43,5 @@ Use logs to confirm whether failures are credential, policy, timeout, quota, ter
 If a retry is expected but never appears in Action Scheduler, inspect the latest event/log entry for a scheduler-unavailable failure before retrying manually.
 If a message is delayed by configured delivery limits, confirm Action Scheduler is available and wait for the deferred attempt time shown in the queue or event context.
 If Action Scheduler cannot accept a provider-budget deferral, Aculect Mail fails closed: the message is marked failed and a terminal `provider_quota_scheduler_unavailable` event records the safe operational reason rather than leaving a queued or retrying message stuck.
+If a provider-budget deferral occurs for a message with attachments, inspect the terminal `attachment_quota_deferral_not_persisted` event. The message is not retried without a separately reproducible attachment source.
 If background sending is enabled and mail remains queued, confirm Action Scheduler is available and processing the `onesmtp_process_background_send` action.

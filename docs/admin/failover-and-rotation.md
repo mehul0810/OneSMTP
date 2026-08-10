@@ -17,6 +17,11 @@ window reset and schedules the message for that time. The deferral records no
 attempt row and does not mark the message failed, preventing tight retry loops
 or false terminal failures.
 
+This deferral path is only used when the payload is safely reproducible from
+the stored retry data. Attachment-bearing messages fail closed with the safe
+`attachment_quota_deferral_not_persisted` terminal reason instead of enqueueing
+a retry that would omit their files.
+
 ## Failure Switch Rule
 
 Each provider request has its own attempt row, while all attempts remain part of one message lineage. A `provider_failover` event records every change from the failed source to the next provider.

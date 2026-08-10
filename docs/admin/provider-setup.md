@@ -66,6 +66,12 @@ and expired leases are pruned in bounded batches without allowing an old worker
 to release a newer lease. No message body, recipient, credential, or raw
 provider context is written to quota or audit events.
 
+Messages with attachments are not deferred through this quota path because the
+stored retry payload intentionally removes raw attachment references. If every
+eligible provider is exhausted for an attachment-bearing message, delivery
+fails closed with a safe terminal event and no retry job is enqueued; this
+prevents a later worker from sending the message without its files.
+
 ## Provider-specific credentials
 
 - Mailgun requires a private API key, sending domain, and US/EU API region.
