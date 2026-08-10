@@ -83,7 +83,7 @@ final class RoutingRulesRepository
         $rules = $this->get();
         $updated = false;
         foreach ($rules as $index => $storedRule) {
-            if ((int) ($storedRule['id'] ?? 0) !== $ruleId) {
+            if ( (int) ($storedRule['id'] ?? 0) !== $ruleId) {
                 continue;
             }
 
@@ -93,7 +93,7 @@ final class RoutingRulesRepository
                 return false;
             }
 
-            $rules[$index] = $normalized;
+            $rules[ $index ] = $normalized;
             $updated = true;
             break;
         }

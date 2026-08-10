@@ -56,14 +56,26 @@ final class RoutingRulesRepositoryTest extends TestCase
         $repository->add([
             'provider_id' => 5,
             'priority' => 10,
-            'conditions' => [['field' => 'subject', 'operator' => 'contains', 'value' => 'old']],
+            'conditions' => [
+				[
+					'field' => 'subject',
+					'operator' => 'contains',
+					'value' => 'old',
+				],
+			],
         ]);
 
         self::assertTrue($repository->update(1, [
             'provider_id' => 6,
             'priority' => 2,
             'enabled' => true,
-            'conditions' => [['field' => 'content', 'operator' => 'contains', 'value' => 'new']],
+            'conditions' => [
+				[
+					'field' => 'content',
+					'operator' => 'contains',
+					'value' => 'new',
+				],
+			],
         ]));
 
         $updated = $repository->get();

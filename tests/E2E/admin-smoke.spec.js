@@ -409,6 +409,21 @@ test.describe( 'Aculect Mail admin browser smoke', () => {
 			'do not guarantee inbox placement or a provider SLA'
 		);
 	} );
+
+	test( 'keeps conditional routing behind the Pro capability boundary', async ( {
+		page,
+	} ) => {
+		await openWorkspace( page, 'Routing', 'onesmtp-routing' );
+
+		const routing = page.locator( '#onesmtp-routing' );
+		await expect( routing ).toContainText( 'Available with Pro' );
+		await expect(
+			routing.getByRole( 'button', { name: 'Requires Pro' } )
+		).toBeDisabled();
+		await expect(
+			routing.locator( 'input[name="condition_value"]' )
+		).toHaveCount( 0 );
+	} );
 } );
 
 async function openWorkspace( page, label, id ) {

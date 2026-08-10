@@ -104,14 +104,28 @@ final class RoutingAdminTest extends TestCase
     {
         $GLOBALS['wpdb'] = new FakeWpdb();
         $GLOBALS['wpdb']->activeProviders = [
-            ['id' => 5, 'name' => 'Fixture SMTP', 'is_active' => 1],
-            ['id' => 6, 'name' => 'Backup SMTP', 'is_active' => 1],
+            [
+				'id' => 5,
+				'name' => 'Fixture SMTP',
+				'is_active' => 1,
+			],
+            [
+				'id' => 6,
+				'name' => 'Backup SMTP',
+				'is_active' => 1,
+			],
         ];
         $repository = new RoutingRulesRepository();
         $repository->add([
             'provider_id' => 5,
             'priority' => 10,
-            'conditions' => [['field' => 'content', 'operator' => 'contains', 'value' => 'old phrase']],
+            'conditions' => [
+				[
+					'field' => 'content',
+					'operator' => 'contains',
+					'value' => 'old phrase',
+				],
+			],
         ]);
         $_SERVER['REQUEST_METHOD'] = 'POST';
         $_POST = [
@@ -142,5 +156,49 @@ final class RoutingAdminTest extends TestCase
         $context = (string) ($GLOBALS['wpdb']->inserts[0]['data']['context_json'] ?? '');
         self::assertStringContainsString('updated', $context);
         self::assertStringNotContainsString('new phrase', $context);
+    }
+
+    public function test_enabled_delete_records_metadata_only_audit_event(): void
+    {
+        $GLOBALS['wpdb'] = new FakeWpdb();
+        $GLOBALS['wpdb']->activeProviders = [
+            [
+				'id' => 5,
+				'name' => 'Fixture SMTP',
+				'is_active' => 1,
+			],
+        ];
+        $repository = new RoutingRulesRepository();
+        $repository->add([
+            'provider_id' => 5,
+            'conditions' => [
+				[
+					'field' => 'content',
+					'operator' => 'contains',
+					'value' => 'delete phrase',
+				],
+			],
+        ]);
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = [
+            'onesmtp_routing_action' => 'delete',
+            'rule_id' => '1',
+            'onesmtp_routing_nonce' => 'test-nonce',
+        ];
+
+        try {
+            (new RoutingAdmin(
+                $repository,
+                new ProviderRepository(),
+                new FeatureGate([FeatureGate::SMART_ROUTING => true], true)
+            ))->handleRequest();
+        } catch (RuntimeException $exception) {
+            self::assertStringContainsString('redirected', $exception->getMessage());
+        }
+
+        self::assertSame([], $repository->get());
+        $context = (string) ($GLOBALS['wpdb']->inserts[0]['data']['context_json'] ?? '');
+        self::assertStringContainsString('deleted', $context);
+        self::assertStringNotContainsString('delete phrase', $context);
     }
 }

@@ -6,10 +6,6 @@ namespace OneSMTP\Dispatch;
 
 final class RoutingContextBuilder
 {
-    public function __construct(private RoutingRuleNormalizer $normalizer = new RoutingRuleNormalizer())
-    {
-    }
-
     /**
      * Build a bounded, transient context. The returned values are consumed by
      * dispatch only; callers must not persist or log this array.
@@ -72,7 +68,7 @@ final class RoutingContextBuilder
 
         preg_match_all('/[A-Z0-9._%+\-]+@[A-Z0-9.\-]+/i', (string) $value, $matches);
         $addresses = [];
-        foreach (($matches[0] ?? []) as $address) {
+        foreach ($matches[0] as $address) {
             $address = strtolower(trim(sanitize_email( (string) $address)));
             if ($address !== '') {
                 $addresses[] = $address;

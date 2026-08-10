@@ -164,11 +164,31 @@ final class RoutingRuleEvaluatorTest extends TestCase
                 [
                     'provider_id' => 22,
                     'conditions' => [
-                        ['field' => 'sender', 'operator' => 'equals', 'value' => 'billing@example.test'],
-                        ['field' => 'recipient', 'operator' => 'contains', 'value' => '@customer.test'],
-                        ['field' => 'subject', 'operator' => 'starts_with', 'value' => '[Invoice]'],
-                        ['field' => 'content', 'operator' => 'contains', 'value' => 'payment due'],
-                        ['field' => 'source_slug', 'operator' => 'equals', 'value' => 'checkout'],
+                        [
+							'field' => 'sender',
+							'operator' => 'equals',
+							'value' => 'billing@example.test',
+						],
+                        [
+							'field' => 'recipient',
+							'operator' => 'contains',
+							'value' => '@customer.test',
+						],
+                        [
+							'field' => 'subject',
+							'operator' => 'starts_with',
+							'value' => '[Invoice]',
+						],
+                        [
+							'field' => 'content',
+							'operator' => 'contains',
+							'value' => 'payment due',
+						],
+                        [
+							'field' => 'source_slug',
+							'operator' => 'equals',
+							'value' => 'checkout',
+						],
                     ],
                 ],
             ],
@@ -193,13 +213,21 @@ final class RoutingRuleEvaluatorTest extends TestCase
                 [
                     'provider_id' => 22,
                     'conditions' => [
-                        ['field' => 'content', 'operator' => 'contains', 'value' => 'needle'],
+                        [
+							'field' => 'content',
+							'operator' => 'contains',
+							'value' => 'needle',
+						],
                     ],
                 ],
                 [
                     'provider_id' => 33,
                     'conditions' => [
-                        ['field' => 'content', 'operator' => 'regex', 'value' => '.*'],
+                        [
+							'field' => 'content',
+							'operator' => 'regex',
+							'value' => '.*',
+						],
                     ],
                 ],
             ],
