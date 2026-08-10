@@ -443,21 +443,28 @@ export default function ProviderInlineSettings( { config } ) {
 				can_reconnect: true,
 				can_revoke: false,
 			} );
+			const disconnectBlocked =
+				response?.code === 'disconnected_local_blocked';
+			const remoteRetry = response?.code === 'disconnected_remote_retry';
+			let disconnectMessage = __(
+				'Provider disconnected and local OAuth credentials were removed.',
+				'onesmtp'
+			);
+			if ( disconnectBlocked ) {
+				disconnectMessage = __(
+					'Local delivery is disabled while this connection awaits credential cleanup. Retry disconnect before reconnecting.',
+					'onesmtp'
+				);
+			} else if ( remoteRetry ) {
+				disconnectMessage = __(
+					'Local credentials were removed. Retry the provider-side revoke from its console if needed.',
+					'onesmtp'
+				);
+			}
 			setNotice( {
 				status:
-					response?.code === 'disconnected_remote_retry'
-						? 'warning'
-						: 'success',
-				message:
-					response?.code === 'disconnected_remote_retry'
-						? __(
-								'Local credentials were removed. Retry the provider-side revoke from its console if needed.',
-								'onesmtp'
-						  )
-						: __(
-								'Provider disconnected and local OAuth credentials were removed.',
-								'onesmtp'
-						  ),
+					disconnectBlocked || remoteRetry ? 'warning' : 'success',
+				message: disconnectMessage,
 			} );
 		} catch ( error ) {
 			setNotice( {

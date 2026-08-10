@@ -201,7 +201,11 @@ final class ProviderOAuthLifecycleCoordinator
             'refresh_token' => $refreshToken,
             'oauth_scope' => $descriptor->getScope(),
         ]);
-        if ($this->providers->save($provider) <= 0) {
+        // OAuth access tokens are deliberately not persisted in provider
+        // configuration. The token service refreshes on demand and keeps
+        // short-lived access tokens only in its encrypted transient cache.
+        unset($provider['config']['access_token'], $provider['config']['access_token_expires_at']);
+        if ($this->providers->save($provider, false) <= 0) {
             return $this->failure('local_save_failed', $returnTarget);
         }
 
@@ -299,7 +303,17 @@ final class ProviderOAuthLifecycleCoordinator
         }
 
         $localOk = $this->providers->clearOAuthCredentials($providerId);
+        $localBlocked = $this->providers->isOAuthDisconnectBlocked($providerId);
         delete_transient($this->verifiedKey($providerId));
+
+        if ( ! $localOk && $localBlocked) {
+            return [
+                'ok' => true,
+                'code' => 'disconnected_local_blocked',
+                'provider_id' => $providerId,
+                'provider_type' => $providerType,
+            ];
+        }
 
         return [
             'ok' => $localOk,

@@ -101,9 +101,12 @@ provider record/type, and a safe same-site return target.
 
 The drawer reports `configured_unverified` until a token exchange or refresh is
 verified; it never labels stored fields as connected. After verification, send a
-test email and activate the provider. Disconnect attempts the provider revoke
-endpoint and always removes local access/refresh credentials and deactivates the
-connection, even when the remote provider is unavailable. Tokens, authorization
+test email and activate the provider. Callback access tokens are discarded from
+provider configuration and kept only in the encrypted, bounded refresh cache;
+existing manual Zoho access tokens remain compatible. Disconnect attempts the
+provider revoke endpoint and removes local access/refresh credentials while
+deactivating the connection. If credential cleanup fails, a durable disconnect
+block prevents local delivery until cleanup succeeds. Tokens, authorization
 codes, state, client secrets, and provider diagnostics are not logged, audited,
 exported, or shown in the UI.
 

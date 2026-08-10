@@ -9,6 +9,7 @@ use OneSMTP\Providers\Auth\ProviderOAuthHttpClientInterface;
 use OneSMTP\Providers\Auth\ProviderOAuthHttpResponse;
 use OneSMTP\Providers\Auth\ProviderOAuthLifecycleCoordinator;
 use OneSMTP\Providers\Auth\ProviderOAuthStateStoreInterface;
+use OneSMTP\Providers\Auth\WordPressProviderOAuthStateStore;
 use OneSMTP\Providers\Adapters\GmailAdapter;
 use OneSMTP\Providers\ProviderConfig;
 use OneSMTP\Providers\ProviderTypes;
@@ -25,6 +26,8 @@ final class ProviderOAuthLifecycleTest extends TestCase
     {
         parent::setUp();
         $GLOBALS['wpdb'] = new FakeWpdb();
+        $GLOBALS['onesmtp_test_options'] = [];
+        unset($GLOBALS['onesmtp_test_throw_on_update_option']);
         $GLOBALS['onesmtp_test_transients'] = [];
         $GLOBALS['onesmtp_test_remote_posts'] = [];
         $this->http = new FakeOAuthHttp();
@@ -99,6 +102,10 @@ final class ProviderOAuthLifecycleTest extends TestCase
         self::assertCount(1, $this->http->calls);
         self::assertSame('https://oauth2.googleapis.com/token', $this->http->calls[0]['url']);
         self::assertArrayNotHasKey('code_verifier', $this->http->calls[0]['body']);
+        $savedConfig = json_decode((string) ($GLOBALS['wpdb']->updates[0]['data']['config_json'] ?? ''), true);
+        self::assertIsArray($savedConfig);
+        self::assertArrayNotHasKey('access_token', $savedConfig);
+        self::assertArrayNotHasKey('access_token_expires_at', $savedConfig);
 
         $replay = $coordinator->callback(7, [
 			'state' => $query['state'],
@@ -127,6 +134,85 @@ final class ProviderOAuthLifecycleTest extends TestCase
         self::assertSame(0, $GLOBALS['wpdb']->updates[0]['data']['is_active']);
     }
 
+    public function test_disconnect_persists_a_fail_closed_block_when_credential_rewrite_fails(): void
+    {
+        $provider = [
+            'id' => 7,
+            'slug' => 'provider-7',
+            'name' => 'Gmail',
+            'adapter_type' => ProviderTypes::GMAIL,
+            'priority' => 1,
+            'weight' => 1,
+            'is_active' => 1,
+            'circuit_state' => 'closed',
+            'config_json' => wp_json_encode([
+                'client_id' => 'google-client',
+                'client_secret' => 'google-secret',
+                'refresh_token' => 'refresh-fixture',
+                'access_token' => 'access-fixture',
+            ]),
+        ];
+        $GLOBALS['wpdb']->providerRowsById[7] = $provider;
+        $GLOBALS['wpdb']->activeProviders = [ $provider ];
+        $GLOBALS['wpdb']->failProviderConfigUpdates = true;
+        $this->http->responses[] = new ProviderOAuthHttpResponse(200, []);
+
+        $repository = new ProviderRepository();
+        $result = $this->coordinator($repository)->disconnect(7);
+
+        self::assertTrue($result['ok']);
+        self::assertSame('disconnected_local_blocked', $result['code']);
+        self::assertSame([], $repository->getActiveProviders());
+        self::assertSame(0, (new ProviderRepository())->find(7)['is_active']);
+        self::assertTrue((bool) get_option('onesmtp_oauth_disconnect_blocked_7', false));
+    }
+
+    public function test_disconnect_keeps_credentials_removed_when_active_update_fails(): void
+    {
+        $this->provider(7, ProviderTypes::GMAIL, [
+            'client_id' => 'google-client',
+            'client_secret' => 'google-secret',
+            'refresh_token' => 'refresh-fixture',
+            'access_token' => 'access-fixture',
+        ]);
+        $GLOBALS['wpdb']->providerRowsById[7]['is_active'] = 1;
+        $GLOBALS['wpdb']->activeProviders = [ $GLOBALS['wpdb']->providerRowsById[7] ];
+        $GLOBALS['wpdb']->failProviderActiveUpdates = true;
+
+        $result = $this->coordinator()->disconnect(7);
+
+        self::assertTrue($result['ok']);
+        self::assertSame('disconnected_local_blocked', $result['code']);
+        $configWrites = array_values(array_filter(
+            $GLOBALS['wpdb']->updates,
+            static fn (array $update): bool => isset($update['data']['config_json'])
+        ));
+        self::assertCount(1, $configWrites);
+        self::assertArrayNotHasKey('access_token', json_decode((string) $configWrites[0]['data']['config_json'], true));
+        self::assertSame([], (new ProviderRepository())->getActiveProviders());
+    }
+
+    public function test_disconnect_runtime_block_fails_closed_when_block_option_write_fails(): void
+    {
+        $this->provider(7, ProviderTypes::GMAIL, [
+            'client_id' => 'google-client',
+            'client_secret' => 'google-secret',
+            'refresh_token' => 'refresh-fixture',
+            'access_token' => 'access-fixture',
+        ]);
+        $GLOBALS['wpdb']->providerRowsById[7]['is_active'] = 1;
+        $GLOBALS['wpdb']->activeProviders = [ $GLOBALS['wpdb']->providerRowsById[7] ];
+        $GLOBALS['wpdb']->failProviderConfigUpdates = true;
+        $GLOBALS['onesmtp_test_throw_on_update_option'] = 'onesmtp_oauth_disconnect_blocked_7';
+
+        $repository = new ProviderRepository();
+        $result = $this->coordinator($repository)->disconnect(7);
+
+        self::assertTrue($result['ok']);
+        self::assertSame('disconnected_local_blocked', $result['code']);
+        self::assertSame([], $repository->getActiveProviders());
+    }
+
     public function test_gmail_api_send_uses_bearer_header_and_normalizes_message_id(): void
     {
         $GLOBALS['onesmtp_test_remote_response'] = [
@@ -152,10 +238,92 @@ final class ProviderOAuthLifecycleTest extends TestCase
         self::assertStringNotContainsString('access-fixture', (string) $GLOBALS['onesmtp_test_remote_posts'][0]['args']['body']);
     }
 
-    private function coordinator(): ProviderOAuthLifecycleCoordinator
+    public function test_gmail_api_raw_payload_has_real_crlf_nested_mime_and_safe_attachment(): void
+    {
+        $GLOBALS['onesmtp_test_remote_response'] = [
+            'response' => [ 'code' => 200 ],
+            'body' => '{"id":"gmail-mime-fixture"}',
+        ];
+        $result = (new GmailAdapter())->send(
+            [
+                'to' => [ 'recipient@example.test' ],
+                'subject' => 'Synthetic subject',
+                'message' => '<p>HTML body</p>',
+                'headers' => [
+                    'From: Sender <sender@example.test>',
+                    'Content-Type: text/html; charset=UTF-8',
+                    'Cc: copy@example.test',
+                    'Bcc: archive@example.test',
+                ],
+                'attachments' => [
+                    [
+                        'name' => '../unsafe name.txt',
+                        'content' => 'attachment fixture',
+                    ],
+                ],
+            ],
+            new ProviderConfig([ 'access_token' => 'access-fixture' ])
+        );
+
+        self::assertTrue($result->isSuccess());
+        $payload = json_decode((string) $GLOBALS['onesmtp_test_remote_posts'][0]['args']['body'], true);
+        self::assertIsArray($payload);
+        $raw = (string) ($payload['raw'] ?? '');
+        $raw .= str_repeat('=', (4 - strlen($raw) % 4) % 4);
+        $mime = base64_decode(strtr($raw, '-_', '+/'), true);
+
+        self::assertIsString($mime);
+        self::assertStringContainsString("\r\n", $mime);
+        self::assertStringNotContainsString('\\r\\n', $mime);
+        self::assertStringContainsString('To: recipient@example.test', $mime);
+        self::assertStringContainsString('Cc: copy@example.test', $mime);
+        self::assertStringContainsString('Bcc: archive@example.test', $mime);
+        self::assertStringContainsString('Content-Type: multipart/mixed;', $mime);
+        self::assertStringContainsString('Content-Type: multipart/alternative;', $mime);
+        self::assertStringContainsString('HTML body', $mime);
+        self::assertStringContainsString('Content-Disposition: attachment; filename="unsafe-name.txt"', $mime);
+        self::assertStringContainsString(base64_encode('attachment fixture'), $mime);
+    }
+
+    public function test_wordpress_state_store_uses_atomic_database_claims_for_one_time_consumption(): void
+    {
+        $clock = static fn (): int => 1700000000;
+        $store = new WordPressProviderOAuthStateStore($clock);
+        $stateHash = str_repeat('a', 64);
+        $record = [ 'provider_id' => 7, 'provider_type' => ProviderTypes::GMAIL ];
+        $claimKey = 'onesmtp_oauth_state_claim_' . $stateHash;
+        set_transient('onesmtp_oauth_state_' . $stateHash, $record, 120);
+        add_option($claimKey, [ 'expires_at' => 1700000300 ], '', false);
+
+        self::assertNull($store->consume($stateHash));
+        self::assertSame($record, get_transient('onesmtp_oauth_state_' . $stateHash));
+
+        delete_option($claimKey);
+        self::assertSame($record, $store->consume($stateHash));
+        self::assertFalse(get_transient('onesmtp_oauth_state_' . $stateHash));
+    }
+
+    public function test_wordpress_state_store_reclaims_an_expired_database_claim(): void
+    {
+        $store = new WordPressProviderOAuthStateStore(static fn (): int => 1700000000);
+        $stateHash = str_repeat('b', 64);
+        $record = [ 'provider_id' => 8 ];
+        set_transient('onesmtp_oauth_state_' . $stateHash, $record, 120);
+        add_option(
+            'onesmtp_oauth_state_claim_' . $stateHash,
+            [ 'expires_at' => 1699999999 ],
+            '',
+            false
+        );
+
+        self::assertSame($record, $store->consume($stateHash));
+        self::assertArrayNotHasKey('onesmtp_oauth_state_claim_' . $stateHash, $GLOBALS['onesmtp_test_options']);
+    }
+
+    private function coordinator(?ProviderRepository $repository = null): ProviderOAuthLifecycleCoordinator
     {
         return new ProviderOAuthLifecycleCoordinator(
-            new ProviderRepository(),
+            $repository ?? new ProviderRepository(),
             new FeatureGate([ FeatureGate::PROVIDER_AUTH_LIFECYCLE => true ], true),
             $this->http,
             $this->states,

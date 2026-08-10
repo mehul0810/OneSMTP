@@ -119,6 +119,10 @@ final class FakeWpdb
 
     public bool $failSuppressionUpsert = false;
 
+    public bool $failProviderConfigUpdates = false;
+
+    public bool $failProviderActiveUpdates = false;
+
     /** @var array<string,array<string,mixed>> */
     public array $suppressionDerivationRowsByHash = [];
 
@@ -184,8 +188,17 @@ final class FakeWpdb
         return 1;
     }
 
-    public function update(string $table, array $data, array $where, array $format, array $whereFormat): int
+    public function update(string $table, array $data, array $where, array $format, array $whereFormat): int|false
     {
+        if (str_ends_with($table, 'onesmtp_providers')) {
+            if (array_key_exists('config_json', $data) && $this->failProviderConfigUpdates) {
+                return false;
+            }
+            if (array_key_exists('is_active', $data) && $this->failProviderActiveUpdates) {
+                return false;
+            }
+        }
+
         $this->updates[] = [
             'table' => $table,
             'data' => $data,
@@ -697,7 +710,12 @@ final class FakeWpdb
         }
 
         if (str_contains($sql, $this->prefix . 'onesmtp_providers') && ! str_contains($sql, 'JOIN')) {
-            return $this->activeProviders;
+            return array_map(
+                static fn (array $row): array => array_key_exists('is_active', $row)
+                    ? $row
+                    : array_merge([ 'is_active' => 1 ], $row),
+                $this->activeProviders
+            );
         }
 
         if (

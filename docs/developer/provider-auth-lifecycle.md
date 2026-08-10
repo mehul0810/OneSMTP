@@ -33,12 +33,16 @@ provider ID/type, user, return target, and a two-minute TTL.
 Google requests only `https://www.googleapis.com/auth/gmail.send`,
 `access_type=offline`, and does not claim PKCE support. Zoho uses the selected
 regional accounts host, `ZohoMail.messages.CREATE`, `access_type=offline`, and
-S256 PKCE. Token exchange and refresh are HTTPS-only, bounded, redacted, and
-stored through the existing encrypted provider configuration. Encrypted
-access-token caches expire with a five-minute skew. Disconnect attempts the
-provider revoke endpoint, then always removes local access/refresh credentials
-and deactivates the provider; remote-revoke failure returns bounded retry
-guidance without retaining a usable local token.
+S256 PKCE. Token exchange and refresh are HTTPS-only, bounded, and redacted.
+Client and refresh credentials remain in the existing encrypted provider
+configuration; the callback access token is discarded rather than left in that
+configuration, and refresh-on-demand access tokens live only in an encrypted
+transient cache with a five-minute expiry skew. Existing manual Zoho access
+tokens remain compatible. Disconnect attempts the provider revoke endpoint,
+then removes local access/refresh credentials and deactivates the provider;
+remote-revoke failure returns bounded retry guidance. If a credential rewrite
+fails, the provider is deactivated where possible and an independent durable
+disconnect block prevents delivery until cleanup succeeds.
 
 Gmail sends through `users.messages.send` with a narrow Bearer header and a
 base64url MIME message, including bounded attachments. Zoho keeps its existing
@@ -51,6 +55,10 @@ Google may require customer app verification before production use; the site
 administrator owns that provider-console setup.
 
 The implementation adds no new database table or public unauthenticated API.
+One-time callback state remains in a bounded transient and is fenced by a
+unique, short-lived WordPress option claim so concurrent callbacks cannot both
+consume it. A disconnect cleanup failure leaves an independent option marker
+that blocks the provider from the active pool until cleanup succeeds.
 The local REST contracts are:
 
 - `POST /wp-json/onesmtp/v1/providers/{id}/oauth/start`

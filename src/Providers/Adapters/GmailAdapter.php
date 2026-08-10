@@ -82,6 +82,7 @@ final class GmailAdapter extends AbstractHttpApiAdapter implements ProviderAdapt
     /** @return string|SendResult */
     private function buildMime(array $message, array $envelope): string|SendResult
     {
+        $crlf = "\r\n";
         $headers = [
             'From: ' . $this->cleanHeader($this->fromString($envelope['from'])),
             'To: ' . implode(', ', $envelope['to']),
@@ -101,14 +102,34 @@ final class GmailAdapter extends AbstractHttpApiAdapter implements ProviderAdapt
         $parts = [];
         if ($envelope['is_html']) {
             $alternativeBoundary = '=_onesmtp_alt_' . wp_generate_uuid4();
-            $parts[] = 'Content-Type: multipart/alternative; boundary="' . $alternativeBoundary . '"\r\n\r\n'
-                . '--' . $alternativeBoundary . '\r\nContent-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n'
-                . $envelope['text'] . '\r\n'
-                . '--' . $alternativeBoundary . '\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n'
-                . $envelope['html'] . '\r\n'
-                . '--' . $alternativeBoundary . '--';
+            $parts[] = implode(
+                $crlf,
+                [
+                    'Content-Type: multipart/alternative; boundary="' . $alternativeBoundary . '"',
+                    '',
+                    '--' . $alternativeBoundary,
+                    'Content-Type: text/plain; charset=UTF-8',
+                    'Content-Transfer-Encoding: 8bit',
+                    '',
+                    $this->normalizeMimeBody((string) $envelope['text']),
+                    '--' . $alternativeBoundary,
+                    'Content-Type: text/html; charset=UTF-8',
+                    'Content-Transfer-Encoding: 8bit',
+                    '',
+                    $this->normalizeMimeBody((string) $envelope['html']),
+                    '--' . $alternativeBoundary . '--',
+                ]
+            );
         } else {
-            $parts[] = 'Content-Type: text/plain; charset=UTF-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n' . $envelope['text'];
+            $parts[] = implode(
+                $crlf,
+                [
+                    'Content-Type: text/plain; charset=UTF-8',
+                    'Content-Transfer-Encoding: 8bit',
+                    '',
+                    $this->normalizeMimeBody((string) $envelope['text']),
+                ]
+            );
         }
 
         $attachments = $this->attachments($message['attachments'] ?? []);
@@ -120,18 +141,32 @@ final class GmailAdapter extends AbstractHttpApiAdapter implements ProviderAdapt
         $headers[] = 'Content-Type: multipart/mixed; boundary="' . $boundary . '"';
         $body = [];
         foreach ($parts as $part) {
-            $body[] = '--' . $boundary . '\r\n' . $part;
+            $body[] = '--' . $boundary . $crlf . $part;
         }
         foreach ($attachments as $attachment) {
-            $body[] = '--' . $boundary . '\r\n'
-                . 'Content-Type: ' . $attachment['type'] . '; name="' . $attachment['name'] . '"\r\n'
-                . 'Content-Disposition: attachment; filename="' . $attachment['name'] . '"\r\n'
-                . 'Content-Transfer-Encoding: base64\r\n\r\n'
-                . rtrim(chunk_split(base64_encode($attachment['content']), 76, "\r\n"));
+            $body[] = '--' . $boundary . $crlf . implode(
+                $crlf,
+                [
+                    'Content-Type: ' . $attachment['type'] . '; name="' . $attachment['name'] . '"',
+                    'Content-Disposition: attachment; filename="' . $attachment['name'] . '"',
+                    'Content-Transfer-Encoding: base64',
+                    '',
+                    rtrim(chunk_split(base64_encode($attachment['content']), 76, $crlf)),
+                ]
+            );
         }
         $body[] = '--' . $boundary . '--';
 
-        return implode("\r\n", $headers) . "\r\n\r\n" . implode("\r\n", $body) . "\r\n";
+        return implode($crlf, $headers) . $crlf . $crlf . implode($crlf, $body) . $crlf;
+    }
+
+    private function normalizeMimeBody(string $body): string
+    {
+        return str_replace(
+            [ "\r\n", "\r", "\n" ],
+            [ "\n", "\n", "\r\n" ],
+            $body
+        );
     }
 
     /** @return array<int,array{name:string,type:string,content:string}|SendResult> */

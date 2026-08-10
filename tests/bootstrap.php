@@ -60,6 +60,13 @@ if (! function_exists('wp_parse_url')) {
     }
 }
 
+if (! function_exists('wp_strip_all_tags')) {
+    function wp_strip_all_tags(string $text): string
+    {
+        return strip_tags($text);
+    }
+}
+
 if (! class_exists('WP_Error')) {
     class WP_Error
     {
