@@ -18,6 +18,7 @@ final class FeatureGate
     public const COMPLIANCE_CONTROLS = 'compliance_controls';
     public const MULTISITE_MANAGEMENT = 'multisite_management';
     public const ADVANCED_ALERTS = 'advanced_alerts';
+    public const PROVIDER_QUOTA_BUDGETS = 'provider_quota_budgets';
 
     public const STATE_ENABLED = 'enabled';
     public const STATE_FLAG_DISABLED = 'flag_disabled';
@@ -31,6 +32,7 @@ final class FeatureGate
         self::COMPLIANCE_CONTROLS,
         self::MULTISITE_MANAGEMENT,
         self::ADVANCED_ALERTS,
+        self::PROVIDER_QUOTA_BUDGETS,
     ];
 
     /** @var array<string,bool> */

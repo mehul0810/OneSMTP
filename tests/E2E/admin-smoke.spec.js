@@ -194,6 +194,92 @@ test.describe( 'Aculect Mail admin browser smoke', () => {
 			} );
 	} );
 
+	test( 'renders Pro provider budgets with bounded accessible controls', async ( {
+		page,
+	} ) => {
+		const proHtml = renderAdminFixture( true );
+		await page.unroute(
+			'https://example.org/wp-admin/options-general.php**'
+		);
+		await page.route(
+			'https://example.org/wp-admin/options-general.php**',
+			async ( route ) => {
+				await route.fulfill( {
+					status: 200,
+					contentType: 'text/html; charset=utf-8',
+					body: proHtml,
+				} );
+			}
+		);
+		await page.goto( adminUrl );
+		await openWorkspace( page, 'Providers', 'onesmtp-providers' );
+		await page.locator( '#onesmtp-provider-form summary' ).click();
+
+		const form = page.locator( 'form.onesmtp-provider-form' );
+		await expect( form ).toContainText( 'Provider sending budget' );
+		const quotaInputs = form.locator( 'input[name^="config[quota_"]' );
+		await expect( quotaInputs ).toHaveCount( 3 );
+		for ( let index = 0; index < 3; index++ ) {
+			await expect( quotaInputs.nth( index ) ).toHaveAttribute(
+				'max',
+				'1000000'
+			);
+			await quotaInputs.nth( index ).fill( '' );
+		}
+		await quotaInputs.nth( 0 ).fill( '999999999999999999999' );
+		await expect( quotaInputs.nth( 0 ) ).toHaveValue(
+			'999999999999999999999'
+		);
+		await expect( quotaInputs.nth( 0 ) ).toHaveAttribute(
+			'aria-describedby',
+			'onesmtp-provider-quota-help'
+		);
+		await page.screenshot( {
+			path: path.join(
+				repoRoot,
+				'output/playwright/provider-budgets-desktop.png'
+			),
+			fullPage: true,
+		} );
+		await page.setViewportSize( { width: 390, height: 844 } );
+		await expect(
+			page.evaluate(
+				() =>
+					document.documentElement.scrollWidth <=
+					document.documentElement.clientWidth + 1
+			)
+		).toBeTruthy();
+		await page.screenshot( {
+			path: path.join(
+				repoRoot,
+				'output/playwright/provider-budgets-mobile.png'
+			),
+			fullPage: true,
+		} );
+	} );
+
+	test( 'keeps provider budgets default-deny for free installations', async ( {
+		page,
+	} ) => {
+		await openWorkspace( page, 'Providers', 'onesmtp-providers' );
+		await page.locator( '#onesmtp-provider-form summary' ).click();
+
+		const form = page.locator( 'form.onesmtp-provider-form' );
+		await expect( form ).toContainText(
+			'Per-provider sending budgets are available with Pro'
+		);
+		await expect(
+			form.locator( 'input[name^="config[quota_"]' )
+		).toHaveCount( 0 );
+		await page.screenshot( {
+			path: path.join(
+				repoRoot,
+				'output/playwright/provider-budgets-free-default-deny.png'
+			),
+			fullPage: true,
+		} );
+	} );
+
 	test( 'exercises setup wizard and test email form state without external sends', async ( {
 		page,
 	} ) => {
@@ -256,6 +342,9 @@ test.describe( 'Aculect Mail admin browser smoke', () => {
 		await expect( page.locator( '#onesmtp-activity' ) ).toContainText(
 			'transient timeout'
 		);
+		await expect( page.locator( '#onesmtp-activity' ) ).not.toContainText(
+			'transient timeout '.repeat( 18 )
+		);
 
 		await expect( page.locator( '#onesmtp-activity' ) ).not.toContainText(
 			'recipient@example.test'
@@ -274,7 +363,7 @@ test.describe( 'Aculect Mail admin browser smoke', () => {
 		await expect( proCapabilities ).toContainText( 'Available with Pro' );
 		await expect(
 			proCapabilities.getByRole( 'button', { name: 'Requires Pro' } )
-		).toHaveCount( 6 );
+		).toHaveCount( 7 );
 		await expect(
 			proCapabilities
 				.getByRole( 'button', { name: 'Requires Pro' } )
@@ -378,6 +467,11 @@ test.describe( 'Aculect Mail admin browser smoke', () => {
 		await expect( alerts ).toContainText(
 			'Terminal failure already acknowledged for message #20.'
 		);
+		await expect( alerts ).toContainText(
+			'Provider quota deferred until the next capacity window.'
+		);
+		await expect( alerts ).toContainText( 'provider_quota_deferred' );
+		await expect( alerts ).toContainText( 'provider_pool_exhausted' );
 		await expect( alerts ).toContainText( 'Open' );
 		await expect( alerts ).toContainText( 'Acknowledged' );
 		await expect( alerts ).toContainText( 'Actor #42' );

@@ -46,6 +46,23 @@ to retain its stored value.
 Aculect Mail intentionally supports one connection per provider in this flow.
 It does not offer an “add another connection” action inside a configured row.
 
+## Provider sending budgets (Pro)
+
+When the Pro **Provider sending budgets** capability is enabled, each provider
+connection can have independent minute, hour, and day attempt limits. Enter
+`0` to disable a window; values are bounded and safely clamped at 1,000,000.
+These are non-secret provider settings stored with the existing connection
+configuration. Free/core installations keep the fields disabled and preserve
+any existing values without enforcing them.
+
+Only recorded production delivery attempts count: initial, retry, failover,
+background, and manual-resend sends are included, while provider-test traffic
+is excluded. A quota decision is checked immediately before dispatch. An
+exhausted provider is skipped when another eligible provider exists. If every
+eligible provider is exhausted, the message remains queued and is deferred
+until the earliest next capacity; no message body, recipient, credential, or
+raw provider context is written to quota or audit events.
+
 ## Provider-specific credentials
 
 - Mailgun requires a private API key, sending domain, and US/EU API region.

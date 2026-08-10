@@ -44,6 +44,9 @@ final class FakeWpdb
     /** @var array<string,array{sent_count:int,oldest_created_at:?string}> */
     public array $successfulSendWindowStatsBySince = [];
 
+    /** @var array<string,array{attempt_count:int,oldest_created_at:?string}> */
+    public array $providerAttemptWindowStatsByProviderSince = [];
+
     /** @var array<string,array<int,array<string,mixed>>> */
     public array $failureCategoryRowsBySince = [];
 
@@ -263,6 +266,20 @@ final class FakeWpdb
 
             return $this->successfulSendWindowStatsBySince[$since] ?? [
                 'sent_count' => 0,
+                'oldest_created_at' => null,
+            ];
+        }
+
+        if (
+            str_contains($query, $this->prefix . 'onesmtp_attempts')
+            && str_contains($query, 'COUNT(*) AS attempt_count')
+            && str_contains($query, 'MIN(created_at) AS oldest_created_at')
+            && str_contains($query, 'provider_id = %d')
+        ) {
+            $key = (string) ($args[0] ?? '') . '|' . (string) ($args[2] ?? '');
+
+            return $this->providerAttemptWindowStatsByProviderSince[$key] ?? [
+                'attempt_count' => 0,
                 'oldest_created_at' => null,
             ];
         }

@@ -9,6 +9,9 @@ use OneSMTP\Core\Capabilities;
 use OneSMTP\Dns\DomainAuthenticationChecker;
 use OneSMTP\Providers\ProviderTypes;
 use OneSMTP\Migration\SureMailMigrationService;
+use OneSMTP\Product\FeatureGate;
+use OneSMTP\Quota\ProviderQuotaSettings;
+use OneSMTP\Quota\ProviderQuotaSettingsKey;
 use OneSMTP\Repository\ProviderRepository;
 use OneSMTP\Settings\SenderIdentityRepository;
 
@@ -23,8 +26,9 @@ final class ProviderAdmin
     private AdminAuditLogger $auditLogger;
     private AdminRequest $request;
     private SureMailMigrationService $sureMailMigration;
+    private FeatureGate $featureGate;
 
-    public function __construct(ProviderRepository $repository, ?DomainAuthenticationChecker $dnsAuthentication = null, ?SenderIdentityRepository $senderIdentity = null, ?AdminAuditLogger $auditLogger = null, ?AdminRequest $request = null, ?SureMailMigrationService $sureMailMigration = null)
+    public function __construct(ProviderRepository $repository, ?DomainAuthenticationChecker $dnsAuthentication = null, ?SenderIdentityRepository $senderIdentity = null, ?AdminAuditLogger $auditLogger = null, ?AdminRequest $request = null, ?SureMailMigrationService $sureMailMigration = null, ?FeatureGate $featureGate = null)
     {
         $this->repository = $repository;
         $this->dnsAuthentication = $dnsAuthentication ?? new DomainAuthenticationChecker();
@@ -32,6 +36,7 @@ final class ProviderAdmin
         $this->auditLogger = $auditLogger ?? new AdminAuditLogger();
         $this->request = $request ?? new AdminRequest();
         $this->sureMailMigration = $sureMailMigration ?? new SureMailMigrationService($repository);
+        $this->featureGate = $featureGate ?? new FeatureGate();
     }
 
     public function handleRequest(): void
@@ -87,6 +92,8 @@ final class ProviderAdmin
                         'is_active' => ! empty($safeProvider['is_active'] ?? $provider['is_active'] ?? false),
                         'safe_config_fields' => $this->safeConfigFieldNames($provider),
                         'credential_fields_updated' => $this->sensitiveConfigFieldNames($provider),
+                        'quota_enabled' => $this->featureGate->isEnabled(FeatureGate::PROVIDER_QUOTA_BUDGETS),
+                        'quota_limits' => $this->quotaAuditLimits($safeProvider !== [] ? $safeProvider : $provider),
                     ]
                 );
             }
@@ -195,6 +202,7 @@ final class ProviderAdmin
                 'endpoint' => rest_url('onesmtp/v1/providers'),
                 'nonce' => wp_create_nonce('wp_rest'),
                 'adminEmail' => sanitize_email((string) get_option('admin_email')),
+                'quotaEnabled' => $this->featureGate->isEnabled(FeatureGate::PROVIDER_QUOTA_BUDGETS),
             ];
 
             echo '<article class="onesmtp-provider-list-item" data-provider-type="' . esc_attr((string) $type) . '">';
@@ -312,16 +320,44 @@ final class ProviderAdmin
             $this->renderTextInput('config[' . $field . ']', $label, '', $type);
         }
 
+        $this->renderQuotaFields();
+
         echo '</tbody></table>';
         echo '<p class="description">' . esc_html__('Leave credential fields blank when updating a provider to keep existing stored secrets.', 'onesmtp') . '</p>';
         submit_button(__('Save provider', 'onesmtp'));
         echo '</form>';
     }
 
-    private function renderTextInput(string $name, string $label, string $value = '', string $type = 'text'): void
+    private function renderQuotaFields(): void
+    {
+        if (! $this->featureGate->isEnabled(FeatureGate::PROVIDER_QUOTA_BUDGETS)) {
+            echo '<p class="description onesmtp-provider-quota-disabled">' . esc_html__('Per-provider sending budgets are available with Pro and remain disabled on this installation.', 'onesmtp') . '</p>';
+
+            return;
+        }
+
+        echo '<tr><th scope="row"><span id="onesmtp-provider-quota-label">' . esc_html__('Provider sending budget', 'onesmtp') . '</span></th><td><p class="description" id="onesmtp-provider-quota-help">' . esc_html__('Count production send attempts for this provider across bounded windows. Enter 0 to disable a window; values above 1,000,000 are safely clamped.', 'onesmtp') . '</p></td></tr>';
+        $quotaAttributes = [
+            'min' => 0,
+            'max' => ProviderQuotaSettings::MAX_LIMIT,
+            'aria-describedby' => 'onesmtp-provider-quota-help',
+        ];
+        $this->renderTextInput('config[' . ProviderQuotaSettingsKey::PER_MINUTE . ']', __('Per-minute attempts', 'onesmtp'), '0', 'number', $quotaAttributes);
+        $this->renderTextInput('config[' . ProviderQuotaSettingsKey::PER_HOUR . ']', __('Per-hour attempts', 'onesmtp'), '0', 'number', $quotaAttributes);
+        $this->renderTextInput('config[' . ProviderQuotaSettingsKey::PER_DAY . ']', __('Per-day attempts', 'onesmtp'), '0', 'number', $quotaAttributes);
+    }
+
+    /** @param array<string,int|string> $extraAttributes */
+    private function renderTextInput(string $name, string $label, string $value = '', string $type = 'text', array $extraAttributes = []): void
     {
         echo '<tr><th scope="row"><label for="' . esc_attr($this->fieldId($name)) . '">' . esc_html($label) . '</label></th><td>';
-        echo '<input class="regular-text" id="' . esc_attr($this->fieldId($name)) . '" name="' . esc_attr($name) . '" type="' . esc_attr($type) . '" value="' . esc_attr($value) . '">';
+        $attributes = '';
+        foreach ($extraAttributes as $attribute => $attributeValue) {
+            $attributes .= ' ' . esc_attr($attribute) . '="' . esc_attr((string) $attributeValue) . '"';
+        }
+        $input = '<input class="regular-text" id="' . esc_attr($this->fieldId($name)) . '" name="' . esc_attr($name) . '" type="' . esc_attr($type) . '" value="' . esc_attr($value) . '"' . $attributes . '>';
+        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- every dynamic attribute is escaped before this fixed input tag is emitted.
+        echo $input;
         echo '</td></tr>';
     }
 
@@ -617,7 +653,24 @@ final class ProviderAdmin
             $config[$field] = $value;
         }
 
+        if ($this->featureGate->isEnabled(FeatureGate::PROVIDER_QUOTA_BUDGETS)) {
+            $quotaInput = [];
+            foreach (ProviderQuotaSettingsKey::fields() as $field) {
+                $quotaInput[substr($field, strlen('quota_'))] = $posted[$field] ?? 0;
+            }
+
+            $config = array_merge($config, ProviderQuotaSettings::fromArray($quotaInput)->toProviderConfig());
+        }
+
         return $config;
+    }
+
+    /** @param array<string,mixed> $provider @return array{per_minute:int,per_hour:int,per_day:int} */
+    private function quotaAuditLimits(array $provider): array
+    {
+        $config = isset($provider['config']) && is_array($provider['config']) ? $provider['config'] : [];
+
+        return ProviderQuotaSettings::fromProviderConfig($config)->toArray();
     }
 
     private function isSensitiveField(string $field): bool

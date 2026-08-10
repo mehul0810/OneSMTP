@@ -69,6 +69,10 @@ final class ProCapabilitiesPanel
                 'label' => __('Advanced alert escalation', 'onesmtp'),
                 'description' => __('Escalate repeated terminal failures to multiple safe destinations.', 'onesmtp'),
             ],
+            FeatureGate::PROVIDER_QUOTA_BUDGETS => [
+                'label' => __('Provider sending budgets', 'onesmtp'),
+                'description' => __('Bound per-provider send attempts across minute, hour, and day windows.', 'onesmtp'),
+            ],
         ];
     }
 

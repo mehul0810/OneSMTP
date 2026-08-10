@@ -11,6 +11,8 @@ use OneSMTP\Providers\ProviderTypes;
 use OneSMTP\Repository\AttemptRepository;
 use OneSMTP\Repository\EventRepository;
 use OneSMTP\Repository\ProviderRepository;
+use OneSMTP\Quota\ProviderQuotaDecision;
+use OneSMTP\Quota\ProviderQuotaManager;
 
 final class DeliveryEngine
 {
@@ -22,6 +24,7 @@ final class DeliveryEngine
 
     /** @var callable():int */
     private $monotonicNow;
+    private ProviderQuotaManager $providerQuota;
 
     public function __construct(
         ProviderRepository $providers,
@@ -29,7 +32,8 @@ final class DeliveryEngine
         DispatchPolicyInterface $dispatchPolicy,
         ?ProviderDeliveryManager $deliveryManager = null,
         ?EventRepository $events = null,
-        ?callable $monotonicNow = null
+        ?callable $monotonicNow = null,
+        ?ProviderQuotaManager $providerQuota = null
     ) {
         $this->providers = $providers;
         $this->attempts = $attempts;
@@ -37,6 +41,7 @@ final class DeliveryEngine
         $this->deliveryManager = $deliveryManager ?? new ProviderDeliveryManager();
         $this->events = $events ?? new EventRepository();
         $this->monotonicNow = $monotonicNow ?? static fn (): int => hrtime(true);
+        $this->providerQuota = $providerQuota ?? new ProviderQuotaManager($attempts);
     }
 
     public function deliver(
@@ -44,53 +49,91 @@ final class DeliveryEngine
         int $attemptNo,
         array $payload,
         ?int $forcedProviderId = null,
-        bool $failoverOnFirstFailure = false
+        bool $failoverOnFirstFailure = false,
+        bool $allowQuotaFallbackForForced = false
     ): DeliveryOutcome
     {
-        if ($forcedProviderId !== null && $forcedProviderId > 0 && ! $this->isEligibleForcedProvider($forcedProviderId, $payload)) {
-            $this->events->add(
-                'manual_resend_rejected',
-                ['attempt' => $attemptNo, 'reason' => 'ineligible_provider'],
-                $messageId,
-                $forcedProviderId
+        $candidates = $this->eligibleProviders($this->providers->getActiveProviders(), $payload);
+        if (! $this->providerQuota->acquireLock($candidates)) {
+            return DeliveryOutcome::deferred(
+                $this->providerQuota->getLockRetryAfter(),
+                null,
+                'provider_quota_check_deferred',
+                'Provider sending budget checks are busy; delivery will retry.'
             );
-
-            return new DeliveryOutcome(false, $forcedProviderId, 'ineligible_provider', 'Selected provider is not eligible for resend.');
         }
 
-        $providerId = $this->resolveProviderId($messageId, $attemptNo, $payload, $forcedProviderId, $failoverOnFirstFailure);
-        if ($providerId <= 0) {
-            $this->events->add('terminal_failure', ['attempt' => $attemptNo, 'reason' => 'provider_pool_exhausted'], $messageId);
+        try {
+            $quotaSelection = $this->providerQuota->filterProviders($candidates);
+            $quotaProviders = $quotaSelection['providers'];
+            $quotaDeferred = $quotaSelection['deferred'];
 
-            return new DeliveryOutcome(false, 0, 'no_provider', 'No eligible provider available.');
+            if ($forcedProviderId !== null && $forcedProviderId > 0) {
+                $forcedProvider = $this->findProvider($candidates, $forcedProviderId);
+                if (! is_array($forcedProvider) || ! $this->isEligibleForcedProvider($forcedProviderId, $candidates)) {
+                    $this->events->add(
+                        'manual_resend_rejected',
+                        ['attempt' => $attemptNo, 'reason' => 'ineligible_provider'],
+                        $messageId,
+                        $forcedProviderId
+                    );
+
+                    return new DeliveryOutcome(false, $forcedProviderId, 'ineligible_provider', 'Selected provider is not eligible for resend.');
+                }
+
+                if ($this->findProvider($quotaProviders, $forcedProviderId) === null) {
+                    $forcedDecision = $this->providerQuota->evaluateProvider($forcedProvider);
+                    if ($allowQuotaFallbackForForced && $quotaProviders !== []) {
+                        $forcedProviderId = null;
+                    } elseif (! $forcedDecision->canSend()) {
+                        return $this->quotaDeferredOutcome($forcedDecision);
+                    } elseif ($quotaDeferred instanceof ProviderQuotaDecision) {
+                        return $this->quotaDeferredOutcome($quotaDeferred);
+                    }
+                }
+            }
+
+            if ($quotaProviders === [] && $quotaDeferred instanceof ProviderQuotaDecision) {
+                return $this->quotaDeferredOutcome($quotaDeferred);
+            }
+
+            $providerId = $this->resolveProviderId($messageId, $attemptNo, $payload, $forcedProviderId, $failoverOnFirstFailure, $quotaProviders);
+            if ($providerId <= 0) {
+                $this->events->add('terminal_failure', ['attempt' => $attemptNo, 'reason' => 'provider_pool_exhausted'], $messageId);
+
+                return new DeliveryOutcome(false, 0, 'no_provider', 'No eligible provider available.');
+            }
+
+            $provider = $this->providers->find($providerId);
+            if (! is_array($provider)) {
+                $this->events->add('terminal_failure', ['attempt' => $attemptNo, 'reason' => 'missing_provider'], $messageId, $providerId);
+
+                return new DeliveryOutcome(false, 0, 'missing_provider', 'Provider not found.');
+            }
+
+            $startedAt = ($this->monotonicNow)();
+            $result = $this->deliveryManager->send($provider, $payload);
+            $latencyMs = max(0, (int) round(((($this->monotonicNow)()) - $startedAt) / 1_000_000));
+            $this->providerQuota->reserveProvider($providerId);
+
+            if ($result->isSuccess()) {
+                $this->providers->markState($providerId, 'closed', null);
+            } elseif (FailureCategory::affectsProviderHealth($result->getFailureCategory())) {
+                $this->providers->markState($providerId, 'open', gmdate('Y-m-d H:i:s', time() + 300));
+            }
+
+            return new DeliveryOutcome(
+                $result->isSuccess(),
+                $providerId,
+                $result->getCode(),
+                $result->getMessage(),
+                $result->getProviderMessageId(),
+                $result->getFailureCategory(),
+                $latencyMs
+            );
+        } finally {
+            $this->providerQuota->releaseLock();
         }
-
-        $provider = $this->providers->find($providerId);
-        if (! is_array($provider)) {
-            $this->events->add('terminal_failure', ['attempt' => $attemptNo, 'reason' => 'missing_provider'], $messageId, $providerId);
-
-            return new DeliveryOutcome(false, 0, 'missing_provider', 'Provider not found.');
-        }
-
-        $startedAt = ($this->monotonicNow)();
-        $result = $this->deliveryManager->send($provider, $payload);
-        $latencyMs = max(0, (int) round(((($this->monotonicNow)()) - $startedAt) / 1_000_000));
-
-        if ($result->isSuccess()) {
-            $this->providers->markState($providerId, 'closed', null);
-        } elseif (FailureCategory::affectsProviderHealth($result->getFailureCategory())) {
-            $this->providers->markState($providerId, 'open', gmdate('Y-m-d H:i:s', time() + 300));
-        }
-
-        return new DeliveryOutcome(
-            $result->isSuccess(),
-            $providerId,
-            $result->getCode(),
-            $result->getMessage(),
-            $result->getProviderMessageId(),
-            $result->getFailureCategory(),
-            $latencyMs
-        );
     }
 
     private function resolveProviderId(
@@ -98,10 +141,10 @@ final class DeliveryEngine
         int $attemptNo,
         array $payload,
         ?int $forcedProviderId,
-        bool $failoverOnFirstFailure = false
+        bool $failoverOnFirstFailure,
+        array $providers
     ): int
     {
-        $providers = $this->eligibleProviders($this->providers->getActiveProviders(), $payload);
         $lastAttempt = $this->attempts->getLastAttemptForMessage($messageId);
         $lastProviderId = is_array($lastAttempt) ? (int) ($lastAttempt['provider_id'] ?? 0) : 0;
         $consecutive = $lastProviderId > 0
@@ -126,9 +169,10 @@ final class DeliveryEngine
         return (int) $providerId;
     }
 
-    private function isEligibleForcedProvider(int $providerId, array $payload): bool
+    /** @param array<int,array<string,mixed>> $providers */
+    private function isEligibleForcedProvider(int $providerId, array $providers): bool
     {
-        foreach ($this->eligibleProviders($this->providers->getActiveProviders(), $payload) as $provider) {
+        foreach ($providers as $provider) {
             if ((int) ($provider['id'] ?? 0) !== $providerId) {
                 continue;
             }
@@ -147,6 +191,31 @@ final class DeliveryEngine
         }
 
         return false;
+    }
+
+    /** @param array<int,array<string,mixed>> $providers */
+    private function findProvider(array $providers, int $providerId): ?array
+    {
+        foreach ($providers as $provider) {
+            if ((int) ($provider['id'] ?? 0) === $providerId) {
+                return $provider;
+            }
+        }
+
+        return null;
+    }
+
+    private function quotaDeferredOutcome(ProviderQuotaDecision $decision): DeliveryOutcome
+    {
+        return DeliveryOutcome::deferred(
+            max(1, $decision->getRetryAfter()),
+            $decision->getNextCapacityAt()
+        );
+    }
+
+    public function releaseQuotaReservation(int $providerId): void
+    {
+        $this->providerQuota->releaseProviderReservation($providerId);
     }
 
     /** @param array<int,array<string,mixed>> $providers */

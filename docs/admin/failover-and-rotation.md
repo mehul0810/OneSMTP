@@ -8,6 +8,15 @@ Aculect Mail sends through the selected provider first. If that provider fails, 
 
 When more than two providers are configured, Aculect Mail rotates through the available healthy providers based on the configured order and routing strategy. Providers with an open circuit are skipped until they become eligible again.
 
+When Pro provider sending budgets are enabled, quota-exhausted providers are
+also skipped after normal active/circuit eligibility is calculated. Priority,
+routing rules, and failover ordering remain deterministic among the providers
+that still have capacity. If all eligible providers are at a configured
+minute, hour, or day limit, Aculect returns a typed deferral with the earliest
+window reset and schedules the message for that time. The deferral records no
+attempt row and does not mark the message failed, preventing tight retry loops
+or false terminal failures.
+
 ## Failure Switch Rule
 
 Each provider request has its own attempt row, while all attempts remain part of one message lineage. A `provider_failover` event records every change from the failed source to the next provider.

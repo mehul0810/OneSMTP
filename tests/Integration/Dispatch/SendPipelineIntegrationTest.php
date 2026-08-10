@@ -9,6 +9,7 @@ use OneSMTP\Delivery\DeliveryEngine;
 use OneSMTP\Dispatch\DefaultDispatchPolicy;
 use OneSMTP\Pipeline\SendPipeline;
 use OneSMTP\Product\FeatureGate;
+use OneSMTP\Quota\ProviderQuotaManager;
 use OneSMTP\Providers\FailureCategory;
 use OneSMTP\Providers\ProviderAdapterInterface;
 use OneSMTP\Providers\ProviderAdapterRegistry;
@@ -623,7 +624,45 @@ final class SendPipelineIntegrationTest extends TestCase
         self::assertNotNull($this->findEventInsert('terminal_failure'));
     }
 
-    private function buildPipeline(ProviderAdapterInterface $adapter, ?callable $clock = null, ?EventRepository $events = null): SendPipeline
+    public function test_all_quota_exhausted_providers_defer_without_recording_a_fake_attempt(): void
+    {
+        $now = 1700000000;
+        $since = gmdate('Y-m-d H:i:s', $now - 60);
+        $this->seedProvider(10, 'quota', ['quota_per_minute' => 1]);
+        $GLOBALS['wpdb']->providerAttemptWindowStatsByProviderSince['10|' . $since] = [
+            'attempt_count' => 1,
+            'oldest_created_at' => gmdate('Y-m-d H:i:s', $now - 30),
+        ];
+
+        $pipeline = $this->buildPipeline(
+            new StaticAdapter('quota', new SendResult(true, 'sent', 'Should not send.')),
+            null,
+            null,
+            new FeatureGate([FeatureGate::PROVIDER_QUOTA_BUDGETS => true], true),
+            $now
+        );
+        $result = $pipeline->handlePreWpMail(null, [
+            'to' => ['qa@example.com'],
+            'subject' => 'Quota deferral',
+            'message' => 'No body is persisted in quota metadata.',
+            'headers' => [],
+        ]);
+
+        self::assertTrue($result);
+        self::assertNull($this->findInsert('onesmtp_attempts'));
+        self::assertNull($this->findEventInsert('terminal_failure'));
+        $deferred = $this->findEventInsert('provider_quota_deferred');
+        self::assertNotNull($deferred);
+        $context = json_decode((string) $deferred['data']['context_json'], true);
+        self::assertSame(30, $context['retry_after'] ?? null);
+        self::assertArrayNotHasKey('to', $context);
+        self::assertArrayNotHasKey('message', $context);
+        self::assertNotEmpty($GLOBALS['onesmtp_test_scheduled_actions']);
+        $scheduled = array_values($GLOBALS['onesmtp_test_scheduled_actions']);
+        self::assertSame('onesmtp_process_retry', $scheduled[0]['hook']);
+    }
+
+    private function buildPipeline(ProviderAdapterInterface $adapter, ?callable $clock = null, ?EventRepository $events = null, ?FeatureGate $featureGate = null, ?int $quotaNow = null): SendPipeline
     {
         $dispatch = new DefaultDispatchPolicy();
         $messages = new MessageRepository();
@@ -632,13 +671,17 @@ final class SendPipelineIntegrationTest extends TestCase
         $events = $events ?? new EventRepository();
         $retryScheduler = new RetryScheduler($dispatch, $messages, $attempts, $providers, $events);
         $deliveryManager = new ProviderDeliveryManager(new ProviderAdapterRegistry([$adapter->getSlug() => $adapter]));
-        $deliveryEngine = new DeliveryEngine($providers, $attempts, $dispatch, $deliveryManager, $events);
+        $quota = $featureGate !== null
+            ? new ProviderQuotaManager($attempts, $featureGate, static fn (): int => $quotaNow ?? time())
+            : null;
+        $deliveryEngine = new DeliveryEngine($providers, $attempts, $dispatch, $deliveryManager, $events, null, $quota);
         $rateLimiter = new RateLimiter($attempts, new RateLimitSettingsRepository(), $clock);
 
         return new SendPipeline($messages, $attempts, $providers, $events, $retryScheduler, $deliveryEngine, $rateLimiter);
     }
 
-    private function seedProvider(int $id, string $adapterType): void
+    /** @param array<string,mixed> $config */
+    private function seedProvider(int $id, string $adapterType, array $config = []): void
     {
         $provider = [
             'id' => $id,
@@ -646,7 +689,7 @@ final class SendPipelineIntegrationTest extends TestCase
             'is_active' => 1,
             'priority' => 1,
             'weight' => 1,
-            'config_json' => '{}',
+            'config_json' => wp_json_encode($config),
         ];
 
         $GLOBALS['wpdb']->activeProviders = [$provider];

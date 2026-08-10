@@ -156,7 +156,7 @@ final class SendPipeline
             $attemptNo,
             'background',
             $payload,
-            fn () => $this->deliveryEngine->deliver($messageId, $attemptNo, $payload, $providerId !== null ? (int) $providerId : null),
+            fn () => $this->deliveryEngine->deliver($messageId, $attemptNo, $payload, $providerId !== null ? (int) $providerId : null, false, true),
             $messageUuid
         );
     }
@@ -221,7 +221,7 @@ final class SendPipeline
             $attemptNo,
             'retry',
             $payload,
-            fn () => $this->deliveryEngine->deliver($messageId, $attemptNo, $payload, $providerId !== null ? (int) $providerId : null),
+            fn () => $this->deliveryEngine->deliver($messageId, $attemptNo, $payload, $providerId !== null ? (int) $providerId : null, false, true),
             $messageUuid
         );
     }
@@ -347,7 +347,12 @@ final class SendPipeline
         DeliveryOutcome $outcome,
         ?string $messageUuid = null
     ): bool {
+        if ($outcome->isDeferred()) {
+            return $this->deferForProviderQuota($messageId, $attemptNo, $triggerType, $payload, $outcome, $messageUuid);
+        }
+
         $this->recordAttempt($messageId, $attemptNo, $triggerType, $outcome);
+        $this->deliveryEngine->releaseQuotaReservation($outcome->getProviderId());
 
         if ($outcome->isSuccess()) {
             $this->messages->markSent($messageId, $outcome->getProviderId());
@@ -455,7 +460,12 @@ final class SendPipeline
                 null,
                 true
             );
+            if ($fallback->isDeferred()) {
+                return $this->deferForProviderQuota($messageId, $nextAttempt, 'failover', $payload, $fallback, $messageUuid);
+            }
+
             $this->recordAttempt($messageId, $nextAttempt, 'failover', $fallback);
+            $this->deliveryEngine->releaseQuotaReservation($fallback->getProviderId());
             $lastOutcome = $fallback;
 
             if ($fallback->isSuccess()) {
@@ -496,6 +506,49 @@ final class SendPipeline
         }
 
         return $this->scheduleNextRetry($messageId, $nextAttempt - 1, $triggerType, $payload, $lastOutcome, $messageUuid);
+    }
+
+    private function deferForProviderQuota(
+        int $messageId,
+        int $attemptNo,
+        string $triggerType,
+        array $payload,
+        DeliveryOutcome $outcome,
+        ?string $messageUuid = null
+    ): bool {
+        if ($messageUuid === null || $messageUuid === '') {
+            $messageUuid = $this->extractMessageUuidFromHeaders($payload['headers'] ?? []);
+        }
+
+        if ($messageUuid === '') {
+            $message = $this->messages->find($messageId);
+            $messageUuid = is_array($message) ? (string) ($message['message_uuid'] ?? '') : '';
+        }
+
+        $runAt = $this->retryScheduler->scheduleRetry($messageId, $attemptNo, $messageUuid, max(1, $outcome->getRetryAfter()));
+        if (! is_int($runAt) || $runAt <= 0) {
+            $this->events->add(
+                'provider_quota_defer_failed',
+                ['attempt' => $attemptNo, 'trigger' => $triggerType, 'reason' => 'scheduler_backend_unavailable'],
+                $messageId
+            );
+
+            return false;
+        }
+
+        $context = [
+            'attempt' => $attemptNo,
+            'trigger' => $triggerType,
+            'retry_after' => max(1, $outcome->getRetryAfter()),
+            'run_at' => gmdate('c', $runAt),
+        ];
+        if ($outcome->getNextCapacityAt() !== null) {
+            $context['next_capacity_at'] = gmdate('c', (int) $outcome->getNextCapacityAt());
+        }
+
+        $this->events->add('provider_quota_deferred', $context, $messageId);
+
+        return true;
     }
 
     private function scheduleNextRetry(
