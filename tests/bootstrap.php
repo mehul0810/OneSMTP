@@ -753,6 +753,17 @@ if (! function_exists('wp_remote_post')) {
     }
 }
 
+if (! function_exists('wp_http_validate_url')) {
+    function wp_http_validate_url(string $url): string|false
+    {
+        if (! empty($GLOBALS['onesmtp_test_invalid_http_urls'][$url])) {
+            return false;
+        }
+
+        return $url;
+    }
+}
+
 if (! function_exists('wp_safe_remote_post')) {
     function wp_safe_remote_post(string $url, array $args = []): array|WP_Error
     {
