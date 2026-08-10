@@ -662,6 +662,81 @@ final class SendPipelineIntegrationTest extends TestCase
         self::assertSame('onesmtp_process_retry', $scheduled[0]['hook']);
     }
 
+    public function test_initial_quota_deferral_scheduler_failure_marks_message_failed(): void
+    {
+        $now = 1700000000;
+        $since = gmdate('Y-m-d H:i:s', $now - 60);
+        $this->seedProvider(10, 'quota', ['quota_per_minute' => 1]);
+        $GLOBALS['wpdb']->providerAttemptWindowStatsByProviderSince['10|' . $since] = [
+            'attempt_count' => 1,
+            'oldest_created_at' => gmdate('Y-m-d H:i:s', $now - 30),
+        ];
+        $GLOBALS['onesmtp_test_action_scheduler_available'] = false;
+
+        $pipeline = $this->buildPipeline(
+            new StaticAdapter('quota', new SendResult(true, 'sent', 'Should not send.')),
+            null,
+            null,
+            new FeatureGate([FeatureGate::PROVIDER_QUOTA_BUDGETS => true], true),
+            $now
+        );
+        $result = $pipeline->handlePreWpMail(null, [
+            'to' => ['qa@example.com'],
+            'subject' => 'Quota scheduler failure',
+            'message' => 'Safe fixture body.',
+            'headers' => [],
+        ]);
+
+        self::assertFalse($result);
+        self::assertNotNull($this->findUpdate('onesmtp_messages', 'failed'));
+        self::assertNull($this->findInsert('onesmtp_attempts'));
+        $terminal = $this->findEventInsert('terminal_failure');
+        self::assertNotNull($terminal);
+        $context = json_decode((string) $terminal['data']['context_json'], true);
+        self::assertSame('provider_quota_scheduler_unavailable', $context['reason'] ?? null);
+    }
+
+    public function test_retry_quota_deferral_scheduler_failure_marks_retry_message_failed(): void
+    {
+        $now = 1700000000;
+        $since = gmdate('Y-m-d H:i:s', $now - 60);
+        $this->seedProvider(10, 'quota', ['quota_per_minute' => 1]);
+        $GLOBALS['wpdb']->providerAttemptWindowStatsByProviderSince['10|' . $since] = [
+            'attempt_count' => 1,
+            'oldest_created_at' => gmdate('Y-m-d H:i:s', $now - 30),
+        ];
+        $GLOBALS['onesmtp_test_action_scheduler_available'] = false;
+
+        $pipeline = $this->buildPipeline(
+            new StaticAdapter('quota', new SendResult(true, 'sent', 'Should not send.')),
+            null,
+            null,
+            new FeatureGate([FeatureGate::PROVIDER_QUOTA_BUDGETS => true], true),
+            $now
+        );
+        $pipeline->handleRetryAttempt(
+            55,
+            2,
+            10,
+            [
+                'to' => ['qa@example.com'],
+                'subject' => 'Quota retry scheduler failure',
+                'message' => 'Safe fixture body.',
+                'headers' => [],
+            ],
+            'quota-retry-55'
+        );
+
+        $failed = $this->findUpdateForMessage('onesmtp_messages', 'failed', 55);
+        self::assertNotNull($failed);
+        self::assertNull($this->findInsert('onesmtp_attempts'));
+        $terminal = $this->findEventInsert('terminal_failure');
+        self::assertNotNull($terminal);
+        $context = json_decode((string) $terminal['data']['context_json'], true);
+        self::assertSame(2, $context['attempt'] ?? null);
+        self::assertSame('provider_quota_scheduler_unavailable', $context['reason'] ?? null);
+    }
+
     private function buildPipeline(ProviderAdapterInterface $adapter, ?callable $clock = null, ?EventRepository $events = null, ?FeatureGate $featureGate = null, ?int $quotaNow = null): SendPipeline
     {
         $dispatch = new DefaultDispatchPolicy();
@@ -728,6 +803,21 @@ final class SendPipelineIntegrationTest extends TestCase
             if (
                 str_ends_with($update['table'], $tableSuffix)
                 && (($update['data']['status'] ?? '') === $status)
+            ) {
+                return $update;
+            }
+        }
+
+        return null;
+    }
+
+    private function findUpdateForMessage(string $tableSuffix, string $status, int $messageId): ?array
+    {
+        foreach ($GLOBALS['wpdb']->updates as $update) {
+            if (
+                str_ends_with($update['table'], $tableSuffix)
+                && (($update['data']['status'] ?? '') === $status)
+                && ((int) ($update['where']['id'] ?? 0) === $messageId)
             ) {
                 return $update;
             }

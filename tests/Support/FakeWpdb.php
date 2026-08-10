@@ -102,6 +102,9 @@ final class FakeWpdb
     /** @var array<int,array<string,mixed>> */
     public array $eventRows = [];
 
+    /** @var array<string,array{lease_type:string,provider_id:?int,owner_token:string,expires_at:string,created_at:string}> */
+    public array $quotaLeaseRows = [];
+
     /** @var array<int,array<string,mixed>> */
     public array $eventAcknowledgementRows = [];
 
@@ -169,6 +172,10 @@ final class FakeWpdb
 
     public function query(string $sql): int|false
     {
+        if (str_contains($sql, $this->prefix . 'onesmtp_quota_leases')) {
+            return $this->handleQuotaLeaseQuery($sql);
+        }
+
         $this->queries[] = $sql;
 
         return $this->queryResults !== [] ? array_shift($this->queryResults) : 0;
@@ -191,6 +198,16 @@ final class FakeWpdb
         $isPreparedQuery = is_array($prepared) && $sql === $prepared['query'];
         $query = $isPreparedQuery ? $prepared['query'] : $sql;
         $args  = $isPreparedQuery ? $prepared['args'] : [];
+
+        if (str_contains($query, $this->prefix . 'onesmtp_quota_leases') && str_contains($query, 'owner_token')) {
+            $key = (string) ($args[0] ?? '');
+            $lease = $this->quotaLeaseRows[$key] ?? null;
+
+            return is_array($lease) ? [
+                'owner_token' => $lease['owner_token'],
+                'expires_at' => $lease['expires_at'],
+            ] : null;
+        }
 
         if (str_contains($query, $this->prefix . 'onesmtp_messages') && str_contains($query, 'message_uuid = %s')) {
             $uuid = isset($args[0]) ? (string) $args[0] : '';
@@ -470,6 +487,27 @@ final class FakeWpdb
 
     public function get_var(string $sql): int
     {
+        $prepared = $this->lastPrepared;
+        $preparedQuery = is_array($prepared) ? (string) ($prepared['query'] ?? '') : '';
+        $preparedArgs = is_array($prepared) && isset($prepared['args']) && is_array($prepared['args']) ? $prepared['args'] : [];
+        if (str_contains($preparedQuery, $this->prefix . 'onesmtp_quota_leases') && str_contains($preparedQuery, 'COUNT(*)')) {
+            $providerId = (int) ($preparedArgs[0] ?? 0);
+            $now = strtotime((string) ($preparedArgs[1] ?? '')) ?: 0;
+            $count = 0;
+            foreach ($this->quotaLeaseRows as $lease) {
+                if ($lease['lease_type'] !== 'reservation' || (int) $lease['provider_id'] !== $providerId) {
+                    continue;
+                }
+
+                $expiresAt = strtotime($lease['expires_at']) ?: 0;
+                if ($expiresAt > $now) {
+                    $count++;
+                }
+            }
+
+            return $count;
+        }
+
         if (
             str_contains($sql, $this->prefix . 'onesmtp_messages')
             && str_contains($sql, 'SELECT COUNT(*)')
@@ -505,6 +543,91 @@ final class FakeWpdb
             $messageId = isset($prepared['args'][0]) ? (int) $prepared['args'][0] : 0;
 
             return count($this->attemptHistoryByMessage[$messageId] ?? []);
+        }
+
+        return 0;
+    }
+
+    private function handleQuotaLeaseQuery(string $sql): int
+    {
+        $prepared = $this->lastPrepared;
+        $isPreparedQuery = is_array($prepared) && $sql === $prepared['query'];
+        $query = $isPreparedQuery ? $prepared['query'] : $sql;
+        $args = $isPreparedQuery && is_array($prepared['args']) ? $prepared['args'] : [];
+
+        if (str_contains($query, 'DELETE FROM') && str_contains($query, 'expires_at <=')) {
+            $now = strtotime((string) ($args[0] ?? '')) ?: 0;
+            $limit = max(1, (int) ($args[1] ?? 100));
+            $deleted = 0;
+            foreach (array_keys($this->quotaLeaseRows) as $key) {
+                if ($deleted >= $limit) {
+                    break;
+                }
+
+                $expiresAt = strtotime($this->quotaLeaseRows[$key]['expires_at']) ?: 0;
+                if ($expiresAt <= $now) {
+                    unset($this->quotaLeaseRows[$key]);
+                    $deleted++;
+                }
+            }
+
+            return $deleted;
+        }
+
+        if (str_contains($query, 'DELETE FROM') && str_contains($query, 'owner_token =')) {
+            $key = (string) ($args[0] ?? '');
+            $token = (string) ($args[1] ?? '');
+            if (! isset($this->quotaLeaseRows[$key]) || $this->quotaLeaseRows[$key]['owner_token'] !== $token) {
+                return 0;
+            }
+
+            unset($this->quotaLeaseRows[$key]);
+
+            return 1;
+        }
+
+        if (str_contains($query, 'ON DUPLICATE KEY UPDATE')) {
+            $key = (string) ($args[0] ?? '');
+            $now = strtotime((string) ($args[4] ?? '')) ?: 0;
+            if (isset($this->quotaLeaseRows[$key])) {
+                $existingExpiry = strtotime($this->quotaLeaseRows[$key]['expires_at']) ?: 0;
+                if ($existingExpiry <= $now) {
+                    $this->quotaLeaseRows[$key]['owner_token'] = (string) ($args[5] ?? '');
+                    $this->quotaLeaseRows[$key]['expires_at'] = (string) ($args[7] ?? '');
+                    $this->quotaLeaseRows[$key]['created_at'] = (string) ($args[9] ?? '');
+
+                    return 2;
+                }
+
+                return 0;
+            }
+
+            $this->quotaLeaseRows[$key] = [
+                'lease_type' => 'lock',
+                'provider_id' => null,
+                'owner_token' => (string) ($args[1] ?? ''),
+                'expires_at' => (string) ($args[2] ?? ''),
+                'created_at' => (string) ($args[3] ?? ''),
+            ];
+
+            return 1;
+        }
+
+        if (str_contains($query, 'INSERT INTO')) {
+            $key = (string) ($args[0] ?? '');
+            if (isset($this->quotaLeaseRows[$key])) {
+                return 0;
+            }
+
+            $this->quotaLeaseRows[$key] = [
+                'lease_type' => 'reservation',
+                'provider_id' => (int) ($args[1] ?? 0),
+                'owner_token' => (string) ($args[2] ?? ''),
+                'expires_at' => (string) ($args[3] ?? ''),
+                'created_at' => (string) ($args[4] ?? ''),
+            ];
+
+            return 1;
         }
 
         return 0;

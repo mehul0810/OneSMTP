@@ -114,7 +114,7 @@ final class DeliveryEngine
             $startedAt = ($this->monotonicNow)();
             $result = $this->deliveryManager->send($provider, $payload);
             $latencyMs = max(0, (int) round(((($this->monotonicNow)()) - $startedAt) / 1_000_000));
-            $this->providerQuota->reserveProvider($providerId);
+            $quotaReservationToken = $this->providerQuota->reserveProvider($providerId);
 
             if ($result->isSuccess()) {
                 $this->providers->markState($providerId, 'closed', null);
@@ -129,7 +129,11 @@ final class DeliveryEngine
                 $result->getMessage(),
                 $result->getProviderMessageId(),
                 $result->getFailureCategory(),
-                $latencyMs
+                $latencyMs,
+                false,
+                0,
+                null,
+                $quotaReservationToken
             );
         } finally {
             $this->providerQuota->releaseLock();
@@ -213,9 +217,9 @@ final class DeliveryEngine
         );
     }
 
-    public function releaseQuotaReservation(int $providerId): void
+    public function releaseQuotaReservation(int $providerId, ?string $reservationToken = null): void
     {
-        $this->providerQuota->releaseProviderReservation($providerId);
+        $this->providerQuota->releaseProviderReservation($providerId, $reservationToken);
     }
 
     /** @param array<int,array<string,mixed>> $providers */

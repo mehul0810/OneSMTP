@@ -60,8 +60,11 @@ background, and manual-resend sends are included, while provider-test traffic
 is excluded. A quota decision is checked immediately before dispatch. An
 exhausted provider is skipped when another eligible provider exists. If every
 eligible provider is exhausted, the message remains queued and is deferred
-until the earliest next capacity; no message body, recipient, credential, or
-raw provider context is written to quota or audit events.
+until the earliest next capacity. Coordination uses a small internal database
+lease table with owner tokens; it does not require an external object cache,
+and expired leases are pruned in bounded batches without allowing an old worker
+to release a newer lease. No message body, recipient, credential, or raw
+provider context is written to quota or audit events.
 
 ## Provider-specific credentials
 

@@ -33,4 +33,11 @@ final class TableNames
 
         return $wpdb->prefix . 'onesmtp_events';
     }
+
+    public static function quotaLeases(): string
+    {
+        global $wpdb;
+
+        return $wpdb->prefix . 'onesmtp_quota_leases';
+    }
 }

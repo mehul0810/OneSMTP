@@ -41,4 +41,5 @@ The Activity section also exposes the live email queue. Administrators with rese
 Use logs to confirm whether failures are credential, policy, timeout, quota, terminal, or provider-availability related.
 If a retry is expected but never appears in Action Scheduler, inspect the latest event/log entry for a scheduler-unavailable failure before retrying manually.
 If a message is delayed by configured delivery limits, confirm Action Scheduler is available and wait for the deferred attempt time shown in the queue or event context.
+If Action Scheduler cannot accept a provider-budget deferral, Aculect Mail fails closed: the message is marked failed and a terminal `provider_quota_scheduler_unavailable` event records the safe operational reason rather than leaving a queued or retrying message stuck.
 If background sending is enabled and mail remains queued, confirm Action Scheduler is available and processing the `onesmtp_process_background_send` action.

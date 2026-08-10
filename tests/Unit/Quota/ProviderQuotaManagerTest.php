@@ -85,12 +85,13 @@ final class ProviderQuotaManagerTest extends TestCase
         $provider = $this->provider(10, ['quota_per_minute' => 1]);
         $manager = $this->manager(new FeatureGate([FeatureGate::PROVIDER_QUOTA_BUDGETS => true], true), self::NOW);
 
-        $manager->reserveProvider(10);
+        $reservationToken = $manager->reserveProvider(10);
+        self::assertNotNull($reservationToken);
         $decision = $manager->evaluateProvider($provider);
         self::assertFalse($decision->canSend());
         self::assertSame(1, $manager->getReservationCount(10));
 
-        $manager->releaseProviderReservation(10);
+        $manager->releaseProviderReservation(10, $reservationToken);
         self::assertSame(0, $manager->getReservationCount(10));
         self::assertTrue($manager->evaluateProvider($provider)->canSend());
     }

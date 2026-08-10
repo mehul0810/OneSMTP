@@ -352,7 +352,7 @@ final class SendPipeline
         }
 
         $this->recordAttempt($messageId, $attemptNo, $triggerType, $outcome);
-        $this->deliveryEngine->releaseQuotaReservation($outcome->getProviderId());
+        $this->deliveryEngine->releaseQuotaReservation($outcome->getProviderId(), $outcome->getQuotaReservationToken());
 
         if ($outcome->isSuccess()) {
             $this->messages->markSent($messageId, $outcome->getProviderId());
@@ -465,7 +465,7 @@ final class SendPipeline
             }
 
             $this->recordAttempt($messageId, $nextAttempt, 'failover', $fallback);
-            $this->deliveryEngine->releaseQuotaReservation($fallback->getProviderId());
+            $this->deliveryEngine->releaseQuotaReservation($fallback->getProviderId(), $fallback->getQuotaReservationToken());
             $lastOutcome = $fallback;
 
             if ($fallback->isSuccess()) {
@@ -530,6 +530,12 @@ final class SendPipeline
             $this->events->add(
                 'provider_quota_defer_failed',
                 ['attempt' => $attemptNo, 'trigger' => $triggerType, 'reason' => 'scheduler_backend_unavailable'],
+                $messageId
+            );
+            $this->messages->markFailedTerminal($messageId, max(1, $attemptNo));
+            $this->events->add(
+                'terminal_failure',
+                ['attempt' => $attemptNo, 'trigger' => $triggerType, 'reason' => 'provider_quota_scheduler_unavailable'],
                 $messageId
             );
 

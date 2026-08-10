@@ -19,6 +19,7 @@ final class DeliveryOutcome
     private bool $deferred;
     private int $retryAfter;
     private ?int $nextCapacityAt;
+    private ?string $quotaReservationToken;
 
     public function __construct(
         bool $success,
@@ -30,7 +31,8 @@ final class DeliveryOutcome
         ?int $latencyMs = null,
         bool $deferred = false,
         int $retryAfter = 0,
-        ?int $nextCapacityAt = null
+        ?int $nextCapacityAt = null,
+        ?string $quotaReservationToken = null
     ) {
         $this->success           = $success;
         $this->providerId        = $providerId;
@@ -42,6 +44,7 @@ final class DeliveryOutcome
         $this->latencyMs         = $latencyMs !== null ? max(0, $latencyMs) : null;
         $this->retryAfter        = max(0, $retryAfter);
         $this->nextCapacityAt    = $nextCapacityAt !== null ? max(0, $nextCapacityAt) : null;
+        $this->quotaReservationToken = $quotaReservationToken !== null && $quotaReservationToken !== '' ? $quotaReservationToken : null;
     }
 
     public static function deferred(int $retryAfter, ?int $nextCapacityAt = null, string $code = 'provider_quota_deferred', string $message = 'Provider sending budget is temporarily exhausted.'): self
@@ -97,6 +100,11 @@ final class DeliveryOutcome
     public function getNextCapacityAt(): ?int
     {
         return $this->nextCapacityAt;
+    }
+
+    public function getQuotaReservationToken(): ?string
+    {
+        return $this->quotaReservationToken;
     }
 
     public function shouldRetry(): bool

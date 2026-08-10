@@ -9,23 +9,25 @@ use OneSMTP\Repository\AttemptRepository;
 
 final class ProviderQuotaManager
 {
-    private const GROUP = 'onesmtp';
     private const LOCK_KEY = 'provider_quota_send_lock';
     private const LOCK_TTL = 60;
     private const LOCK_RETRY_AFTER = 5;
-    private const RESERVATION_PREFIX = 'provider_quota_reservation_';
     private const RESERVATION_TTL = 120;
 
     /** @var callable():int */
     private $clock;
+    private ProviderQuotaLeaseStore $leases;
+    private ?string $lockToken = null;
 
     public function __construct(
         private AttemptRepository $attempts,
         private ?FeatureGate $featureGate = null,
-        ?callable $clock = null
+        ?callable $clock = null,
+        ?ProviderQuotaLeaseStore $leases = null
     ) {
         $this->featureGate = $featureGate ?? new FeatureGate();
         $this->clock = $clock ?? static fn (): int => time();
+        $this->leases = $leases ?? new ProviderQuotaLeaseStore($this->clock);
     }
 
     /** @param array<int,array<string,mixed>> $providers */
@@ -35,24 +37,17 @@ final class ProviderQuotaManager
             return true;
         }
 
-        if (function_exists('wp_cache_add') && wp_using_ext_object_cache()) {
-            return (bool) wp_cache_add(self::LOCK_KEY, 1, self::GROUP, self::LOCK_TTL);
-        }
+        $this->lockToken = $this->leases->acquireLock(self::LOCK_KEY, self::LOCK_TTL);
 
-        if (get_transient(self::LOCK_KEY) !== false) {
-            return false;
-        }
-
-        return set_transient(self::LOCK_KEY, 1, self::LOCK_TTL);
+        return $this->lockToken !== null;
     }
 
     public function releaseLock(): void
     {
-        if (function_exists('wp_cache_delete') && wp_using_ext_object_cache()) {
-            wp_cache_delete(self::LOCK_KEY, self::GROUP);
+        if ($this->lockToken !== null) {
+            $this->leases->releaseLock(self::LOCK_KEY, $this->lockToken);
+            $this->lockToken = null;
         }
-
-        delete_transient(self::LOCK_KEY);
     }
 
     public function getLockRetryAfter(): int
@@ -60,53 +55,22 @@ final class ProviderQuotaManager
         return self::LOCK_RETRY_AFTER;
     }
 
-    public function reserveProvider(int $providerId): void
+    public function reserveProvider(int $providerId): ?string
     {
         if ($providerId <= 0) {
-            return;
+            return null;
         }
 
-        $key = self::RESERVATION_PREFIX . $providerId;
-        if (function_exists('wp_cache_add') && wp_using_ext_object_cache()) {
-            if (wp_cache_add($key, 1, self::GROUP, self::RESERVATION_TTL)) {
-                return;
-            }
-
-            if (function_exists('wp_cache_incr')) {
-                wp_cache_incr($key, 1, self::GROUP);
-            }
-
-            return;
-        }
-
-        $current = get_transient($key);
-        set_transient($key, max(0, (int) $current) + 1, self::RESERVATION_TTL);
+        return $this->leases->reserveProvider($providerId, self::RESERVATION_TTL);
     }
 
-    public function releaseProviderReservation(int $providerId): void
+    public function releaseProviderReservation(int $providerId, ?string $reservationToken = null): void
     {
-        if ($providerId <= 0) {
+        if ($providerId <= 0 || $reservationToken === null || $reservationToken === '') {
             return;
         }
 
-        $key = self::RESERVATION_PREFIX . $providerId;
-        if (function_exists('wp_cache_decr') && wp_using_ext_object_cache()) {
-            $current = (int) wp_cache_decr($key, 1, self::GROUP);
-            if ($current <= 0) {
-                wp_cache_delete($key, self::GROUP);
-            }
-
-            return;
-        }
-
-        $current = (int) get_transient($key);
-        if ($current <= 1) {
-            delete_transient($key);
-
-            return;
-        }
-
-        set_transient($key, $current - 1, self::RESERVATION_TTL);
+        $this->leases->releaseProviderReservation($providerId, $reservationToken);
     }
 
     public function getReservationCount(int $providerId): int
@@ -115,12 +79,7 @@ final class ProviderQuotaManager
             return 0;
         }
 
-        $key = self::RESERVATION_PREFIX . $providerId;
-        if (function_exists('wp_cache_get') && wp_using_ext_object_cache()) {
-            return max(0, (int) wp_cache_get($key, self::GROUP));
-        }
-
-        return max(0, (int) get_transient($key));
+        return $this->leases->countReservations($providerId);
     }
 
     /**

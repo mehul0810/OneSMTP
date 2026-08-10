@@ -10,7 +10,7 @@ Core modules:
 - Bounded third-party migration services that analyze before importing and never mutate the source plugin
 - Default-deny Pro capability gates that require both entitlement and an internal rollout flag
 - Advanced alert escalation extends the existing email/webhook channels with bounded destination lists and allowlisted terminal-failure context; raw mail payloads never cross the alert or audit boundary
-- Pro provider sending budgets extend the existing provider configuration with bounded minute/hour/day attempt windows. A shared, lock-guarded quota decision filters eligible providers immediately before dispatch and returns the earliest-capacity deferral when the pool is exhausted; only production attempt rows are counted and quota metadata is non-secret.
+- Pro provider sending budgets extend the existing provider configuration with bounded minute/hour/day attempt windows. A shared, owner-fenced database lease coordinates quota decisions and in-flight reservations immediately before dispatch, returning the earliest-capacity deferral when the pool is exhausted; only production attempt rows are counted and quota metadata is non-secret. Scheduler enqueue failure fails closed to a terminal message state rather than leaving a hidden queued/retrying message.
 
 ## Reliability Design
 
