@@ -71,10 +71,10 @@ final class ProviderEventContractsTest extends TestCase
             }
         };
 
-        $event = $normalizer->normalize(ProviderEventFixtures::payload('bounce', '002'));
+        $event = $normalizer->normalize(ProviderEventFixtures::payload('hard_bounce', '002'));
 
         self::assertInstanceOf(ProviderEvent::class, $event);
-        self::assertSame(ProviderEventType::BOUNCE, $event->getType());
+        self::assertSame(ProviderEventType::HARD_BOUNCE, $event->getType());
         self::assertNull($normalizer->normalize(ProviderEventFixtures::payload('future-state', '005')));
     }
 

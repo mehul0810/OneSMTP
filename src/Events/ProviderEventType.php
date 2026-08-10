@@ -9,10 +9,11 @@ namespace OneSMTP\Events;
  */
 enum ProviderEventType: string
 {
-    case DELIVERY = 'delivery';
-    case BOUNCE = 'bounce';
+    case DELIVERED = 'delivered';
+    case HARD_BOUNCE = 'hard_bounce';
+    case SOFT_BOUNCE = 'soft_bounce';
     case COMPLAINT = 'complaint';
-    case DEFERRAL = 'deferral';
+    case DEFERRED = 'deferred';
     case UNKNOWN = 'unknown';
 
     public static function fromProviderValue(?string $value): self
@@ -21,16 +22,17 @@ enum ProviderEventType: string
         $normalized = preg_replace('/[\s-]+/', '_', $normalized) ?? '';
 
         return match ($normalized) {
-            'delivery', 'delivered', 'accepted', 'sent' => self::DELIVERY,
-            'bounce', 'bounced' => self::BOUNCE,
+            'delivered', 'delivery', 'accepted', 'sent' => self::DELIVERED,
+            'hard_bounce', 'permanent_bounce', 'permanent_failure', 'bounced_hard' => self::HARD_BOUNCE,
+            'soft_bounce', 'temporary_bounce', 'bounced_soft' => self::SOFT_BOUNCE,
             'complaint', 'complained', 'feedback', 'spam_complaint' => self::COMPLAINT,
-            'defer', 'deferred', 'deferral', 'temporary_failure' => self::DEFERRAL,
+            'defer', 'deferred', 'deferral', 'temporary_failure' => self::DEFERRED,
             default => self::UNKNOWN,
         };
     }
 
     public function isSuppressionSignal(): bool
     {
-        return in_array($this, [self::BOUNCE, self::COMPLAINT], true);
+        return in_array($this, [self::HARD_BOUNCE, self::COMPLAINT], true);
     }
 }

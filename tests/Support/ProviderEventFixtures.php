@@ -38,9 +38,10 @@ final class ProviderEventFixtures
     {
         return [
             self::payload('delivery', '001'),
-            self::payload('bounce', '002'),
-            self::payload('complaint', '003'),
-            self::payload('deferral', '004'),
+            self::payload('hard_bounce', '002'),
+            self::payload('soft_bounce', '003'),
+            self::payload('deferred', '004'),
+            self::payload('complaint', '005'),
         ];
     }
 

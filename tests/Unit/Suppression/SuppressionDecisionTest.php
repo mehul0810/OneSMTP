@@ -29,7 +29,9 @@ final class SuppressionDecisionTest extends TestCase
         };
 
         self::assertSame(SuppressionDecision::SUPPRESS, $policy->decide(ProviderEventFixtures::event('complaint', '003')));
-        self::assertTrue($policy->decide(ProviderEventFixtures::event('bounce', '002'))->shouldSuppress());
+        self::assertTrue($policy->decide(ProviderEventFixtures::event('hard_bounce', '002'))->shouldSuppress());
+        self::assertSame(SuppressionDecision::ALLOW, $policy->decide(ProviderEventFixtures::event('soft_bounce', '003')));
+        self::assertSame(SuppressionDecision::ALLOW, $policy->decide(ProviderEventFixtures::event('bounce', '006')));
         self::assertSame(SuppressionDecision::ALLOW, $policy->decide(ProviderEventFixtures::event('delivery', '001')));
         self::assertFalse(SuppressionDecision::UNAVAILABLE->shouldSuppress());
     }
@@ -37,7 +39,7 @@ final class SuppressionDecisionTest extends TestCase
     public function test_events_without_recipient_identity_do_not_default_to_suppression(): void
     {
         $event = new ProviderEvent(
-            ProviderEventType::BOUNCE,
+            ProviderEventType::HARD_BOUNCE,
             'fixture-provider',
             'fixture-event-no-recipient',
             new \DateTimeImmutable('2026-08-10T00:00:00+00:00')
