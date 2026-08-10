@@ -78,8 +78,17 @@ final class ProviderTestServiceTest extends TestCase
         );
 
         $service->send(
-            ['id' => 91, 'adapter_type' => 'timed-test', 'config' => []],
-            ['to' => ['qa@example.com'], 'subject' => 'Provider test', 'message' => 'Hello', 'headers' => []]
+            [
+                'id' => 91,
+                'adapter_type' => 'timed-test',
+                'config' => [],
+            ],
+            [
+                'to' => ['qa@example.com'],
+                'subject' => 'Provider test',
+                'message' => 'Hello',
+                'headers' => [],
+            ]
         );
 
         $attempt = $this->findAttemptInsert();
