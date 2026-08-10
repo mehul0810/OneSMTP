@@ -8,6 +8,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 - Pro provider reliability scoring based on aggregate success, failure, retry, switch-away, and latency history, with sample-quality labels and non-SLA guidance.
 - Pro advanced reports for provider attempts, message statuses, daily trends, failure categories, and privacy-safe subject groups, using bounded time-window queries.
+- Pro multisite network settings for allowlisted operational defaults with explicit site inheritance/overrides, plus a network-admin-only bounded log summary view that preserves site and payload privacy boundaries.
 
 ### Added
 

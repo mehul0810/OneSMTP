@@ -31,6 +31,8 @@ use OneSMTP\Settings\BackgroundSendingSettingsRepository;
 use OneSMTP\Settings\SenderIdentityRepository;
 use OneSMTP\Settings\SimulationModeSettingsRepository;
 use OneSMTP\Summary\WeeklySummaryMailer;
+use OneSMTP\Multisite\NetworkLogRepository;
+use OneSMTP\Multisite\NetworkSettingsRepository;
 
 final class Plugin
 {
@@ -93,6 +95,13 @@ final class Plugin
             new Admin\RoutingAdmin(null, $providers, $featureGate)
         );
         $adminPage->registerHooks();
+
+        $networkSettings = new NetworkSettingsRepository($featureGate);
+        (new Admin\NetworkAdmin(
+            $networkSettings,
+            new NetworkLogRepository($networkSettings, $featureGate),
+            $featureGate
+        ))->registerHooks();
 
         DiagnosticsCommand::register(new DiagnosticsCommand(new DiagnosticReportGenerator($providers, $queueDiagnostics, $attempts)));
 

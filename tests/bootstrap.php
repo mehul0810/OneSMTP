@@ -223,11 +223,70 @@ if (! function_exists('get_site_option')) {
     }
 }
 
+if (! function_exists('update_site_option')) {
+    function update_site_option(string $option, mixed $value): bool
+    {
+        return update_option($option, $value, false);
+    }
+}
+
+if (! function_exists('is_multisite')) {
+    function is_multisite(): bool
+    {
+        return (bool) ($GLOBALS['onesmtp_test_multisite'] ?? false);
+    }
+}
+
+if (! function_exists('is_network_admin')) {
+    function is_network_admin(): bool
+    {
+        return (bool) ($GLOBALS['onesmtp_test_network_admin'] ?? false);
+    }
+}
+
+if (! function_exists('get_sites')) {
+    function get_sites(array $args = []): array
+    {
+        return $GLOBALS['onesmtp_test_sites'] ?? [];
+    }
+}
+
+if (! function_exists('get_current_blog_id')) {
+    function get_current_blog_id(): int
+    {
+        return (int) ($GLOBALS['onesmtp_test_current_blog_id'] ?? 1);
+    }
+}
+
+if (! function_exists('switch_to_blog')) {
+    function switch_to_blog(int $siteId): bool
+    {
+        $GLOBALS['onesmtp_test_blog_stack'][] = get_current_blog_id();
+        $GLOBALS['onesmtp_test_current_blog_id'] = $siteId;
+
+        return true;
+    }
+}
+
+if (! function_exists('restore_current_blog')) {
+    function restore_current_blog(): bool
+    {
+        $previous = array_pop($GLOBALS['onesmtp_test_blog_stack']);
+        if ($previous !== null) {
+            $GLOBALS['onesmtp_test_current_blog_id'] = (int) $previous;
+        }
+
+        return true;
+    }
+}
+
 if (! function_exists('get_bloginfo')) {
     function get_bloginfo(string $show = ''): string
     {
         if ($show === 'name') {
-            return 'Test Site';
+            $blogId = (int) ($GLOBALS['onesmtp_test_current_blog_id'] ?? 1);
+
+            return (string) (($GLOBALS['onesmtp_test_blog_names'] ?? [])[$blogId] ?? 'Test Site');
         }
 
         return '';
@@ -603,6 +662,13 @@ if (! function_exists('__')) {
     }
 }
 
+if (! function_exists('_n')) {
+    function _n(string $single, string $plural, int $number, string $domain = 'default'): string
+    {
+        return $number === 1 ? $single : $plural;
+    }
+}
+
 if (! function_exists('esc_html__')) {
     function esc_html__(string $text, string $domain = 'default'): string
     {
@@ -693,6 +759,13 @@ if (! function_exists('admin_url')) {
     function admin_url(string $path = ''): string
     {
         return 'https://example.org/wp-admin/' . ltrim($path, '/');
+    }
+}
+
+if (! function_exists('network_admin_url')) {
+    function network_admin_url(string $path = ''): string
+    {
+        return 'https://example.org/wp-admin/network/' . ltrim($path, '/');
     }
 }
 
