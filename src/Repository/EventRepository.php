@@ -63,14 +63,10 @@ final class EventRepository
             $safe['attempt'] = max(0, (int) $context['attempt']);
         }
 
-        foreach (['reason', 'failure_category', 'message_type', 'priority'] as $key) {
-            if (isset($context[$key])) {
-                $safe[$key] = sanitize_key((string) $context[$key]);
+        foreach (['reason', 'failure_category'] as $key) {
+            if (isset($context[ $key ])) {
+                $safe[ $key ] = sanitize_key( (string) $context[ $key ] );
             }
-        }
-
-        if (array_key_exists('high_priority', $context)) {
-            $safe['high_priority'] = ! empty($context['high_priority']);
         }
 
         if (array_key_exists('consecutive_failures', $context)) {

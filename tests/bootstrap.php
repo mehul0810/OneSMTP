@@ -753,6 +753,18 @@ if (! function_exists('wp_remote_post')) {
     }
 }
 
+if (! function_exists('wp_safe_remote_post')) {
+    function wp_safe_remote_post(string $url, array $args = []): array|WP_Error
+    {
+        $GLOBALS['onesmtp_test_safe_remote_posts'][] = [
+            'url' => $url,
+            'args' => $args,
+        ];
+
+        return wp_remote_post($url, $args);
+    }
+}
+
 if (! function_exists('wp_mail')) {
     function wp_mail($to, string $subject, string $message, string|array $headers = '', array $attachments = []): bool
     {

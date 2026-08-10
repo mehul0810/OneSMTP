@@ -14,13 +14,10 @@ final class FailureAlertSettings
     private const DEFAULT_ESCALATION_FAILURE_THRESHOLD = 3;
     private const MAX_ESCALATION_FAILURE_THRESHOLD = 6;
     private const MAX_ADVANCED_DESTINATIONS = 10;
-    private const MAX_MESSAGE_TYPES = 20;
-    private const MAX_MESSAGE_TYPE_LENGTH = 64;
 
     /**
      * @param array<int,string> $emailRecipients
      * @param array<int,array{channel:string,target:string}> $advancedDestinations
-     * @param array<int,string> $highPriorityMessageTypes
      */
     public function __construct(
         private bool $emailEnabled = false,
@@ -30,15 +27,13 @@ final class FailureAlertSettings
         private int $throttleSeconds = self::DEFAULT_THROTTLE_SECONDS,
         private bool $advancedEnabled = false,
         private array $advancedDestinations = [],
-        private int $escalationFailureThreshold = self::DEFAULT_ESCALATION_FAILURE_THRESHOLD,
-        private array $highPriorityMessageTypes = []
+        private int $escalationFailureThreshold = self::DEFAULT_ESCALATION_FAILURE_THRESHOLD
     ) {
         $this->emailRecipients = self::normalizeEmailList($emailRecipients);
         $this->webhookUrl = self::normalizeWebhookUrl($webhookUrl);
         $this->throttleSeconds = self::normalizeThrottle($throttleSeconds);
         $this->advancedDestinations = self::normalizeDestinations($advancedDestinations);
         $this->escalationFailureThreshold = self::normalizeEscalationThreshold($escalationFailureThreshold);
-        $this->highPriorityMessageTypes = self::normalizeMessageTypes($highPriorityMessageTypes);
     }
 
     public static function fromArray(array $settings): self
@@ -51,8 +46,7 @@ final class FailureAlertSettings
             isset($settings['throttle_seconds']) ? (int) $settings['throttle_seconds'] : self::DEFAULT_THROTTLE_SECONDS,
             ! empty($settings['advanced_enabled']),
             self::destinationsFromValue($settings['advanced_destinations'] ?? $settings['destinations'] ?? []),
-            isset($settings['escalation_failure_threshold']) ? (int) $settings['escalation_failure_threshold'] : self::DEFAULT_ESCALATION_FAILURE_THRESHOLD,
-            self::messageTypesFromValue($settings['high_priority_message_types'] ?? [])
+            isset($settings['escalation_failure_threshold']) ? (int) $settings['escalation_failure_threshold'] : self::DEFAULT_ESCALATION_FAILURE_THRESHOLD
         );
     }
 
@@ -67,7 +61,6 @@ final class FailureAlertSettings
             'advanced_enabled' => $this->advancedEnabled,
             'advanced_destinations' => $this->advancedDestinations,
             'escalation_failure_threshold' => $this->escalationFailureThreshold,
-            'high_priority_message_types' => $this->highPriorityMessageTypes,
         ];
     }
 
@@ -120,27 +113,15 @@ final class FailureAlertSettings
         return $this->escalationFailureThreshold;
     }
 
-    /** @return array<int,string> */
-    public function getHighPriorityMessageTypes(): array
-    {
-        return $this->highPriorityMessageTypes;
-    }
-
     public function shouldEscalate(array $context): bool
     {
-        $attempt = max(0, (int) ($context['attempt'] ?? 0));
-        if ($attempt >= $this->escalationFailureThreshold) {
-            return true;
-        }
+        $attempt = max(
+            0,
+            (int) ($context['attempt'] ?? 0),
+            (int) ($context['consecutive_failures'] ?? 0)
+        );
 
-        $messageType = sanitize_key((string) ($context['message_type'] ?? ''));
-        if ($messageType !== '' && in_array($messageType, $this->highPriorityMessageTypes, true)) {
-            return true;
-        }
-
-        $priority = sanitize_key((string) ($context['priority'] ?? ''));
-
-        return ! empty($context['high_priority']) || in_array($priority, ['high', 'urgent', 'critical'], true);
+        return $attempt >= $this->escalationFailureThreshold;
     }
 
     /**
@@ -195,7 +176,7 @@ final class FailureAlertSettings
         }
 
         $parts = wp_parse_url($url);
-        $host = is_array($parts) ? strtolower((string) ($parts['host'] ?? '')) : '';
+        $host = is_array($parts) ? strtolower(trim((string) ($parts['host'] ?? ''), '[]')) : '';
         $port = is_array($parts) && isset($parts['port']) ? (int) $parts['port'] : null;
         if (
             ! is_array($parts)
@@ -217,6 +198,47 @@ final class FailureAlertSettings
         }
 
         return $url;
+    }
+
+    /**
+     * Revalidate a webhook immediately before a request. WordPress performs
+     * its own safe-request validation, while this boundary also rejects any
+     * private or reserved address returned by the current DNS resolution.
+     *
+     * @param callable(string):array<int,string>|null $resolver
+     */
+    public static function isSafeWebhookUrl(string $url, ?callable $resolver = null): bool
+    {
+        try {
+            $normalized = self::normalizeWebhookUrl($url);
+        } catch (InvalidArgumentException) {
+            return false;
+        }
+
+        if ($normalized === '') {
+            return false;
+        }
+
+        $host = self::hostFromUrl($normalized);
+        if ($host === '' || self::isPrivateIp($host)) {
+            return false;
+        }
+
+        if ($resolver !== null) {
+            $addresses = $resolver($host);
+            if (! is_array($addresses) || $addresses === []) {
+                return false;
+            }
+
+            return self::allPublicAddresses($addresses);
+        }
+
+        $addresses = self::resolveHostIps($host);
+        if ($addresses !== [] && ! self::allPublicAddresses($addresses)) {
+            return false;
+        }
+
+        return ! function_exists('wp_http_validate_url') || wp_http_validate_url($normalized) !== false;
     }
 
     /** @param array<int,mixed> $destinations @return array<int,array{channel:string,target:string}> */
@@ -251,6 +273,58 @@ final class FailureAlertSettings
         }
 
         return array_values($normalized);
+    }
+
+    private static function hostFromUrl(string $url): string
+    {
+        $parts = wp_parse_url($url);
+
+        return is_array($parts) ? strtolower(trim((string) ($parts['host'] ?? ''), '[]')) : '';
+    }
+
+    /** @return array<int,string> */
+    private static function resolveHostIps(string $host): array
+    {
+        if (filter_var($host, FILTER_VALIDATE_IP) !== false) {
+            return [$host];
+        }
+
+        if (! function_exists('dns_get_record') || ! defined('DNS_A')) {
+            return [];
+        }
+
+        $recordType = DNS_A | (defined('DNS_AAAA') ? DNS_AAAA : 0);
+        $records = @dns_get_record($host, $recordType);
+        if (! is_array($records)) {
+            return [];
+        }
+
+        $addresses = [];
+        foreach ($records as $record) {
+            if (! is_array($record)) {
+                continue;
+            }
+
+            foreach (['ip', 'ipv6'] as $key) {
+                if (isset($record[$key]) && is_string($record[$key])) {
+                    $addresses[] = $record[$key];
+                }
+            }
+        }
+
+        return array_values(array_unique($addresses));
+    }
+
+    /** @param array<int,string> $addresses */
+    private static function allPublicAddresses(array $addresses): bool
+    {
+        foreach ($addresses as $address) {
+            if (! is_string($address) || filter_var($address, FILTER_VALIDATE_IP) === false || self::isPrivateIp($address)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /** @return array{channel:string,target:string}|null */
@@ -292,30 +366,6 @@ final class FailureAlertSettings
             : array_values($value);
     }
 
-    /** @param array<int,string> $types @return array<int,string> */
-    private static function normalizeMessageTypes(array $types): array
-    {
-        $normalized = [];
-        foreach (array_slice($types, 0, self::MAX_MESSAGE_TYPES) as $type) {
-            $type = substr(sanitize_key((string) $type), 0, self::MAX_MESSAGE_TYPE_LENGTH);
-            if ($type !== '') {
-                $normalized[] = $type;
-            }
-        }
-
-        return array_values(array_unique($normalized));
-    }
-
-    /** @return array<int,string> */
-    private static function messageTypesFromValue(mixed $value): array
-    {
-        if (is_string($value)) {
-            return preg_split('/[\r\n,]+/', $value) ?: [];
-        }
-
-        return is_array($value) ? array_map('strval', $value) : [];
-    }
-
     private static function normalizeEscalationThreshold(int $threshold): int
     {
         if ($threshold <= 0) {
@@ -331,7 +381,35 @@ final class FailureAlertSettings
             return false;
         }
 
-        return filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false;
+        if (filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+            return true;
+        }
+
+        if (filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false) {
+            $octets = array_map('intval', explode('.', $host));
+            if (count($octets) !== 4) {
+                return true;
+            }
+
+            [$first, $second, $third] = $octets;
+
+            return $first === 0
+                || $first === 10
+                || ($first === 100 && $second >= 64 && $second <= 127)
+                || $first === 127
+                || ($first === 169 && $second === 254)
+                || ($first === 172 && $second >= 16 && $second <= 31)
+                || ($first === 192 && $second === 0 && $third === 0)
+                || ($first === 192 && $second === 0 && $third === 2)
+                || ($first === 192 && $second === 88 && $third === 99)
+                || ($first === 192 && $second === 168)
+                || ($first === 198 && $second >= 18 && $second <= 19)
+                || ($first === 198 && $second === 51 && $third === 100)
+                || ($first === 203 && $second === 0 && $third === 113)
+                || $first >= 224;
+        }
+
+        return str_starts_with(strtolower($host), '2001:db8:');
     }
 
     private static function normalizeThrottle(int $seconds): int

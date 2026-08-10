@@ -12,14 +12,19 @@ final class FailureAlertDispatcher
     private const TRANSIENT_PREFIX = 'onesmtp_failure_alert_';
     private const ADVANCED_TRANSIENT_PREFIX = 'onesmtp_advanced_failure_alert_';
 
+    /** @var callable(string):array<int,string>|null */
+    private $webhookResolver;
+
     public function __construct(
         private ?FailureAlertSettingsRepository $settings = null,
         private ?FailureAlertPayloadBuilder $payloadBuilder = null,
-        private ?FeatureGate $featureGate = null
+        private ?FeatureGate $featureGate = null,
+        ?callable $webhookResolver = null
     ) {
         $this->settings = $settings ?? new FailureAlertSettingsRepository();
         $this->payloadBuilder = $payloadBuilder ?? new FailureAlertPayloadBuilder();
         $this->featureGate = $featureGate ?? new FeatureGate();
+        $this->webhookResolver = $webhookResolver;
     }
 
     public function handleTerminalFailure(array $context, ?int $messageId, ?int $providerId, int $eventId): void
@@ -60,7 +65,7 @@ final class FailureAlertDispatcher
         if ($advancedAllowed) {
             $advancedPayload = $payload;
             $advancedPayload['alert_level'] = 'escalated';
-            $advancedPayload['escalation'] = $this->escalationMetadata($context, $settings);
+            $advancedPayload['escalation'] = $this->escalationMetadata($context);
             $this->sendAdvancedDestinations($settings->getAdvancedDestinations(), $advancedPayload);
         }
     }
@@ -81,7 +86,11 @@ final class FailureAlertDispatcher
 
     private function sendWebhook(string $url, array $payload): void
     {
-        $response = wp_remote_post(
+        if (! FailureAlertSettings::isSafeWebhookUrl($url, $this->webhookResolver) || ! function_exists('wp_safe_remote_post')) {
+            return;
+        }
+
+        $response = wp_safe_remote_post(
             $url,
             [
                 'timeout' => 5,
@@ -112,20 +121,14 @@ final class FailureAlertDispatcher
         }
     }
 
-    /** @return array{trigger:string,message_type:string,priority:string} */
-    private function escalationMetadata(array $context, FailureAlertSettings $settings): array
+    /** @return array{trigger:string,attempt:int} */
+    private function escalationMetadata(array $context): array
     {
         $attempt = max(0, (int) ($context['attempt'] ?? 0));
-        $messageType = sanitize_key((string) ($context['message_type'] ?? ''));
-        $priority = sanitize_key((string) ($context['priority'] ?? ''));
-        $trigger = $attempt >= $settings->getEscalationFailureThreshold()
-            ? 'repeated_failures'
-            : 'high_priority_message_type';
 
         return [
-            'trigger' => $trigger,
-            'message_type' => $messageType,
-            'priority' => $priority,
+            'trigger' => 'repeated_failures',
+            'attempt' => $attempt,
         ];
     }
 

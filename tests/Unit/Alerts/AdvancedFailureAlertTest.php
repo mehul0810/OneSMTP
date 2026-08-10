@@ -19,6 +19,7 @@ final class AdvancedFailureAlertTest extends TestCase
         $GLOBALS['onesmtp_test_mail'] = [];
         $GLOBALS['onesmtp_test_options'] = [];
         $GLOBALS['onesmtp_test_remote_posts'] = [];
+        $GLOBALS['onesmtp_test_safe_remote_posts'] = [];
         $GLOBALS['onesmtp_test_transients'] = [];
         $GLOBALS['wpdb'] = new FakeWpdb();
     }
@@ -68,17 +69,16 @@ final class AdvancedFailureAlertTest extends TestCase
                 'advanced_enabled' => true,
                 'advanced_destinations' => [
                     [
-						'channel' => 'email',
-						'target' => 'ops@example.test',
-					],
+                        'channel' => 'email',
+                        'target' => 'ops@example.test',
+                    ],
                 ],
-                'high_priority_message_types' => ['password_reset'],
+                'escalation_failure_threshold' => 3,
             ],
         ], false);
 
         (new FailureAlertDispatcher())->handleTerminalFailure([
-			'attempt' => 1,
-			'message_type' => 'password_reset',
+			'attempt' => 3,
 		], 12, 9, 101);
         self::assertSame([], $GLOBALS['onesmtp_test_mail']);
 
@@ -86,8 +86,7 @@ final class AdvancedFailureAlertTest extends TestCase
             FeatureGate::ADVANCED_ALERTS => true,
         ], true));
         $dispatcher->handleTerminalFailure([
-			'attempt' => 1,
-			'message_type' => 'newsletter',
+			'attempt' => 2,
 		], 13, 9, 102);
         self::assertSame([], $GLOBALS['onesmtp_test_mail']);
     }
@@ -126,12 +125,45 @@ final class AdvancedFailureAlertTest extends TestCase
         self::assertSame(['oncall@example.test'], $GLOBALS['onesmtp_test_mail'][1]['to']);
     }
 
+    public function test_core_and_advanced_webhooks_revalidate_before_safe_request(): void
+    {
+        update_option('onesmtp_settings', [
+            'failure_alerts' => [
+                'webhook_enabled' => true,
+                'webhook_url' => 'https://core.example.test/failure',
+                'advanced_enabled' => true,
+                'advanced_destinations' => [
+                    [
+						'channel' => 'webhook',
+						'target' => 'https://advanced.example.test/escalations',
+					],
+                ],
+                'escalation_failure_threshold' => 3,
+            ],
+        ], false);
+
+        $gate = new FeatureGate([
+            FeatureGate::ADVANCED_ALERTS => true,
+        ], true);
+        $privateResolver = static fn (): array => ['192.168.1.7'];
+        $dispatcher = new FailureAlertDispatcher(null, null, $gate, $privateResolver);
+        $dispatcher->handleTerminalFailure(['attempt' => 3], 31, 9, 120);
+
+        self::assertSame([], $GLOBALS['onesmtp_test_safe_remote_posts']);
+
+        $publicResolver = static fn (): array => ['8.8.8.8'];
+        $dispatcher = new FailureAlertDispatcher(null, null, $gate, $publicResolver);
+        $dispatcher->handleTerminalFailure(['attempt' => 3], 32, 9, 121);
+
+        self::assertCount(2, $GLOBALS['onesmtp_test_safe_remote_posts']);
+        self::assertCount(2, $GLOBALS['onesmtp_test_remote_posts']);
+    }
+
     public function test_terminal_failure_context_is_allowlisted_before_persistence(): void
     {
         (new EventRepository())->add('terminal_failure', [
             'attempt' => 3,
             'reason' => 'provider_timeout',
-            'message_type' => 'password_reset',
             'raw_body' => 'private body',
             'recipients' => ['private@example.test'],
             'headers' => ['Authorization: Bearer secret-token'],
@@ -140,7 +172,6 @@ final class AdvancedFailureAlertTest extends TestCase
 
         $insert = $GLOBALS['wpdb']->inserts[0] ?? [];
         $json = (string) ($insert['data']['context_json'] ?? '');
-        self::assertStringContainsString('password_reset', $json);
         self::assertStringNotContainsString('private body', $json);
         self::assertStringNotContainsString('private@example.test', $json);
         self::assertStringNotContainsString('secret-token', $json);

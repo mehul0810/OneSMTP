@@ -16,7 +16,6 @@ final class FailureAlertSettingsTest extends TestCase
             'advanced_enabled' => true,
             'advanced_destinations' => "email:ops@example.test\nwebhook:https://hooks.example.test/alerts\nemail:ops@example.test",
             'escalation_failure_threshold' => 99,
-            'high_priority_message_types' => "password_reset\norder_update\npassword_reset",
         ]);
 
         self::assertTrue($settings->isAdvancedEnabled());
@@ -31,15 +30,9 @@ final class FailureAlertSettingsTest extends TestCase
 			],
         ], $settings->getAdvancedDestinations());
         self::assertSame(6, $settings->getEscalationFailureThreshold());
-        self::assertSame(['password_reset', 'order_update'], $settings->getHighPriorityMessageTypes());
         self::assertTrue($settings->shouldEscalate(['attempt' => 6]));
-        self::assertTrue($settings->shouldEscalate([
-			'attempt' => 1,
-			'message_type' => 'password_reset',
-		]));
         self::assertFalse($settings->shouldEscalate([
 			'attempt' => 1,
-			'message_type' => 'newsletter',
 		]));
     }
 
@@ -66,5 +59,19 @@ final class FailureAlertSettingsTest extends TestCase
             'webhook_enabled' => true,
             'webhook_url' => 'https://user:password@hooks.example.test/alerts',
         ]);
+    }
+
+    public function test_runtime_webhook_validation_rejects_private_and_reserved_literal_targets(): void
+    {
+        foreach (['https://127.0.0.1/private', 'https://192.0.2.1/reserved', 'https://[::1]/loopback'] as $url) {
+            self::assertFalse(FailureAlertSettings::isSafeWebhookUrl($url));
+        }
+    }
+
+    public function test_runtime_webhook_validation_rejects_hostname_resolving_to_private_address(): void
+    {
+        $resolver = static fn (string $host): array => $host === 'hooks.example.test' ? ['10.0.0.7'] : [];
+
+        self::assertFalse(FailureAlertSettings::isSafeWebhookUrl('https://hooks.example.test/alerts', $resolver));
     }
 }

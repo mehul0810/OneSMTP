@@ -50,6 +50,6 @@ Repeated matching terminal failures are throttled for the configured alert windo
 
 ## Advanced alert escalation (Pro)
 
-Advanced alert routing is default-deny and appears only when the site has Pro entitlement and the internal rollout flag enabled. Configure one destination per line using `email:address@example.test` or `webhook:https://hooks.example.test/path`, then choose the repeated-failure threshold and safe message types that should escalate immediately. Existing core failure alerts continue to use their separate email/webhook settings.
+Advanced alert routing is default-deny and appears only when the site has Pro entitlement and the internal rollout flag enabled. Configure one destination per line using `email:address@example.test` or `webhook:https://hooks.example.test/path`, then choose the repeated-failure threshold used by production terminal-failure events. Existing core failure alerts continue to use their separate email/webhook settings.
 
 Destinations must be valid email addresses or HTTPS URLs without embedded credentials or private/loopback hosts. Escalation payloads contain operational IDs, hashes, status, provider summary, failure reason, and category only; message bodies, raw recipients, headers, credentials, and provider payloads are not persisted or sent.

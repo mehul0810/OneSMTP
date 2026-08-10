@@ -408,7 +408,6 @@ final class SettingsAdminTest extends TestCase
             'failure_alert_advanced_enabled' => '1',
             'failure_alert_advanced_destinations' => "email:ops@example.test\nwebhook:https://hooks.example.test/escalations",
             'failure_alert_escalation_failure_threshold' => '4',
-            'failure_alert_high_priority_message_types' => "password_reset\norder_update",
         ];
 
         $admin = new SettingsAdmin(featureGate: new FeatureGate([
@@ -425,7 +424,6 @@ final class SettingsAdminTest extends TestCase
         self::assertTrue($settings['failure_alerts']['advanced_enabled']);
         self::assertCount(2, $settings['failure_alerts']['advanced_destinations']);
         self::assertSame(4, $settings['failure_alerts']['escalation_failure_threshold']);
-        self::assertSame(['password_reset', 'order_update'], $settings['failure_alerts']['high_priority_message_types']);
         self::assertStringContainsString('onesmtp_settings_status=advanced_alerts_saved', (string) $GLOBALS['onesmtp_test_redirect']['location']);
         self::assertStringContainsString('destination_count":2', (string) ($GLOBALS['wpdb']->inserts[0]['data']['context_json'] ?? ''));
         self::assertStringNotContainsString('ops@example.test', (string) ($GLOBALS['wpdb']->inserts[0]['data']['context_json'] ?? ''));
@@ -468,8 +466,7 @@ final class SettingsAdminTest extends TestCase
         self::assertStringContainsString('Advanced alert routing is disabled until at least one destination is configured.', $output);
         self::assertStringContainsString('name="failure_alert_advanced_destinations"', $output);
         self::assertStringContainsString('maxlength="20480"', $output);
-        self::assertStringContainsString('name="failure_alert_high_priority_message_types"', $output);
-        self::assertStringContainsString('maxlength="1280"', $output);
+        self::assertStringNotContainsString('message types', $output);
         self::assertStringContainsString('Save advanced alert routing', $output);
     }
 

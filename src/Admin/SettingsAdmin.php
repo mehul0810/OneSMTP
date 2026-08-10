@@ -145,7 +145,6 @@ final class SettingsAdmin
                     'advanced_enabled' => isset($_POST['failure_alert_advanced_enabled']),
                     'advanced_destinations' => isset($_POST['failure_alert_advanced_destinations']) ? wp_unslash((string) $_POST['failure_alert_advanced_destinations']) : '',
                     'escalation_failure_threshold' => isset($_POST['failure_alert_escalation_failure_threshold']) ? wp_unslash((string) $_POST['failure_alert_escalation_failure_threshold']) : 3,
-                    'high_priority_message_types' => isset($_POST['failure_alert_high_priority_message_types']) ? wp_unslash((string) $_POST['failure_alert_high_priority_message_types']) : '',
                 ]);
                 $this->failureAlerts->save($alerts);
                 $alertValues = $alerts->toArray();
@@ -154,7 +153,6 @@ final class SettingsAdmin
                     'enabled' => ! empty($alertValues['advanced_enabled']),
                     'destination_count' => count((array) ($alertValues['advanced_destinations'] ?? [])),
                     'escalation_failure_threshold' => (int) ($alertValues['escalation_failure_threshold'] ?? 0),
-                    'high_priority_type_count' => count((array) ($alertValues['high_priority_message_types'] ?? [])),
                 ]);
                 $this->redirect('advanced_alerts_saved');
                 return;
@@ -380,7 +378,7 @@ final class SettingsAdmin
 
         $this->renderPanel(
             __('Advanced alert routing', 'onesmtp'),
-            __('Escalate repeated failures or configured high-priority message types to multiple email and HTTPS webhook destinations.', 'onesmtp'),
+            __('Escalate repeated terminal failures to multiple email and HTTPS webhook destinations.', 'onesmtp'),
             true,
             function () use ($alerts, $alertValues, $actionUrl): void {
                 if (! $this->featureGate->isEnabled(FeatureGate::ADVANCED_ALERTS)) {
@@ -408,8 +406,7 @@ final class SettingsAdmin
                 $this->renderTextarea('failure_alert_advanced_destinations', __('Escalation destinations', 'onesmtp'), implode("\n", $destinations), 20480);
                 echo '<tr><th scope="row"></th><td><p class="description">' . esc_html__('Use one email:address@example.test or webhook:https://hooks.example.test/path per line. Destinations are validated server-side and never written to alert or audit context.', 'onesmtp') . '</p></td></tr>';
                 $this->renderNumberInput('failure_alert_escalation_failure_threshold', __('Repeated failure threshold', 'onesmtp'), (int) ($alertValues['escalation_failure_threshold'] ?? 3));
-                $this->renderTextarea('failure_alert_high_priority_message_types', __('High-priority message types', 'onesmtp'), implode("\n", (array) ($alertValues['high_priority_message_types'] ?? [])), 1280);
-                echo '<tr><th scope="row"></th><td><p class="description">' . esc_html__('Escalation occurs at the threshold or when a failure context marks a configured message type, high, urgent, or critical priority. Raw message content is never inspected or sent.', 'onesmtp') . '</p></td></tr>';
+                echo '<tr><th scope="row"></th><td><p class="description">' . esc_html__('Escalation occurs when a production terminal-failure event reaches the configured attempt threshold. Raw message content is never inspected or sent.', 'onesmtp') . '</p></td></tr>';
                 echo '</tbody></table>';
                 $this->renderActionFooter(__('Save advanced alert routing', 'onesmtp'));
                 echo '</form>';
