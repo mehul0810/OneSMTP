@@ -81,7 +81,7 @@ final class MetricsRepository
     }
 
     /**
-     * @return array<int,array{provider_id:int,provider_name:string,adapter_type:string,sent_count:int,failed_count:int,retry_count:int,failover_count:int,switch_out_count:int,total_activity:int}>
+     * @return array<int,array{provider_id:int,provider_name:string,adapter_type:string,sent_count:int,failed_count:int,retry_count:int,avg_latency_ms:?int,failover_count:int,switch_out_count:int,total_activity:int}>
      */
     public function getProviderBreakdown(string $since): array
     {
@@ -96,7 +96,8 @@ final class MetricsRepository
                 COALESCE(p.adapter_type, 'unknown') AS adapter_type,
                 COALESCE(SUM(CASE WHEN a.result = 'sent' THEN 1 ELSE 0 END), 0) AS sent_count,
                 COALESCE(SUM(CASE WHEN a.result = 'fail' THEN 1 ELSE 0 END), 0) AS failed_count,
-                COALESCE(SUM(CASE WHEN a.trigger_type = 'retry' THEN 1 ELSE 0 END), 0) AS retry_count
+                COALESCE(SUM(CASE WHEN a.trigger_type = 'retry' THEN 1 ELSE 0 END), 0) AS retry_count,
+                AVG(CASE WHEN a.latency_ms IS NOT NULL THEN a.latency_ms END) AS avg_latency_ms
             FROM {$attemptsTable} a
             LEFT JOIN {$providersTable} p ON p.id = a.provider_id
             WHERE a.created_at >= %s
@@ -115,6 +116,7 @@ final class MetricsRepository
                 'sent_count'     => (int) ($row['sent_count'] ?? 0),
                 'failed_count'   => (int) ($row['failed_count'] ?? 0),
                 'retry_count'    => (int) ($row['retry_count'] ?? 0),
+                'avg_latency_ms' => isset($row['avg_latency_ms']) ? max(0, (int) round((float) $row['avg_latency_ms'])) : null,
                 'failover_count' => 0,
                 'switch_out_count' => 0,
                 'total_activity' => 0,
@@ -147,6 +149,7 @@ final class MetricsRepository
                     'sent_count'     => 0,
                     'failed_count'   => 0,
                     'retry_count'    => 0,
+                    'avg_latency_ms' => null,
                     'failover_count' => 0,
                     'switch_out_count' => 0,
                     'total_activity' => 0,
@@ -190,6 +193,7 @@ final class MetricsRepository
                     'sent_count' => 0,
                     'failed_count' => 0,
                     'retry_count' => 0,
+                    'avg_latency_ms' => null,
                     'failover_count' => 0,
                     'switch_out_count' => 0,
                     'total_activity' => 0,

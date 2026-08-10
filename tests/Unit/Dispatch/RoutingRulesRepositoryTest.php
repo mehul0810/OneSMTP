@@ -49,4 +49,26 @@ final class RoutingRulesRepositoryTest extends TestCase
         self::assertTrue($repository->delete(1));
         self::assertSame([], $repository->get());
     }
+
+    public function test_update_preserves_stable_rule_id_and_replaces_normalized_definition(): void
+    {
+        $repository = new RoutingRulesRepository();
+        $repository->add([
+            'provider_id' => 5,
+            'priority' => 10,
+            'conditions' => [['field' => 'subject', 'operator' => 'contains', 'value' => 'old']],
+        ]);
+
+        self::assertTrue($repository->update(1, [
+            'provider_id' => 6,
+            'priority' => 2,
+            'enabled' => true,
+            'conditions' => [['field' => 'content', 'operator' => 'contains', 'value' => 'new']],
+        ]));
+
+        $updated = $repository->get();
+        self::assertSame(1, $updated[0]['id'] ?? null);
+        self::assertSame(6, $updated[0]['provider_id'] ?? null);
+        self::assertSame('new', $updated[0]['conditions'][0]['value'] ?? null);
+    }
 }

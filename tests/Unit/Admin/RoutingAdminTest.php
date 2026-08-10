@@ -99,4 +99,48 @@ final class RoutingAdminTest extends TestCase
         self::assertSame('audit_routing_rule_changed', $GLOBALS['wpdb']->inserts[0]['data']['event_type'] ?? null);
         self::assertStringNotContainsString('fixture phrase', (string) ($GLOBALS['wpdb']->inserts[0]['data']['context_json'] ?? ''));
     }
+
+    public function test_enabled_update_records_metadata_only_audit_event(): void
+    {
+        $GLOBALS['wpdb'] = new FakeWpdb();
+        $GLOBALS['wpdb']->activeProviders = [
+            ['id' => 5, 'name' => 'Fixture SMTP', 'is_active' => 1],
+            ['id' => 6, 'name' => 'Backup SMTP', 'is_active' => 1],
+        ];
+        $repository = new RoutingRulesRepository();
+        $repository->add([
+            'provider_id' => 5,
+            'priority' => 10,
+            'conditions' => [['field' => 'content', 'operator' => 'contains', 'value' => 'old phrase']],
+        ]);
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = [
+            'onesmtp_routing_action' => 'update',
+            'rule_id' => '1',
+            'provider_id' => '6',
+            'priority' => '2',
+            'condition_field' => 'subject',
+            'condition_operator' => 'contains',
+            'condition_value' => 'new phrase',
+            'enabled' => '1',
+            'onesmtp_routing_nonce' => 'test-nonce',
+        ];
+
+        try {
+            (new RoutingAdmin(
+                $repository,
+                new ProviderRepository(),
+                new FeatureGate([FeatureGate::SMART_ROUTING => true], true)
+            ))->handleRequest();
+        } catch (RuntimeException $exception) {
+            self::assertStringContainsString('redirected', $exception->getMessage());
+        }
+
+        $updated = $repository->get();
+        self::assertSame('subject', $updated[0]['conditions'][0]['field'] ?? null);
+        self::assertSame('new phrase', $updated[0]['conditions'][0]['value'] ?? null);
+        $context = (string) ($GLOBALS['wpdb']->inserts[0]['data']['context_json'] ?? '');
+        self::assertStringContainsString('updated', $context);
+        self::assertStringNotContainsString('new phrase', $context);
+    }
 }

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace OneSMTP\Tests\Unit\Admin;
 
 use OneSMTP\Admin\DashboardAdmin;
+use OneSMTP\Analytics\ProviderReliabilityScorer;
+use OneSMTP\Product\FeatureGate;
 use OneSMTP\Repository\MetricsRepository;
 use OneSMTP\Tests\Support\FakeWpdb;
 use PHPUnit\Framework\TestCase;
@@ -123,9 +125,81 @@ final class DashboardAdminTest extends TestCase
         $this->render();
     }
 
-    private function render(): string
+    public function test_pro_reliability_dashboard_explains_score_and_evidence(): void
     {
-        $admin = new DashboardAdmin(new MetricsRepository(), static fn (): int => self::NOW);
+        $lastWeek = $this->sinceDaysAgo(7);
+        $GLOBALS['wpdb']->dashboardActivityRowsBySince[$lastWeek] = [
+            'sent_count' => 96,
+            'failed_count' => 4,
+            'retry_count' => 2,
+        ];
+        $GLOBALS['wpdb']->dashboardProviderAttemptRowsBySince[$lastWeek] = [[
+            'provider_id' => 10,
+            'provider_name' => 'Primary SMTP',
+            'adapter_type' => 'smtp',
+            'sent_count' => 96,
+            'failed_count' => 4,
+            'retry_count' => 2,
+            'avg_latency_ms' => 800,
+        ]];
+
+        $html = $this->render(true);
+
+        self::assertStringContainsString('Provider reliability', $html);
+        self::assertStringContainsString('Pro analytics', $html);
+        self::assertStringContainsString('do not guarantee inbox placement or a provider SLA', $html);
+        self::assertStringContainsString('analytics-reliability', $html);
+        self::assertStringContainsString('Established sample', $html);
+        self::assertStringContainsString('"score":96', $html);
+    }
+
+    public function test_free_dashboard_does_not_render_pro_reliability_data(): void
+    {
+        $GLOBALS['wpdb']->dashboardActivityRowsBySince[$this->sinceDaysAgo(7)] = [
+            'sent_count' => 1,
+            'failed_count' => 0,
+            'retry_count' => 0,
+        ];
+
+        self::assertStringNotContainsString('Provider reliability', $this->render());
+    }
+
+    public function test_pro_reliability_dashboard_excludes_unattributed_attempts(): void
+    {
+        $lastWeek = $this->sinceDaysAgo(7);
+        $GLOBALS['wpdb']->dashboardActivityRowsBySince[$lastWeek] = [
+            'sent_count' => 0,
+            'failed_count' => 2,
+            'retry_count' => 0,
+        ];
+        $GLOBALS['wpdb']->dashboardProviderAttemptRowsBySince[$lastWeek] = [[
+            'provider_id' => 0,
+            'provider_name' => 'Unknown provider',
+            'adapter_type' => 'unknown',
+            'sent_count' => 0,
+            'failed_count' => 2,
+            'retry_count' => 0,
+            'avg_latency_ms' => null,
+        ]];
+
+        $html = $this->render(true);
+
+        self::assertStringContainsString('Reliability scoring begins after a provider records a delivery attempt.', $html);
+        self::assertStringNotContainsString('data-onesmtp-dataviews="analytics-reliability"', $html);
+    }
+
+    private function render(bool $proAnalytics = false): string
+    {
+        $features = new FeatureGate(
+            $proAnalytics ? [FeatureGate::ADVANCED_ANALYTICS => true] : [],
+            $proAnalytics
+        );
+        $admin = new DashboardAdmin(
+            new MetricsRepository(),
+            static fn (): int => self::NOW,
+            new ProviderReliabilityScorer(),
+            $features
+        );
 
         ob_start();
         try {

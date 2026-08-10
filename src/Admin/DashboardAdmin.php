@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace OneSMTP\Admin;
 
+use OneSMTP\Analytics\ProviderReliabilityScorer;
 use OneSMTP\Core\Capabilities;
+use OneSMTP\Product\FeatureGate;
 use OneSMTP\Repository\MetricsRepository;
 
 final class DashboardAdmin
@@ -16,6 +18,8 @@ final class DashboardAdmin
     private const PROVIDER_NAME_LIMIT = 80;
 
     private MetricsRepository $metrics;
+    private ProviderReliabilityScorer $reliability;
+    private FeatureGate $features;
 
     /** @var callable():int */
     private $nowProvider;
@@ -23,10 +27,17 @@ final class DashboardAdmin
     /**
      * @param callable():int|null $nowProvider
      */
-    public function __construct(?MetricsRepository $metrics = null, ?callable $nowProvider = null)
+    public function __construct(
+        ?MetricsRepository $metrics = null,
+        ?callable $nowProvider = null,
+        ?ProviderReliabilityScorer $reliability = null,
+        ?FeatureGate $features = null
+    )
     {
         $this->metrics = $metrics ?? new MetricsRepository();
         $this->nowProvider = $nowProvider ?? static fn (): int => time();
+        $this->reliability = $reliability ?? new ProviderReliabilityScorer();
+        $this->features = $features ?? new FeatureGate();
     }
 
     public function render(): void
@@ -57,11 +68,89 @@ final class DashboardAdmin
         }
         $this->renderSummaryCards($windows[self::PROVIDER_WINDOW_KEY], $pending);
 
+        if ($this->features->isEnabled(FeatureGate::ADVANCED_ANALYTICS)) {
+            $this->renderReliabilityDashboard($providers, (string) $providerWindow['label']);
+        }
+
         $this->renderWindowTable($windows);
         echo '<details class="onesmtp-analytics-details"><summary>' . esc_html__('Queue detail', 'onesmtp') . '</summary>';
         $this->renderPendingTable($pending);
         echo '</details>';
         $this->renderProviderTable($providers, (string) $providerWindow['label']);
+    }
+
+    /**
+     * @param array<int,array{provider_id:int,provider_name:string,adapter_type:string,sent_count:int,failed_count:int,retry_count:int,avg_latency_ms:?int,failover_count:int,switch_out_count:int,total_activity:int}> $providers
+     */
+    private function renderReliabilityDashboard(array $providers, string $windowLabel): void
+    {
+        echo '<section class="onesmtp-reliability-panel" aria-labelledby="onesmtp-reliability-heading">';
+        echo '<div class="onesmtp-reliability-heading"><div><h3 id="onesmtp-reliability-heading">' . esc_html__('Provider reliability', 'onesmtp') . '</h3><p>' . esc_html(sprintf(
+            /* translators: %s: selected analytics date window. */
+            __('Operational score based on recorded attempts for %s.', 'onesmtp'),
+            $windowLabel
+        )) . '</p></div><span class="onesmtp-status-pill is-ready">' . esc_html__('Pro analytics', 'onesmtp') . '</span></div>';
+        echo '<p class="onesmtp-reliability-disclaimer">' . esc_html__('Scores combine successful and failed attempts, retries, provider switches, and average response latency. They describe Aculect Mail history and do not guarantee inbox placement or a provider SLA.', 'onesmtp') . '</p>';
+
+        $rows = [];
+        foreach ($providers as $provider) {
+            if ((int) ($provider['provider_id'] ?? 0) <= 0) {
+                continue;
+            }
+
+            $score = $this->reliability->score($provider);
+            if ($score['attempt_count'] === 0) {
+                continue;
+            }
+
+            $rows[] = [
+                'id' => (int) $provider['provider_id'],
+                'provider' => (string) $provider['provider_name'],
+                'score' => $score['score'],
+                'confidence' => $score['confidence'] === ProviderReliabilityScorer::CONFIDENCE_ESTABLISHED
+                    ? __('Established sample', 'onesmtp')
+                    : __('Limited sample', 'onesmtp'),
+                'successRate' => $this->formatPercent($score['success_rate']),
+                'latency' => $score['avg_latency_ms'] !== null
+                    ? sprintf(
+                        /* translators: %d: average provider response time in milliseconds. */
+                        __('%d ms', 'onesmtp'),
+                        $score['avg_latency_ms']
+                    )
+                    : __('No latency data', 'onesmtp'),
+                'switchRate' => $this->formatPercent($score['switch_rate']),
+                'attempts' => $score['attempt_count'],
+            ];
+        }
+
+        if ($rows === []) {
+            echo '<p class="onesmtp-reliability-empty">' . esc_html__('Reliability scoring begins after a provider records a delivery attempt.', 'onesmtp') . '</p></section>';
+            return;
+        }
+
+        $payload = ['data' => $rows, 'fields' => [
+            ['id' => 'provider', 'type' => 'text', 'label' => __('Provider', 'onesmtp'), 'enableHiding' => false],
+            ['id' => 'score', 'type' => 'integer', 'label' => __('Reliability score', 'onesmtp')],
+            ['id' => 'confidence', 'type' => 'text', 'label' => __('Evidence', 'onesmtp')],
+            ['id' => 'successRate', 'type' => 'text', 'label' => __('Success rate', 'onesmtp')],
+            ['id' => 'latency', 'type' => 'text', 'label' => __('Average latency', 'onesmtp')],
+            ['id' => 'switchRate', 'type' => 'text', 'label' => __('Switch-away rate', 'onesmtp')],
+            ['id' => 'attempts', 'type' => 'integer', 'label' => __('Attempts', 'onesmtp')],
+        ]];
+        echo '<div class="onesmtp-dataviews-mount" data-onesmtp-dataviews="analytics-reliability"></div>';
+        echo '<script type="application/json" data-onesmtp-dataviews-config="analytics-reliability">' . wp_json_encode($payload, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) . '</script>';
+        echo '<details class="onesmtp-legacy-list"><summary>' . esc_html__('Reliability score detail', 'onesmtp') . '</summary><table class="widefat striped onesmtp-reliability-table"><thead><tr>';
+        echo '<th scope="col">' . esc_html__('Provider', 'onesmtp') . '</th>';
+        echo '<th scope="col">' . esc_html__('Score', 'onesmtp') . '</th>';
+        echo '<th scope="col">' . esc_html__('Evidence', 'onesmtp') . '</th>';
+        foreach ([__('Success', 'onesmtp'), __('Latency', 'onesmtp'), __('Switched away', 'onesmtp'), __('Attempts', 'onesmtp')] as $heading) {
+            echo '<th scope="col" class="onesmtp-reliability-secondary">' . esc_html($heading) . '</th>';
+        }
+        echo '</tr></thead><tbody>';
+        foreach ($rows as $row) {
+            echo '<tr><th scope="row">' . esc_html((string) $row['provider']) . '</th><td>' . esc_html((string) $row['score']) . '</td><td>' . esc_html((string) $row['confidence']) . '</td><td class="onesmtp-reliability-secondary">' . esc_html((string) $row['successRate']) . '</td><td class="onesmtp-reliability-secondary">' . esc_html((string) $row['latency']) . '</td><td class="onesmtp-reliability-secondary">' . esc_html((string) $row['switchRate']) . '</td><td class="onesmtp-reliability-secondary">' . esc_html((string) $row['attempts']) . '</td></tr>';
+        }
+        echo '</tbody></table></details></section>';
     }
 
     private function renderEmptyAnalytics(): void
@@ -172,7 +261,7 @@ final class DashboardAdmin
     }
 
     /**
-     * @param array<int,array{provider_id:int,provider_name:string,adapter_type:string,sent_count:int,failed_count:int,retry_count:int,failover_count:int,switch_out_count:int,total_activity:int}> $providers
+     * @param array<int,array{provider_id:int,provider_name:string,adapter_type:string,sent_count:int,failed_count:int,retry_count:int,avg_latency_ms:?int,failover_count:int,switch_out_count:int,total_activity:int}> $providers
      */
     private function renderProviderTable(array $providers, string $windowLabel): void
     {
@@ -219,7 +308,7 @@ final class DashboardAdmin
         echo '</tbody></table></details>';
     }
 
-    /** @param array<int,array{provider_id:int,provider_name:string,adapter_type:string,sent_count:int,failed_count:int,retry_count:int,failover_count:int,switch_out_count:int,total_activity:int}> $providers */
+    /** @param array<int,array{provider_id:int,provider_name:string,adapter_type:string,sent_count:int,failed_count:int,retry_count:int,avg_latency_ms:?int,failover_count:int,switch_out_count:int,total_activity:int}> $providers */
     private function renderProviderDataViews(array $providers): void
     {
         $data = array_map(static function (array $provider): array {
@@ -272,6 +361,11 @@ final class DashboardAdmin
     private function formatCount(int $value): string
     {
         return number_format(max(0, $value));
+    }
+
+    private function formatPercent(float $value): string
+    {
+        return number_format(max(0.0, min(100.0, $value)), 1) . '%';
     }
 
     private function formatProviderType(string $type): string

@@ -66,6 +66,8 @@ final class SendPipelineIntegrationTest extends TestCase
         self::assertSame(10, $attemptInsert['data']['provider_id']);
         self::assertSame('sent', $attemptInsert['data']['result']);
         self::assertSame('initial', $attemptInsert['data']['trigger_type']);
+        self::assertIsInt($attemptInsert['data']['latency_ms']);
+        self::assertGreaterThanOrEqual(0, $attemptInsert['data']['latency_ms']);
 
         $sentUpdate = $this->findUpdate('onesmtp_messages', 'sent');
         self::assertNotNull($sentUpdate);
@@ -167,6 +169,8 @@ final class SendPipelineIntegrationTest extends TestCase
         self::assertSame('fail', $attemptInsert['data']['result']);
         self::assertSame('provider_failed', $attemptInsert['data']['error_code']);
         self::assertSame(FailureCategory::RETRYABLE, $attemptInsert['data']['failure_category']);
+        self::assertIsInt($attemptInsert['data']['latency_ms']);
+        self::assertGreaterThanOrEqual(0, $attemptInsert['data']['latency_ms']);
 
         $retryUpdate = $this->findUpdate('onesmtp_messages', 'retry_scheduled');
         self::assertNotNull($retryUpdate);

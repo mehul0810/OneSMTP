@@ -70,4 +70,34 @@ final class RoutingRulesRepository
 
         return $this->save($filtered);
     }
+
+    /**
+     * @param array<string,mixed> $rule
+     */
+    public function update(int $ruleId, array $rule): bool
+    {
+        if ($ruleId <= 0) {
+            return false;
+        }
+
+        $rules = $this->get();
+        $updated = false;
+        foreach ($rules as $index => $storedRule) {
+            if ((int) ($storedRule['id'] ?? 0) !== $ruleId) {
+                continue;
+            }
+
+            $rule['id'] = $ruleId;
+            $normalized = $this->normalizer->normalizeRule($rule, true);
+            if ($normalized === null) {
+                return false;
+            }
+
+            $rules[$index] = $normalized;
+            $updated = true;
+            break;
+        }
+
+        return $updated && $this->save(array_values($rules));
+    }
 }

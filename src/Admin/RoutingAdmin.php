@@ -43,7 +43,7 @@ final class RoutingAdmin
         }
 
         $action = $this->request->postAction(self::ACTION_NAME);
-        if ( ! in_array($action, ['save', 'delete'], true)) {
+        if ( ! in_array($action, ['save', 'update', 'delete'], true)) {
             return;
         }
 
@@ -88,18 +88,25 @@ final class RoutingAdmin
             if ( ! $this->hasActiveProvider($providerId)) {
                 throw new InvalidArgumentException('Choose an active provider for the routing rule.');
             }
-            $saved = $this->rules->add([
+            $rule = [
                 'provider_id' => $providerId,
                 'priority' => isset($_POST['priority']) ? absint($_POST['priority']) : 100,
                 'enabled' => isset($_POST['enabled']),
                 'conditions' => [$condition],
-            ]);
+            ];
+            $ruleId = $action === 'update' && isset($_POST['rule_id']) ? absint($_POST['rule_id']) : 0;
+            $saved = $action === 'update'
+                ? $this->rules->update($ruleId, $rule)
+                : $this->rules->add($rule);
 
             if ($saved) {
-                $storedRules = $this->rules->get();
-                $storedRule = $storedRules[ array_key_last($storedRules) ] ?? [];
+                $storedRule = $action === 'update' ? $this->findRule($ruleId) : null;
+                if ($storedRule === null) {
+                    $storedRules = $this->rules->get();
+                    $storedRule = $storedRules[ array_key_last($storedRules) ] ?? [];
+                }
                 $this->auditLogger->logRoutingRuleChange(
-                    'created',
+                    $action === 'update' ? 'updated' : 'created',
                     (int) ($storedRule['id'] ?? 0),
                     $providerId,
                     (int) ($_POST['priority'] ?? 100),
@@ -108,7 +115,7 @@ final class RoutingAdmin
                 );
             }
 
-            $this->redirect($saved ? 'saved' : 'failure');
+            $this->redirect($saved ? ($action === 'update' ? 'updated' : 'saved') : 'failure');
         } catch (InvalidArgumentException $exception) {
             $this->redirect('invalid', $exception->getMessage());
         }
@@ -128,6 +135,9 @@ final class RoutingAdmin
             ? sanitize_text_field(wp_unslash( (string) $_GET['onesmtp_routing_message']))
             : '';
         $this->renderStatus($status, $message);
+
+        $editRuleId = isset($_GET['onesmtp_routing_edit']) ? absint($_GET['onesmtp_routing_edit']) : 0;
+        $editRule = $editRuleId > 0 ? $this->findRule($editRuleId) : null;
 
         echo '<section class="onesmtp-settings-panel onesmtp-settings-panel--full onesmtp-routing-rules-panel postbox">';
         echo '<div class="postbox-header"><h3 class="hndle">' . esc_html__('Conditional routing rules', 'onesmtp') . '</h3></div><div class="inside">';
@@ -154,7 +164,7 @@ final class RoutingAdmin
         if ($activeProviders === []) {
             echo '<div class="notice notice-warning inline"><p>' . esc_html__('Connect an active provider before adding a conditional routing rule.', 'onesmtp') . '</p></div>';
         } else {
-            $this->renderAddForm($activeProviders);
+            $this->renderRuleForm($activeProviders, $editRule);
         }
 
         echo '</div></section>';
@@ -178,7 +188,11 @@ final class RoutingAdmin
             $operator = (string) ($condition['operator'] ?? 'equals');
             $providerId = (int) ($rule['provider_id'] ?? 0);
             // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- wp_nonce_field returns the complete nonce input markup.
-            echo '<tr><td>' . esc_html( (string) ( (int) ($rule['priority'] ?? 100))) . '</td><td>' . esc_html($providerNames[ $providerId ] ?? __('Unavailable provider', 'onesmtp')) . '</td><td>' . esc_html($this->fieldLabel($field) . ' — ' . $this->operatorLabel($operator)) . '<br><span class="description">' . esc_html__('Configured value is hidden on this screen.', 'onesmtp') . '</span></td><td>' . esc_html( ! empty($rule['enabled']) ? __('Enabled', 'onesmtp') : __('Disabled', 'onesmtp')) . '</td><td><form method="post" action="' . esc_url(admin_url('options-general.php?page=onesmtp&tab=onesmtp-routing#onesmtp-routing')) . '"><input type="hidden" name="onesmtp_routing_action" value="delete"><input type="hidden" name="rule_id" value="' . esc_attr( (string) ( (int) ($rule['id'] ?? 0))) . '">' . wp_nonce_field(self::ACTION_NAME, self::NONCE_NAME, true, false) . '<button type="submit" class="button button-secondary">' . esc_html__('Delete', 'onesmtp') . '</button></form></td></tr>';
+            $editUrl = add_query_arg(
+                ['page' => 'onesmtp', 'tab' => 'onesmtp-routing', 'onesmtp_routing_edit' => (int) ($rule['id'] ?? 0)],
+                admin_url('options-general.php')
+            ) . '#onesmtp-routing';
+            echo '<tr><td>' . esc_html( (string) ( (int) ($rule['priority'] ?? 100))) . '</td><td>' . esc_html($providerNames[ $providerId ] ?? __('Unavailable provider', 'onesmtp')) . '</td><td>' . esc_html($this->fieldLabel($field) . ' — ' . $this->operatorLabel($operator)) . '<br><span class="description">' . esc_html__('Configured value is hidden on this screen.', 'onesmtp') . '</span></td><td>' . esc_html( ! empty($rule['enabled']) ? __('Enabled', 'onesmtp') : __('Disabled', 'onesmtp')) . '</td><td><a class="button button-secondary" href="' . esc_url($editUrl) . '">' . esc_html__('Edit', 'onesmtp') . '</a> <form class="onesmtp-routing-inline-form" method="post" action="' . esc_url(admin_url('options-general.php?page=onesmtp&tab=onesmtp-routing#onesmtp-routing')) . '"><input type="hidden" name="onesmtp_routing_action" value="delete"><input type="hidden" name="rule_id" value="' . esc_attr( (string) ( (int) ($rule['id'] ?? 0))) . '">' . wp_nonce_field(self::ACTION_NAME, self::NONCE_NAME, true, false) . '<button type="submit" class="button button-secondary">' . esc_html__('Delete', 'onesmtp') . '</button></form></td></tr>';
         }
         echo '</tbody></table></div>';
     }
@@ -186,9 +200,21 @@ final class RoutingAdmin
     /**
      * @param array<int,array<string,mixed>> $activeProviders
      */
-    private function renderAddForm(array $activeProviders): void
+    private function renderRuleForm(array $activeProviders, ?array $rule = null): void
     {
-        echo '<form class="onesmtp-routing-form" method="post" action="' . esc_url(admin_url('options-general.php?page=onesmtp&tab=onesmtp-routing#onesmtp-routing')) . '"><input type="hidden" name="onesmtp_routing_action" value="save">';
+        $condition = is_array($rule['conditions'][0] ?? null) ? $rule['conditions'][0] : [];
+        $action = $rule === null ? 'save' : 'update';
+        $heading = $rule === null ? __('Add a routing rule', 'onesmtp') : __('Edit routing rule', 'onesmtp');
+        echo '<h4>' . esc_html($heading) . '</h4><form class="onesmtp-routing-form" method="post" action="' . esc_url(admin_url('options-general.php?page=onesmtp&tab=onesmtp-routing#onesmtp-routing')) . '"><input type="hidden" name="onesmtp_routing_action" value="' . esc_attr($action) . '">';
+        if ($rule !== null) {
+            echo '<input type="hidden" name="rule_id" value="' . esc_attr( (string) (int) ($rule['id'] ?? 0)) . '">';
+        }
+        $providerValue = (int) ($rule['provider_id'] ?? ($activeProviders[0]['id'] ?? 0));
+        $priorityValue = (int) ($rule['priority'] ?? 100);
+        $fieldValue = (string) ($condition['field'] ?? 'sender');
+        $operatorValue = (string) ($condition['operator'] ?? 'equals');
+        $conditionValue = (string) ($condition['value'] ?? '');
+        $enabledValue = $rule === null || ! empty($rule['enabled']);
         wp_nonce_field(self::ACTION_NAME, self::NONCE_NAME);
         echo '<table class="form-table" role="presentation"><tbody>';
         echo '<tr><th scope="row"><label for="onesmtp-routing-provider">' . esc_html__('Provider', 'onesmtp') . '</label></th><td><select id="onesmtp-routing-provider" name="provider_id" required>';
@@ -197,24 +223,25 @@ final class RoutingAdmin
             if ($id <= 0) {
                 continue;
             }
-            echo '<option value="' . esc_attr( (string) $id) . '">' . esc_html( (string) ($provider['name'] ?? __('Provider', 'onesmtp'))) . '</option>';
+            echo '<option value="' . esc_attr( (string) $id) . '"' . selected($id, $providerValue, false) . '>' . esc_html( (string) ($provider['name'] ?? __('Provider', 'onesmtp'))) . '</option>';
         }
         echo '</select></td></tr>';
-        echo '<tr><th scope="row"><label for="onesmtp-routing-priority">' . esc_html__('Priority', 'onesmtp') . '</label></th><td><input id="onesmtp-routing-priority" class="small-text" type="number" min="1" max="9999" name="priority" value="100" required><p class="description">' . esc_html__('Lower numbers are evaluated first. Ties keep their configured order.', 'onesmtp') . '</p></td></tr>';
+        echo '<tr><th scope="row"><label for="onesmtp-routing-priority">' . esc_html__('Priority', 'onesmtp') . '</label></th><td><input id="onesmtp-routing-priority" class="small-text" type="number" min="1" max="9999" name="priority" value="' . esc_attr((string) $priorityValue) . '" required><p class="description">' . esc_html__('Lower numbers are evaluated first. Ties keep their configured order.', 'onesmtp') . '</p></td></tr>';
         echo '<tr><th scope="row"><label for="onesmtp-routing-field">' . esc_html__('Condition', 'onesmtp') . '</label></th><td><select id="onesmtp-routing-field" name="condition_field">';
         foreach (RoutingRuleNormalizer::FIELDS as $field) {
-            echo '<option value="' . esc_attr($field) . '">' . esc_html($this->fieldLabel($field)) . '</option>';
+            echo '<option value="' . esc_attr($field) . '"' . selected($field, $fieldValue, false) . '>' . esc_html($this->fieldLabel($field)) . '</option>';
         }
         echo '</select> <select name="condition_operator" aria-label="' . esc_attr__('Condition operator', 'onesmtp') . '">';
         foreach (RoutingRuleNormalizer::OPERATORS as $operator) {
             if ($operator === 'in' || $operator === 'exists') {
                 continue;
             }
-            echo '<option value="' . esc_attr($operator) . '">' . esc_html($this->operatorLabel($operator)) . '</option>';
+            echo '<option value="' . esc_attr($operator) . '"' . selected($operator, $operatorValue, false) . '>' . esc_html($this->operatorLabel($operator)) . '</option>';
         }
-        echo '</select><br><textarea id="onesmtp-routing-value" class="large-text" name="condition_value" rows="3" maxlength="' . esc_attr( (string) RoutingRuleNormalizer::MAX_VALUE_LENGTH) . '" required></textarea><p class="description">' . esc_html__('Use a sender/recipient address, subject phrase, message phrase, or source label. Values are never included in Aculect Mail logs.', 'onesmtp') . '</p></td></tr>';
-        echo '<tr><th scope="row">' . esc_html__('Rule status', 'onesmtp') . '</th><td><label><input type="checkbox" name="enabled" value="1" checked> ' . esc_html__('Enable this rule', 'onesmtp') . '</label></td></tr>';
-        echo '</tbody></table><p class="submit"><button type="submit" class="button button-primary">' . esc_html__('Add routing rule', 'onesmtp') . '</button></p></form>';
+        echo '</select><br><textarea id="onesmtp-routing-value" class="large-text" name="condition_value" rows="3" maxlength="' . esc_attr( (string) RoutingRuleNormalizer::MAX_VALUE_LENGTH) . '" required>' . esc_textarea($conditionValue) . '</textarea><p class="description">' . esc_html__('Use a sender/recipient address, subject phrase, message phrase, or source label. Values are never included in Aculect Mail logs.', 'onesmtp') . '</p></td></tr>';
+        echo '<tr><th scope="row">' . esc_html__('Rule status', 'onesmtp') . '</th><td><label><input type="checkbox" name="enabled" value="1"' . checked($enabledValue, true, false) . '> ' . esc_html__('Enable this rule', 'onesmtp') . '</label></td></tr>';
+        $submitLabel = $rule === null ? __('Add routing rule', 'onesmtp') : __('Update routing rule', 'onesmtp');
+        echo '</tbody></table><p class="submit"><button type="submit" class="button button-primary">' . esc_html($submitLabel) . '</button></p></form>';
     }
 
     private function renderStatus(string $status, string $message): void
@@ -227,6 +254,9 @@ final class RoutingAdmin
         } elseif ($status === 'deleted') {
             $class = 'success';
             $text = __('Routing rule deleted.', 'onesmtp');
+        } elseif ($status === 'updated') {
+            $class = 'success';
+            $text = __('Routing rule updated.', 'onesmtp');
         } elseif ($status === 'upgrade_required') {
             $class = 'warning';
             $text = __('Conditional routing rules require an enabled Pro capability.', 'onesmtp');

@@ -64,7 +64,7 @@ final class AdminPage
             featureGate: $this->featureGate,
             providers: $this->providerRepository
         );
-        $this->dashboard = $dashboard ?? new DashboardAdmin();
+        $this->dashboard = $dashboard ?? new DashboardAdmin(features: $this->featureGate);
         $this->providers = $providers ?? new ProviderAdmin($this->providerRepository);
         $this->setupWizard = $setupWizard ?? new SetupWizard($this->providerRepository);
         $this->logs = $logs ?? new LogAdmin(new MessageRepository(), new AttemptRepository(), $this->providerRepository);

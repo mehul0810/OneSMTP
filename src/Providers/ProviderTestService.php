@@ -16,17 +16,22 @@ final class ProviderTestService
     private ProviderDeliveryManager $deliveryManager;
     private SenderIdentityApplier $senderIdentity;
 
+    /** @var callable():int */
+    private $monotonicNow;
+
     public function __construct(
         private MessageRepository $messages,
         private AttemptRepository $attempts,
         private EventRepository $events,
         ?ProviderDeliveryManager $deliveryManager = null,
         ?SenderIdentityRepository $senderIdentity = null,
-        private ?SimulationModeSettingsRepository $simulationMode = null
+        private ?SimulationModeSettingsRepository $simulationMode = null,
+        ?callable $monotonicNow = null
     ) {
         $this->deliveryManager = $deliveryManager ?? new ProviderDeliveryManager();
         $this->senderIdentity = new SenderIdentityApplier($senderIdentity ?? new SenderIdentityRepository());
         $this->simulationMode = $simulationMode ?? new SimulationModeSettingsRepository();
+        $this->monotonicNow = $monotonicNow ?? static fn (): int => hrtime(true);
     }
 
     /** @return array{result:SendResult,message_id:int,simulated:bool} */
@@ -61,7 +66,9 @@ final class ProviderTestService
             ];
         }
 
+        $startedAt = ($this->monotonicNow)();
         $result = $this->deliveryManager->send($provider, $payload);
+        $latencyMs = max(0, (int) round(((($this->monotonicNow)()) - $startedAt) / 1_000_000));
         $this->attempts->add([
             'message_id' => $messageId,
             'attempt_no' => 1,
@@ -71,6 +78,7 @@ final class ProviderTestService
             'error_code' => $result->isSuccess() ? null : $result->getCode(),
             'error_message' => $result->isSuccess() ? null : $result->getMessage(),
             'failure_category' => $result->isSuccess() ? null : $result->getFailureCategory(),
+            'latency_ms' => $latencyMs,
             'provider_message_id' => $result->getProviderMessageId(),
         ]);
 
