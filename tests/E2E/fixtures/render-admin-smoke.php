@@ -276,6 +276,23 @@ $suppression = new SuppressionService(
     new \OneSMTP\Security\SiteSecretHmac('fixture-site-secret'),
     recipientContext: 'recipient.site.1'
 );
+if (getenv('ONESMTP_PLAYWRIGHT_SUPPRESSIONS') === 'long') {
+    for ($index = 1; $index <= 24; $index++) {
+        $fingerprint = hash('sha256', 'fixture-suppression-' . $index);
+        $GLOBALS['wpdb']->suppressionRowsByFingerprint[$fingerprint] = [
+            'id' => $index,
+            'recipient_fingerprint' => $fingerprint,
+            'recipient_domain' => 'bounce-' . $index . '.synthetic.example.test',
+            'reason_code' => $index % 2 === 0 ? 'hard_bounce' : 'complaint',
+            'provider' => 'mailgun',
+            'provider_id' => 7,
+            'first_seen' => '2026-08-10 10:00:00',
+            'last_seen' => '2026-08-10 10:00:00',
+            'expiry_at' => '2099-01-01 00:00:00',
+            'occurrence_count' => $index,
+        ];
+    }
+}
 $adminFeatureGate = getenv('ONESMTP_PLAYWRIGHT_PRO') === '1'
     || getenv('ONESMTP_PLAYWRIGHT_PRO_ROUTING') === '1'
     ? $proFeatures

@@ -117,6 +117,11 @@ final class FakeWpdb
     /** @var array<string,array<string,mixed>> */
     public array $suppressionRowsByFingerprint = [];
 
+    public bool $failSuppressionUpsert = false;
+
+    /** @var array<string,array<string,mixed>> */
+    public array $suppressionDerivationRowsByHash = [];
+
     /** @var array<string,int> */
     public array $providerEventMessageIds = [];
 
@@ -202,6 +207,59 @@ final class FakeWpdb
 
     public function query(string $sql): int|false
     {
+        if (in_array(strtoupper(trim($sql)), ['START TRANSACTION', 'COMMIT', 'ROLLBACK'], true)) {
+            $this->queries[] = $sql;
+
+            return 1;
+        }
+
+        if (str_contains($sql, $this->prefix . 'onesmtp_suppression_derivations')) {
+            $this->queries[] = $sql;
+            $args = is_array($this->lastPrepared) ? ($this->lastPrepared['args'] ?? []) : [];
+            $hash = (string) ($args[0] ?? '');
+            if (str_starts_with(strtoupper(ltrim($sql)), 'INSERT')) {
+                if (isset($this->suppressionDerivationRowsByHash[$hash])) {
+                    return 0;
+                }
+
+                $this->suppressionDerivationRowsByHash[$hash] = [
+                    'external_event_hash' => $hash,
+                    'status' => 'processing',
+                    'updated_at' => (string) ($args[1] ?? ''),
+                ];
+
+                return 1;
+            }
+            if (str_starts_with(strtoupper(ltrim($sql)), 'UPDATE')) {
+                $isProcessed = str_contains($sql, "SET status = 'processed'");
+                $isPending = str_contains($sql, "SET status = 'pending'");
+                if ($isProcessed || $isPending) {
+                    $hash = (string) ($args[$isProcessed ? 2 : 1] ?? '');
+                    $row = $this->suppressionDerivationRowsByHash[$hash] ?? null;
+                    if (is_array($row) && (string) ($row['status'] ?? '') === 'processing') {
+                        $row['status'] = $isProcessed ? 'processed' : 'pending';
+                        $row['updated_at'] = (string) ($args[0] ?? '');
+                        $this->suppressionDerivationRowsByHash[$hash] = $row;
+
+                        return 1;
+                    }
+
+                    return 0;
+                }
+                $hash = (string) ($args[1] ?? '');
+                $row = $this->suppressionDerivationRowsByHash[$hash] ?? null;
+                if (is_array($row) && (string) ($row['status'] ?? '') === 'pending') {
+                    $row['status'] = 'processing';
+                    $row['updated_at'] = (string) ($args[0] ?? '');
+                    $this->suppressionDerivationRowsByHash[$hash] = $row;
+
+                    return 1;
+                }
+            }
+
+            return 0;
+        }
+
         if (str_contains($sql, $this->prefix . 'onesmtp_suppressions')) {
             $this->queries[] = $sql;
             $args = is_array($this->lastPrepared) ? ($this->lastPrepared['args'] ?? []) : [];
@@ -213,21 +271,39 @@ final class FakeWpdb
                 }
                 return 0;
             }
+            if ($this->failSuppressionUpsert) {
+                return false;
+            }
             $fingerprint = (string) ($args[0] ?? '');
             if ($fingerprint === '') {
                 return false;
             }
+            $providerId = isset($args[4]) && is_numeric($args[4]) ? (int) $args[4] : null;
+            $firstSeenIndex = $providerId !== null ? 5 : 4;
+            $expiryIndex = $providerId !== null ? 7 : 6;
             $now = gmdate('Y-m-d H:i:s');
+            if (isset($this->suppressionRowsByFingerprint[$fingerprint])) {
+                $row = $this->suppressionRowsByFingerprint[$fingerprint];
+                $row['reason_code'] = (string) ($args[2] ?? '');
+                $row['provider'] = (string) ($args[3] ?? '');
+                $row['provider_id'] = $providerId;
+                $row['last_seen'] = $now;
+                $row['expiry_at'] = (string) ($args[$expiryIndex] ?? $now);
+                $row['occurrence_count'] = (int) ($row['occurrence_count'] ?? 0) + 1;
+                $this->suppressionRowsByFingerprint[$fingerprint] = $row;
+
+                return 1;
+            }
             $this->suppressionRowsByFingerprint[$fingerprint] = [
+                'id' => count($this->suppressionRowsByFingerprint) + 1,
                 'recipient_fingerprint' => $fingerprint,
                 'recipient_domain' => (string) ($args[1] ?? ''),
                 'reason_code' => (string) ($args[2] ?? ''),
                 'provider' => (string) ($args[3] ?? ''),
-                'provider_id' => str_contains($sql, 'provider_id, provider_message_id') && isset($args[4]) && is_numeric($args[4]) ? (int) $args[4] : null,
-                'provider_message_id' => null,
-                'first_seen' => (string) ($args[count($args) - 4] ?? $now),
+                'provider_id' => $providerId,
+                'first_seen' => (string) ($args[$firstSeenIndex] ?? $now),
                 'last_seen' => $now,
-                'expiry_at' => (string) ($args[count($args) - 2] ?? $now),
+                'expiry_at' => (string) ($args[$expiryIndex] ?? $now),
                 'occurrence_count' => 1,
             ];
             return 1;
@@ -327,6 +403,12 @@ final class FakeWpdb
         if (str_contains($query, $this->prefix . 'onesmtp_suppressions')) {
             $fingerprint = (string) ($args[0] ?? '');
             return $this->suppressionRowsByFingerprint[$fingerprint] ?? null;
+        }
+
+        if (str_contains($query, $this->prefix . 'onesmtp_suppression_derivations')) {
+            $hash = (string) ($args[0] ?? '');
+
+            return $this->suppressionDerivationRowsByHash[$hash] ?? null;
         }
 
         if (str_contains($query, $this->prefix . 'onesmtp_quota_leases') && str_contains($query, 'owner_token')) {
@@ -488,7 +570,18 @@ final class FakeWpdb
         $args = $isPreparedQuery ? $prepared['args'] : [];
 
         if (str_contains($query, $this->prefix . 'onesmtp_suppressions')) {
-            return array_values($this->suppressionRowsByFingerprint);
+            $rows = array_values($this->suppressionRowsByFingerprint);
+            if (str_contains($query, 'expiry_at > %s')) {
+                $now = (string) ($args[0] ?? '');
+                $rows = array_values(array_filter(
+                    $rows,
+                    static fn (array $row): bool => (string) ($row['expiry_at'] ?? '') > $now
+                ));
+                $limit = max(1, (int) ($args[1] ?? count($rows)));
+                $rows = array_slice($rows, 0, $limit);
+            }
+
+            return $rows;
         }
 
         if ($this->throwOnMessageQueries && str_contains($query, $this->prefix . 'onesmtp_messages')) {

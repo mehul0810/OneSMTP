@@ -88,7 +88,8 @@ final class Plugin
                 new SuppressionSettingsRepository(),
                 new SuppressionRepository(),
                 new SiteSecretHmac($siteSecret),
-                recipientContext: 'recipient.site.' . $siteId
+                recipientContext: 'recipient.site.' . $siteId,
+                derivations: new \OneSMTP\Repository\SuppressionDerivationRepository()
             );
             $providerEvents = new ProviderEventRepository();
             $providerEventIngestion = new ProviderEventIngestionService(
@@ -98,10 +99,8 @@ final class Plugin
                 new MailgunEventNormalizer(new SiteSecretHmac($siteSecret), recipientContext: 'recipient.site.' . $siteId),
                 static fn (string $signingKey): MailgunEventVerifier => new MailgunEventVerifier($signingKey),
                 null,
-                static function (\OneSMTP\Events\ProviderEvent $event, ?int $providerId) use (&$suppression): void {
-                    if ($suppression instanceof SuppressionService) {
-                        $suppression->derive($event, $providerId);
-                    }
+                static function (\OneSMTP\Events\ProviderEvent $event, ?int $providerId) use (&$suppression): bool {
+                    return $suppression->derive($event, $providerId);
                 }
             );
         }

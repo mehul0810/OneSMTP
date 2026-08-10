@@ -272,10 +272,8 @@ final class SettingsAdmin
                 }
                 $recipient = isset($_POST['suppression_recipient']) ? wp_unslash((string) $_POST['suppression_recipient']) : '';
                 $fingerprint = $this->suppression?->fingerprintForLookup($recipient);
-                if ($fingerprint !== null) {
-                    $this->suppressionRepository->remove($fingerprint);
-                }
-                $this->auditLogger->logSettingsChange('bounce_suppression_remove', ['source' => 'settings_admin', 'matched' => $fingerprint !== null]);
+                $matched = $fingerprint !== null && $this->suppressionRepository->remove($fingerprint);
+                $this->auditLogger->logSettingsChange('bounce_suppression_remove', ['source' => 'settings_admin', 'matched' => $matched]);
                 $this->redirect('bounce_suppression_removed');
                 return;
             }
@@ -785,18 +783,52 @@ final class SettingsAdmin
 
     private function renderSuppressionList(): void
     {
-        $rows = $this->suppressionRepository->list(100);
-        echo '<h4>' . esc_html__('Active suppression records', 'onesmtp') . '</h4>';
-        if ($rows === []) {
-            echo '<p class="description">' . esc_html__('No suppression records are currently stored.', 'onesmtp') . '</p>';
+        if ( ! Capabilities::canViewLogs() ) {
+            $this->renderInlineNotice('warning', __('Suppression records require log-view access.', 'onesmtp'));
+
             return;
         }
-        echo '<div class="onesmtp-table-wrap"><table class="widefat striped"><thead><tr><th>' . esc_html__('Fingerprint', 'onesmtp') . '</th><th>' . esc_html__('Domain', 'onesmtp') . '</th><th>' . esc_html__('Reason', 'onesmtp') . '</th><th>' . esc_html__('First seen', 'onesmtp') . '</th><th>' . esc_html__('Expires', 'onesmtp') . '</th><th>' . esc_html__('Count', 'onesmtp') . '</th><th>' . esc_html__('Provider', 'onesmtp') . '</th></tr></thead><tbody>';
+
+        $rows = $this->suppressionRepository->listActive(current_time('mysql', true), 100);
+        echo '<h4>' . esc_html__('Active suppression records', 'onesmtp') . '</h4>';
+        $data = [];
         foreach ($rows as $row) {
             $providerLabel = ucwords(str_replace('_', ' ', (string) ($row['provider'] ?? '')));
-            echo '<tr><td><code>' . esc_html(substr((string) ($row['recipient_fingerprint'] ?? ''), 0, 10)) . '</code></td><td>' . esc_html((string) ($row['recipient_domain'] ?? '')) . '</td><td>' . esc_html((string) ($row['reason_code'] ?? '')) . '</td><td>' . esc_html((string) ($row['first_seen'] ?? '')) . '</td><td>' . esc_html((string) ($row['expiry_at'] ?? '')) . '</td><td>' . esc_html((string) ($row['occurrence_count'] ?? 0)) . '</td><td>' . esc_html($providerLabel) . '</td></tr>';
+            $data[] = [
+                'id' => (int) ($row['id'] ?? 0),
+                'fingerprint' => substr((string) ($row['recipient_fingerprint'] ?? ''), 0, 10),
+                'domain' => (string) ($row['recipient_domain'] ?? ''),
+                'reason' => (string) ($row['reason_code'] ?? ''),
+                'firstSeen' => (string) ($row['first_seen'] ?? ''),
+                'expires' => (string) ($row['expiry_at'] ?? ''),
+                'count' => (int) ($row['occurrence_count'] ?? 0),
+                'provider' => $providerLabel,
+            ];
         }
-        echo '</tbody></table></div>';
+        $payload = [
+            'data' => $data,
+            'fields' => [
+                ['id' => 'fingerprint', 'type' => 'text', 'label' => __('Fingerprint', 'onesmtp'), 'enableHiding' => false],
+                ['id' => 'domain', 'type' => 'text', 'label' => __('Domain', 'onesmtp')],
+                ['id' => 'reason', 'type' => 'text', 'label' => __('Reason', 'onesmtp')],
+                ['id' => 'firstSeen', 'type' => 'text', 'label' => __('First seen', 'onesmtp')],
+                ['id' => 'expires', 'type' => 'text', 'label' => __('Expires', 'onesmtp')],
+                ['id' => 'count', 'type' => 'integer', 'label' => __('Count', 'onesmtp')],
+                ['id' => 'provider', 'type' => 'text', 'label' => __('Provider', 'onesmtp')],
+            ],
+        ];
+        echo '<div class="onesmtp-dataviews-mount" data-onesmtp-dataviews="suppression-records"></div>';
+        echo '<script type="application/json" data-onesmtp-dataviews-config="suppression-records">' . wp_json_encode($payload, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) . '</script>';
+        echo '<details class="onesmtp-legacy-list"><summary>' . esc_html__('Legacy suppression table', 'onesmtp') . '</summary>';
+        echo '<table class="widefat striped" aria-label="' . esc_attr__('Active suppression records', 'onesmtp') . '"><thead><tr><th>' . esc_html__('Fingerprint', 'onesmtp') . '</th><th>' . esc_html__('Domain', 'onesmtp') . '</th><th>' . esc_html__('Reason', 'onesmtp') . '</th><th>' . esc_html__('First seen', 'onesmtp') . '</th><th>' . esc_html__('Expires', 'onesmtp') . '</th><th>' . esc_html__('Count', 'onesmtp') . '</th><th>' . esc_html__('Provider', 'onesmtp') . '</th></tr></thead><tbody>';
+        if ($rows === []) {
+            echo '<tr><td colspan="7">' . esc_html__('No suppression records are currently stored.', 'onesmtp') . '</td></tr>';
+        } else {
+            foreach ($data as $row) {
+                echo '<tr><td><code>' . esc_html((string) $row['fingerprint']) . '</code></td><td>' . esc_html((string) $row['domain']) . '</td><td>' . esc_html((string) $row['reason']) . '</td><td>' . esc_html((string) $row['firstSeen']) . '</td><td>' . esc_html((string) $row['expires']) . '</td><td>' . esc_html((string) $row['count']) . '</td><td>' . esc_html((string) $row['provider']) . '</td></tr>';
+            }
+        }
+        echo '</tbody></table></details>';
     }
 
     private function renderActionFooter(string $label, string $type = 'primary'): void

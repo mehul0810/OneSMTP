@@ -26,7 +26,7 @@ final class ProviderEventIngestionService
         private $verifierFactory,
         /** @var callable():bool|null */
         private $httpsCheck = null,
-        /** @var callable(ProviderEvent,?int):void|null */
+        /** @var callable(ProviderEvent,?int):bool|null */
         private $acceptedEventHandler = null
     ) {
         $this->httpsCheck = $httpsCheck ?? static fn (): bool => function_exists('is_ssl') ? (bool) is_ssl() : true;
@@ -92,8 +92,12 @@ final class ProviderEventIngestionService
         $messageId = $this->events->findMessageId($providerId, $event->getProviderMessageId());
 
         $result = $this->events->record($event, $providerId > 0 ? $providerId : null, $messageId, $replayTokenHash);
-        if ($result === ProviderEventStoreResult::INSERTED && is_callable($this->acceptedEventHandler)) {
-            ($this->acceptedEventHandler)($event, $providerId > 0 ? $providerId : null);
+        $shouldHandleAcceptedEvent = $result === ProviderEventStoreResult::INSERTED
+            || ($result === ProviderEventStoreResult::DUPLICATE && $event->getType()->isSuppressionSignal());
+        if ($shouldHandleAcceptedEvent && is_callable($this->acceptedEventHandler)) {
+            if (($this->acceptedEventHandler)($event, $providerId > 0 ? $providerId : null) !== true) {
+                return false;
+            }
         }
 
         return $result->isAccepted();

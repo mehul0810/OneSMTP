@@ -24,7 +24,7 @@ final class RetentionPrunerTest extends TestCase
     {
         (new RetentionPruner())->prune();
 
-        self::assertCount(6, $GLOBALS['wpdb']->queries);
+        self::assertCount(7, $GLOBALS['wpdb']->queries);
         self::assertStringContainsString('wp_onesmtp_attempts', $GLOBALS['wpdb']->queries[0]);
         self::assertStringContainsString('wp_onesmtp_events', $GLOBALS['wpdb']->queries[1]);
         self::assertStringContainsString('wp_onesmtp_provider_events', $GLOBALS['wpdb']->queries[2]);
@@ -32,5 +32,6 @@ final class RetentionPrunerTest extends TestCase
         self::assertStringContainsString('wp_onesmtp_messages', $GLOBALS['wpdb']->queries[4]);
         self::assertStringContainsString("status IN ('sent','failed','simulated')", $GLOBALS['wpdb']->queries[4]);
         self::assertStringContainsString('wp_onesmtp_suppressions', $GLOBALS['wpdb']->queries[5]);
+        self::assertStringContainsString('wp_onesmtp_suppression_derivations', $GLOBALS['wpdb']->queries[6]);
     }
 }

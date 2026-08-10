@@ -61,4 +61,11 @@ final class TableNames
 
         return $wpdb->prefix . 'onesmtp_suppressions';
     }
+
+    public static function suppressionDerivations(): string
+    {
+        global $wpdb;
+
+        return $wpdb->prefix . 'onesmtp_suppression_derivations';
+    }
 }

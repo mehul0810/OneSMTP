@@ -7,7 +7,10 @@ namespace OneSMTP\Suppression;
 use DateTimeImmutable;
 use DateTimeZone;
 use OneSMTP\Events\ProviderEvent;
+use OneSMTP\Core\RetentionPolicy;
 use OneSMTP\Product\FeatureGate;
+use OneSMTP\Repository\ProviderEventRepository;
+use OneSMTP\Repository\SuppressionDerivationRepository;
 use OneSMTP\Repository\SuppressionRepository;
 use OneSMTP\Security\RecipientNormalizer;
 use OneSMTP\Security\SiteSecretHmac;
@@ -20,43 +23,81 @@ final class SuppressionService
         private SuppressionRepository $repository,
         private ?SiteSecretHmac $hmac,
         private ?RecipientNormalizer $normalizer = null,
-        private string $recipientContext = 'recipient'
+        private string $recipientContext = 'recipient',
+        ?SuppressionDerivationRepository $derivations = null
     ) {
         $this->normalizer = $normalizer ?? new RecipientNormalizer();
+        $this->derivations = $derivations ?? new SuppressionDerivationRepository();
     }
+
+    private SuppressionDerivationRepository $derivations;
 
     public function isOperational(): bool
     {
+        return $this->isManagementReady() && $this->settings->get()->isEnabled();
+    }
+
+    public function isManagementReady(): bool
+    {
         return $this->featureGate->isEnabled(FeatureGate::BOUNCE_SUPPRESSION)
-            && $this->settings->get()->isEnabled()
             && $this->hmac instanceof SiteSecretHmac;
     }
 
-    public function derive(ProviderEvent $event, ?int $providerId): void
+    public function derive(ProviderEvent $event, ?int $providerId): bool
     {
         if ( ! $this->isOperational() || ! $event->getType()->isSuppressionSignal() ) {
-            return;
+            return true;
         }
 
         $fingerprint = $event->getRecipientFingerprint();
         $domain = $event->getRecipientDomain();
         if ($fingerprint === null || $domain === null) {
-            return;
+            return true;
         }
 
-        $days = max(1, min(120, (int) apply_filters('onesmtp_log_retention_days', 30)));
+        $eventHash = ProviderEventRepository::externalEventHash($event);
+        $claim = $this->derivations->claim($eventHash);
+        if ($claim === SuppressionDerivationRepository::PROCESSED) {
+            return true;
+        }
+        if ($claim !== SuppressionDerivationRepository::CLAIMED) {
+            return false;
+        }
+
+        $days = RetentionPolicy::getLogRetentionDays();
         $firstSeen = $event->getOccurredAt()->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s');
         $expiry = (new DateTimeImmutable('now', new DateTimeZone('UTC')))->modify('+' . $days . ' days')->format('Y-m-d H:i:s');
-        $this->repository->upsert(
+        global $wpdb;
+        if ($wpdb->query('START TRANSACTION') === false) {
+            $this->derivations->markPending($eventHash);
+
+            return false;
+        }
+
+        $saved = $this->repository->upsert(
             $fingerprint,
             $domain,
             $event->getType()->value,
             $event->getProvider(),
             $providerId,
-            $event->getProviderMessageId(),
             $firstSeen,
             $expiry
         );
+        if ( ! $saved || ! $this->derivations->markProcessed($eventHash) ) {
+            $wpdb->query('ROLLBACK');
+            $this->derivations->markPending($eventHash);
+
+            return false;
+        }
+
+        if ($wpdb->query('COMMIT') === false) {
+            $wpdb->query('ROLLBACK');
+            $this->derivations->markPending($eventHash);
+
+            return false;
+        }
+
+        return true;
     }
 
     /**
@@ -88,7 +129,7 @@ final class SuppressionService
 
     public function fingerprintForLookup(string $recipient): ?string
     {
-        if ( ! $this->isOperational() || ! $this->hmac instanceof SiteSecretHmac ) {
+        if ( ! $this->isManagementReady() ) {
             return null;
         }
 
