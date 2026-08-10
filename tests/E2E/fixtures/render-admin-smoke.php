@@ -193,6 +193,32 @@ $GLOBALS['wpdb']->dashboardProviderAttemptRowsBySince[$analyticsSince] = [[
     'retry_count' => 2,
     'avg_latency_ms' => 800,
 ]];
+$analyticsUntil = '2026-06-26 12:00:00';
+$analyticsWindowKey = $analyticsSince . '|' . $analyticsUntil;
+$GLOBALS['wpdb']->advancedProviderRowsByWindow[$analyticsWindowKey] = [[
+    'provider_id' => 7,
+    'provider_name' => 'Browser Smoke SMTP',
+    'adapter_type' => 'smtp',
+    'sent_count' => 96,
+    'failed_count' => 4,
+    'retry_count' => 2,
+    'attempt_count' => 100,
+    'avg_latency_ms' => 800,
+]];
+$GLOBALS['wpdb']->advancedStatusRowsByWindow[$analyticsWindowKey] = [
+    ['status' => 'sent', 'status_count' => 18],
+    ['status' => 'failed', 'status_count' => 2],
+];
+$GLOBALS['wpdb']->advancedSubjectRowsByWindow[$analyticsWindowKey] = [
+    ['subject' => 'Smoke report token=fixture-secret-never-rendered', 'subject_count' => 2],
+    ['subject' => '', 'subject_count' => 1],
+];
+$GLOBALS['wpdb']->advancedTrendRowsByWindow[$analyticsWindowKey] = [
+    ['period' => '2026-06-24', 'status' => 'sent', 'status_count' => 18],
+];
+$GLOBALS['wpdb']->advancedFailureRowsByWindow[$analyticsWindowKey] = [
+    ['failure_category' => 'timeout', 'failure_count' => 2, 'last_seen_at' => '2026-06-25 10:00:00'],
+];
 
 $_GET = [
     'page' => 'onesmtp',
