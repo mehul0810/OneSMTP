@@ -4,8 +4,19 @@ declare(strict_types=1);
 
 namespace OneSMTP\Dispatch;
 
+use OneSMTP\Product\FeatureGate;
+
 final class RoutingRuleEvaluator
 {
+    private FeatureGate $featureGate;
+    private RoutingRuleNormalizer $normalizer;
+
+    public function __construct(?FeatureGate $featureGate = null, ?RoutingRuleNormalizer $normalizer = null)
+    {
+        $this->featureGate = $featureGate ?? new FeatureGate();
+        $this->normalizer = $normalizer ?? new RoutingRuleNormalizer();
+    }
+
     /**
      * @param array<int,array<string,mixed>> $rules
      * @param array<string,mixed>            $context
@@ -13,6 +24,10 @@ final class RoutingRuleEvaluator
      */
     public function evaluate(array $rules, array $context, array $providers): ?int
     {
+        if ( ! $this->featureGate->isEnabled(FeatureGate::SMART_ROUTING)) {
+            return null;
+        }
+
         $eligibleProviderIds = $this->eligibleProviderIds($providers);
         if ($rules === [] || $context === [] || $eligibleProviderIds === []) {
             return null;
@@ -28,7 +43,7 @@ final class RoutingRuleEvaluator
                 continue;
             }
 
-            $conditions = $this->normalizeConditions($rule['conditions'] ?? null);
+            $conditions = $this->normalizer->normalizeConditions($rule['conditions'] ?? null);
             if ($conditions === [] || ! $this->conditionsMatch($conditions, $context)) {
                 continue;
             }
@@ -125,50 +140,6 @@ final class RoutingRuleEvaluator
     }
 
     /**
-     * @return array<int,array{field:string,operator:string,value:mixed}>
-     */
-    private function normalizeConditions(mixed $conditions): array
-    {
-        if ( ! is_array($conditions)) {
-            return [];
-        }
-
-        $normalized = [];
-
-        foreach ($conditions as $field => $condition) {
-            if (is_string($field) && ! is_array($condition)) {
-                $condition = [
-                    'field' => $field,
-                    'operator' => 'equals',
-                    'value' => $condition,
-                ];
-            }
-
-            if ( ! is_array($condition)) {
-                return [];
-            }
-
-            $conditionField = isset($condition['field']) ? (string) $condition['field'] : '';
-            if ( ! $this->isSafeFieldName($conditionField)) {
-                return [];
-            }
-
-            $operator = isset($condition['operator']) ? strtolower( (string) $condition['operator']) : 'equals';
-            if ( ! in_array($operator, ['equals', 'in', 'exists'], true)) {
-                return [];
-            }
-
-            $normalized[] = [
-                'field' => $conditionField,
-                'operator' => $operator,
-                'value' => $condition['value'] ?? null,
-            ];
-        }
-
-        return $normalized;
-    }
-
-    /**
      * @param array<int,array{field:string,operator:string,value:mixed}> $conditions
      * @param array<string,mixed>                                        $context
      */
@@ -183,7 +154,7 @@ final class RoutingRuleEvaluator
             $actual = $context[ $field ];
 
             if ($condition['operator'] === 'exists') {
-                if ($actual === null || $actual === '') {
+                if ($actual === null || $actual === '' || $actual === []) {
                     return false;
                 }
 
@@ -206,7 +177,7 @@ final class RoutingRuleEvaluator
             }
 
             foreach ($expected as $expectedValue) {
-                if ($this->scalarEquals($actual, $expectedValue)) {
+                if ($this->valueMatches($actual, 'equals', $expectedValue)) {
                     return true;
                 }
             }
@@ -214,7 +185,37 @@ final class RoutingRuleEvaluator
             return false;
         }
 
-        return $this->scalarEquals($actual, $expected);
+        if (is_array($actual)) {
+            foreach ($actual as $actualValue) {
+                if ($this->valueMatches($actualValue, $operator, $expected)) {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        if ( ! is_scalar($actual) || ! is_scalar($expected)) {
+            return false;
+        }
+
+        if ($operator === 'equals') {
+            return $this->scalarEquals($actual, $expected);
+        }
+
+        if ( ! is_string($actual) && ! is_string($expected)) {
+            return false;
+        }
+
+        $actualText = strtolower(substr( (string) $actual, 0, RoutingRuleNormalizer::MAX_MATCH_LENGTH));
+        $expectedText = strtolower(substr( (string) $expected, 0, RoutingRuleNormalizer::MAX_VALUE_LENGTH));
+
+        return match ($operator) {
+            'contains' => $expectedText !== '' && str_contains($actualText, $expectedText),
+            'starts_with' => $expectedText !== '' && str_starts_with($actualText, $expectedText),
+            'ends_with' => $expectedText !== '' && str_ends_with($actualText, $expectedText),
+            default => false,
+        };
     }
 
     private function scalarEquals(mixed $actual, mixed $expected): bool
@@ -235,22 +236,7 @@ final class RoutingRuleEvaluator
             return false;
         }
 
-        return (string) $actual === (string) $expected;
-    }
-
-    private function isSafeFieldName(string $field): bool
-    {
-        if ( ! preg_match('/^[a-z0-9_.:-]+$/', $field)) {
-            return false;
-        }
-
-        foreach (['body', 'content', 'header', 'recipient', 'email', 'secret', 'token', 'credential', 'password', 'payload'] as $blocked) {
-            if (str_contains($field, $blocked)) {
-                return false;
-            }
-        }
-
-        return true;
+        return strcasecmp( (string) $actual, (string) $expected) === 0;
     }
 
     /**

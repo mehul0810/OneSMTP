@@ -12,6 +12,7 @@ use OneSMTP\Conflict\MailDeliveryOwnership;
 use OneSMTP\Diagnostics\DiagnosticReportGenerator;
 use OneSMTP\Delivery\DeliveryEngine;
 use OneSMTP\Dispatch\DefaultDispatchPolicy;
+use OneSMTP\Product\FeatureGate;
 use OneSMTP\Logging\RetentionPruner;
 use OneSMTP\Alerts\FailureAlertDispatcher;
 use OneSMTP\Pipeline\SenderIdentityApplier;
@@ -30,7 +31,6 @@ use OneSMTP\Settings\BackgroundSendingSettingsRepository;
 use OneSMTP\Settings\SenderIdentityRepository;
 use OneSMTP\Settings\SimulationModeSettingsRepository;
 use OneSMTP\Summary\WeeklySummaryMailer;
-use OneSMTP\Product\FeatureGate;
 
 final class Plugin
 {
@@ -38,9 +38,9 @@ final class Plugin
     {
         Installer::maybeUpgrade();
 
-        $dispatchPolicy = new DefaultDispatchPolicy();
+        $featureGate = FeatureGate::fromRuntime();
+        $dispatchPolicy = new DefaultDispatchPolicy(featureGate: $featureGate);
         $deliveryOwnership = new MailDeliveryOwnership();
-        $featureGate = FeatureGate::fromWordPress();
 
         $messages  = new MessageRepository();
         $attempts  = new AttemptRepository();
@@ -89,7 +89,8 @@ final class Plugin
             null,
             $deliveryOwnership,
             null,
-            $featureGate
+            $featureGate,
+            new Admin\RoutingAdmin(null, $providers, $featureGate)
         );
         $adminPage->registerHooks();
 

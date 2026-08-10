@@ -83,6 +83,34 @@ final class AdminAuditLogger
     }
 
     /**
+     * Record routing-rule lifecycle metadata without accepting condition values.
+     * Message content, addresses, headers, and rule values must never enter an
+     * audit event.
+     */
+    public function logRoutingRuleChange(
+        string $action,
+        int $ruleId,
+        int $providerId,
+        int $priority,
+        int $conditionCount,
+        bool $enabled
+    ): int {
+        return $this->events->add(
+            'audit_routing_rule_changed',
+            $this->sanitizeContext([
+                'summary' => sprintf('Routing rule %s.', str_replace('_', ' ', sanitize_key($action))),
+                'object_type' => 'routing_rule',
+                'action' => sanitize_key($action),
+                'rule_id' => max(0, $ruleId),
+                'provider_id' => max(0, $providerId),
+                'priority' => max(0, $priority),
+                'condition_count' => max(0, $conditionCount),
+                'enabled' => $enabled,
+            ])
+        );
+    }
+
+    /**
      * @param array<string,mixed> $context
      * @return array<string,mixed>
      */

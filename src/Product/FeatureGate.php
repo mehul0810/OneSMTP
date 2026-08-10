@@ -46,17 +46,31 @@ final class FeatureGate
         }
     }
 
-    public static function fromWordPress(): self
+    /**
+     * Build the gate from extension points supplied by a future Pro runtime.
+     *
+     * The free plugin ships with both values disabled. No licensing request or
+     * network lookup is performed here; an installed Pro component may provide
+     * the entitlement and rollout state through these filters.
+     */
+    public static function fromRuntime(): self
     {
-        $flags = apply_filters('onesmtp_pro_feature_flags', []);
-        if ( ! is_array($flags)) {
-            $flags = [];
+        $flags = apply_filters('onesmtp_feature_flags', []);
+        $proFlags = apply_filters('onesmtp_pro_feature_flags', []);
+        if (is_array($proFlags)) {
+            $flags = array_merge(is_array($flags) ? $flags : [], $proFlags);
         }
+        $entitled = apply_filters('onesmtp_pro_entitled', false);
 
         return new self(
-            $flags,
-            (bool) apply_filters('onesmtp_pro_entitled', false)
+            is_array($flags) ? $flags : [],
+            $entitled === true
         );
+    }
+
+    public static function fromWordPress(): self
+    {
+        return self::fromRuntime();
     }
 
     /** @return array<int,string> */
