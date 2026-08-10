@@ -25,11 +25,14 @@ default-deny entitlement and rollout gates, and the disabled states are inert.
 
 Candidate workflows currently implemented behind those gates are conditional
 routing and simulation, provider reliability and bounded advanced reports,
-bounded compliance retention and privacy-safe export profiles, and advanced
-terminal-failure alert escalation, plus multisite network settings and bounded
-network log summaries. Core provider setup, sending, failover, queues, retries,
-logs, manual resend, provider tests, troubleshooting, and normal single-site
-behavior stay complete without Pro.
+bounded compliance retention and privacy-safe export profiles, advanced
+terminal-failure alert escalation, multisite network settings and bounded
+network log summaries, and per-provider minute/hour/day sending budgets behind
+`provider_quota_budgets`. Quota deferrals for attachment-bearing messages fail
+closed without scheduling a retry when sanitized data cannot reproduce the
+files. Core provider setup, sending, failover, queues, retries, logs, manual
+resend, provider tests, troubleshooting, and normal single-site behavior stay
+complete without Pro.
 
 See [Pro-ready onboarding](docs/admin/pro-onboarding.md), the
 [developer gate contract](docs/developer/pro-capability-gates.md), and the
