@@ -32,6 +32,19 @@ final class AdminAuditLogger
         );
     }
 
+    public function logLogExport(string $profile, int $recordCount): int
+    {
+        return $this->events->add(
+            'audit_log_exported',
+            $this->sanitizeContext([
+                'summary' => 'Exported a privacy-safe log summary.',
+                'object_type' => 'log_export',
+                'profile' => sanitize_key($profile),
+                'record_count' => max(0, $recordCount),
+            ])
+        );
+    }
+
     public function logProviderChange(string $action, int $providerId, array $details = []): int
     {
         return $this->events->add(
