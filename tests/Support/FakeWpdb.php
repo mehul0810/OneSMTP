@@ -148,9 +148,17 @@ final class FakeWpdb
 
     public bool $suppressErrors = false;
 
+    /** @var array<int,string> */
+    public array $existingTables = [];
+
     public function get_charset_collate(): string
     {
         return 'DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci';
+    }
+
+    public function esc_like(string $text): string
+    {
+        return addcslashes($text, '_%\\');
     }
 
     public function insert(string $table, array $data, array $format): int
@@ -605,7 +613,7 @@ final class FakeWpdb
         return [];
     }
 
-    public function get_var(string $sql): int
+    public function get_var(string $sql): mixed
     {
         if ($this->throwOnMessageQueries && str_contains($sql, $this->prefix . 'onesmtp_messages')) {
             throw new \RuntimeException('Synthetic message query failure.');
@@ -614,6 +622,12 @@ final class FakeWpdb
         $prepared = $this->lastPrepared;
         $preparedQuery = is_array($prepared) ? (string) ($prepared['query'] ?? '') : '';
         $preparedArgs = is_array($prepared) && isset($prepared['args']) && is_array($prepared['args']) ? $prepared['args'] : [];
+
+        if (str_contains($preparedQuery, 'SHOW TABLES LIKE %s')) {
+            $table = stripslashes((string) ($preparedArgs[0] ?? ''));
+
+            return in_array($table, $this->existingTables, true) ? $table : null;
+        }
         if (str_contains($preparedQuery, $this->prefix . 'onesmtp_quota_leases') && str_contains($preparedQuery, 'COUNT(*)')) {
             $providerId = (int) ($preparedArgs[0] ?? 0);
             $now = strtotime((string) ($preparedArgs[1] ?? '')) ?: 0;

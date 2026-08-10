@@ -573,6 +573,10 @@ final class RestController
                 continue;
             }
 
+            if (! $featureGate->isEnabled(FeatureGate::PROVIDER_EVENTS) && $key === 'webhook_signing_key') {
+                continue;
+            }
+
             if (is_bool($value) || is_numeric($value)) {
                 $normalized[$key] = $value;
                 continue;

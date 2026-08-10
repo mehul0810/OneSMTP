@@ -200,12 +200,13 @@ final class ProviderAdmin
                 'connectionCount' => $connectionCount,
                 'connections' => $this->connectionEditorData($connections),
                 'endpoint' => rest_url('onesmtp/v1/providers'),
-                'webhookEndpoint' => $type === ProviderTypes::MAILGUN
+                'webhookEndpoint' => $type === ProviderTypes::MAILGUN && $this->featureGate->isEnabled(FeatureGate::PROVIDER_EVENTS)
                     ? (string) preg_replace('/\Ahttp:/i', 'https:', rest_url('onesmtp/v1/webhooks/mailgun'))
                     : '',
                 'nonce' => wp_create_nonce('wp_rest'),
                 'adminEmail' => sanitize_email((string) get_option('admin_email')),
                 'quotaEnabled' => $this->featureGate->isEnabled(FeatureGate::PROVIDER_QUOTA_BUDGETS),
+                'providerEventsEnabled' => $this->featureGate->isEnabled(FeatureGate::PROVIDER_EVENTS),
             ];
 
             echo '<article class="onesmtp-provider-list-item" data-provider-type="' . esc_attr((string) $type) . '">';
@@ -319,11 +320,15 @@ final class ProviderAdmin
         echo '</label></td></tr>';
 
         foreach ($this->configFields() as $field => $label) {
+            // The provider-specific drawer is the only supported Mailgun
+            // webhook setup surface. The legacy generic form has no provider
+            // context, so never expose this Mailgun-only field here.
+            if ($field === 'webhook_signing_key') {
+                continue;
+            }
+
             $type = str_contains($field, 'password') || str_contains($field, 'secret') || str_contains($field, 'token') || str_contains($field, 'api_key') || str_contains($field, 'signing') ? 'password' : 'text';
             $this->renderTextInput('config[' . $field . ']', $label, '', $type);
-            if ($field === 'webhook_signing_key') {
-                $this->renderMailgunWebhookGuidance();
-            }
         }
 
         $this->renderQuotaFields();
@@ -332,16 +337,6 @@ final class ProviderAdmin
         echo '<p class="description">' . esc_html__('Leave credential fields blank when updating a provider to keep existing stored secrets.', 'onesmtp') . '</p>';
         submit_button(__('Save provider', 'onesmtp'));
         echo '</form>';
-    }
-
-    private function renderMailgunWebhookGuidance(): void
-    {
-        $endpoint = (string) preg_replace('/\Ahttp:/i', 'https:', rest_url('onesmtp/v1/webhooks/mailgun'));
-        echo '<tr class="onesmtp-mailgun-webhook-guidance"><th scope="row">' . esc_html__('Mailgun delivery webhook', 'onesmtp') . '</th><td>';
-        echo '<p class="description">' . esc_html__('In Mailgun, open Webhooks, add a JSON POST webhook, and use this HTTPS endpoint:', 'onesmtp') . '</p>';
-        echo '<p><code class="onesmtp-mailgun-webhook-endpoint">' . esc_html($endpoint) . '</code></p>';
-        echo '<p class="description">' . esc_html__('Select delivered, permanent failure, temporary failure, and spam complaint events. Subaccount parent-signature is verified with the primary account key. Enforce a 64 KiB request cap upstream/PHP; WordPress may buffer before the callback.', 'onesmtp') . '</p>';
-        echo '</td></tr>';
     }
 
     private function renderQuotaFields(): void
@@ -653,6 +648,10 @@ final class ProviderAdmin
         $posted = isset($_POST['config']) && is_array($_POST['config']) ? wp_unslash($_POST['config']) : [];
 
         foreach ($this->configFields() as $field => $label) {
+            if ($field === 'webhook_signing_key' && ! $this->featureGate->isEnabled(FeatureGate::PROVIDER_EVENTS)) {
+                continue;
+            }
+
             if (! array_key_exists($field, $posted)) {
                 continue;
             }

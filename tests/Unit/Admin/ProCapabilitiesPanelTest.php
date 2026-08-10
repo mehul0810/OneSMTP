@@ -50,7 +50,7 @@ final class ProCapabilitiesPanelTest extends TestCase
         $panel->render();
         $output = (string) ob_get_clean();
 
-        self::assertStringContainsString('Provider events and suppression', $output);
+        self::assertStringContainsString('Provider event ingestion', $output);
         self::assertStringContainsString('>Enabled</span>', $output);
         self::assertStringContainsString('suppression controls remain planned.', $output);
     }

@@ -161,4 +161,43 @@ final class DatabaseSchema
         dbDelta($providerEventsSql);
         dbDelta($providerEventReplaysSql);
     }
+
+    /**
+     * Return every plugin-owned table that must exist before schema migration
+     * can be marked current.
+     *
+     * @return array<int,string>
+     */
+    public static function requiredTables(): array
+    {
+        return [
+            TableNames::providers(),
+            TableNames::messages(),
+            TableNames::attempts(),
+            TableNames::events(),
+            TableNames::quotaLeases(),
+            TableNames::providerEvents(),
+            TableNames::providerEventReplays(),
+        ];
+    }
+
+    public static function verifyRequiredTables(): bool
+    {
+        global $wpdb;
+
+        foreach (self::requiredTables() as $table) {
+            $sql = $wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($table));
+            if ( ! is_string($sql) ) {
+                return false;
+            }
+
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- The query is prepared immediately above.
+            $foundTable = $wpdb->get_var($sql);
+            if ( (string) $foundTable !== $table ) {
+                return false;
+            }
+        }
+
+        return true;
+    }
 }

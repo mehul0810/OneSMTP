@@ -13,7 +13,10 @@ final class Installer
 
     public static function activate(): void
     {
-        self::ensureSchema();
+        if (! self::ensureSchema()) {
+            return;
+        }
+
         Capabilities::provisionDefaults();
         self::storeDefaults();
     }
@@ -31,7 +34,9 @@ final class Installer
             return;
         }
 
-        self::ensureSchema();
+        if (! self::ensureSchema()) {
+            return;
+        }
 
         if ($stored !== $version) {
             update_option(self::VERSION_OPTION, $version, false);
@@ -67,13 +72,19 @@ final class Installer
         return defined('ONESMTP_VERSION') ? (string) constant('ONESMTP_VERSION') : '0.1.0';
     }
 
-    private static function ensureSchema(): void
+    private static function ensureSchema(): bool
     {
         if ((int) get_option(self::SCHEMA_VERSION_OPTION, 0) === self::SCHEMA_VERSION) {
-            return;
+            return true;
         }
 
         DatabaseSchema::createTables();
+        if (! DatabaseSchema::verifyRequiredTables()) {
+            return false;
+        }
+
         update_option(self::SCHEMA_VERSION_OPTION, self::SCHEMA_VERSION, false);
+
+        return true;
     }
 }

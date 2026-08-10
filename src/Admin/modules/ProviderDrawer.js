@@ -9,6 +9,7 @@ import {
 	ToggleControl,
 } from '@wordpress/components';
 import { __ } from '@wordpress/i18n';
+import { filterProviderConfig } from './providerConfigFilter';
 
 const fieldsByType = {
 	smtp: [
@@ -179,8 +180,10 @@ const editableConfig = ( type, storedConfig = {} ) =>
 		{ ...initialProviderConfig( type ) }
 	);
 
-const requestConfig = ( providerConfig, isEditing ) =>
-	Object.entries( providerConfig ).reduce( ( config, [ field, value ] ) => {
+const requestConfig = ( providerConfig, isEditing, providerEventsEnabled ) =>
+	Object.entries(
+		filterProviderConfig( providerConfig, providerEventsEnabled )
+	).reduce( ( config, [ field, value ] ) => {
 		if (
 			isEditing &&
 			isSensitiveField( field ) &&
@@ -195,6 +198,7 @@ const requestConfig = ( providerConfig, isEditing ) =>
 
 export default function ProviderInlineSettings( { config } ) {
 	const type = config.type || 'smtp';
+	const providerEventsEnabled = config.providerEventsEnabled === true;
 	const connections = Array.isArray( config.connections )
 		? config.connections
 		: [];
@@ -295,7 +299,11 @@ export default function ProviderInlineSettings( { config } ) {
 		setNotice( null );
 
 		try {
-			const configToSave = requestConfig( providerConfig, isEditing );
+			const configToSave = requestConfig(
+				providerConfig,
+				isEditing,
+				providerEventsEnabled
+			);
 			if ( config.quotaEnabled ) {
 				Object.assign( configToSave, providerQuota );
 			}
@@ -529,8 +537,13 @@ export default function ProviderInlineSettings( { config } ) {
 							'onesmtp'
 						) }
 					/>
-					{ ( fieldsByType[ type ] || [] ).map(
-						( [ field, label, inputType = 'text' ] ) =>
+					{ ( fieldsByType[ type ] || [] )
+						.filter(
+							( [ field ] ) =>
+								field !== 'webhook_signing_key' ||
+								providerEventsEnabled
+						)
+						.map( ( [ field, label, inputType = 'text' ] ) =>
 							inputType === 'number' ? (
 								<TextControl
 									__next40pxDefaultSize
@@ -569,8 +582,8 @@ export default function ProviderInlineSettings( { config } ) {
 									}
 								/>
 							)
-					) }
-					{ type === 'mailgun' && (
+						) }
+					{ type === 'mailgun' && providerEventsEnabled && (
 						<div className="onesmtp-provider-field-note onesmtp-mailgun-webhook-guidance">
 							<strong>
 								{ __( 'Mailgun delivery webhook', 'onesmtp' ) }

@@ -63,6 +63,13 @@ value at 2,048 characters, enum choices at 32, and each enum value at 64
 characters. Secret fields should be marked `secret: true`; this describes the
 redaction boundary and does not replace `SecretVault` encryption.
 
+`SecretVault` requires a non-empty WordPress-managed salt or a strong
+`AUTH_KEY`/`SECURE_AUTH_KEY` constant before writing credentials. It no longer
+derives new keys from a site URL alone. Existing ciphertext created by the
+strong-constant path remains readable where those constants are still present;
+site-URL-only ciphertext is intentionally unrecoverable and must be replaced
+by re-entering the credential after the site has a real WordPress secret.
+
 ## HTTP and privacy safety
 
 - Use WordPress HTTP APIs through `AbstractHttpApiAdapter` and a bounded

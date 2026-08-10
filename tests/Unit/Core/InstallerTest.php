@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace OneSMTP\Tests\Unit\Core;
 
 use OneSMTP\Core\Installer;
+use OneSMTP\Core\DatabaseSchema;
 use OneSMTP\Tests\Support\FakeWpdb;
 use PHPUnit\Framework\TestCase;
 
@@ -13,6 +14,7 @@ final class InstallerTest extends TestCase
     protected function setUp(): void
     {
         $GLOBALS['wpdb'] = new FakeWpdb();
+        $GLOBALS['wpdb']->existingTables = DatabaseSchema::requiredTables();
         $GLOBALS['onesmtp_test_options'] = [];
         $GLOBALS['onesmtp_test_dbdelta_queries'] = [];
         unset($GLOBALS['onesmtp_test_throw_on_update_option'], $GLOBALS['onesmtp_test_throw_on_get_option']);
@@ -130,5 +132,28 @@ final class InstallerTest extends TestCase
 
         self::assertFalse(get_option(Installer::SCHEMA_VERSION_OPTION, false));
         self::assertCount(7, $GLOBALS['onesmtp_test_dbdelta_queries']);
+    }
+
+    public function test_partial_schema_verification_leaves_migration_stale_and_retries(): void
+    {
+        $GLOBALS['onesmtp_test_options'][Installer::VERSION_OPTION]['value'] = '0.3.0';
+        $GLOBALS['wpdb']->existingTables = array_values(array_filter(
+            DatabaseSchema::requiredTables(),
+            static fn (string $table): bool => ! str_ends_with($table, 'provider_event_replays')
+        ));
+        $GLOBALS['wpdb']->existingTables[] = 'wp_onesmtp_provider_event_replays_shadow';
+
+        Installer::maybeUpgrade();
+
+        self::assertFalse(get_option(Installer::SCHEMA_VERSION_OPTION, false));
+        self::assertSame('0.3.0', get_option(Installer::VERSION_OPTION));
+        self::assertCount(7, $GLOBALS['onesmtp_test_dbdelta_queries']);
+
+        $GLOBALS['wpdb']->existingTables = DatabaseSchema::requiredTables();
+        Installer::maybeUpgrade();
+
+        self::assertSame(Installer::SCHEMA_VERSION, get_option(Installer::SCHEMA_VERSION_OPTION));
+        self::assertSame((string) constant('ONESMTP_VERSION'), get_option(Installer::VERSION_OPTION));
+        self::assertCount(14, $GLOBALS['onesmtp_test_dbdelta_queries']);
     }
 }

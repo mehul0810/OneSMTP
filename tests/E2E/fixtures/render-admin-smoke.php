@@ -259,6 +259,7 @@ $queue = new QueueDiagnostics(
 $featureFlags = [
     FeatureGate::ADVANCED_ANALYTICS => true,
     FeatureGate::COMPLIANCE_CONTROLS => true,
+    FeatureGate::PROVIDER_EVENTS => true,
     FeatureGate::PROVIDER_QUOTA_BUDGETS => true,
 ];
 if (getenv('ONESMTP_PLAYWRIGHT_PRO_ROUTING') === '1') {

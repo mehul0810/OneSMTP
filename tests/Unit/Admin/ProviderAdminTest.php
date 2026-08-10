@@ -152,6 +152,32 @@ final class ProviderAdminTest extends TestCase
         self::assertStringNotContainsString('quota[per_minute]', $output);
     }
 
+    public function test_render_hides_mailgun_webhook_controls_when_provider_events_are_disabled(): void
+    {
+        ob_start();
+        (new ProviderAdmin(new ProviderRepository()))->render();
+        $output = (string) ob_get_clean();
+
+        self::assertStringNotContainsString('Mailgun webhook signing key', $output);
+        self::assertStringNotContainsString('onesmtp-mailgun-webhook-guidance', $output);
+        self::assertStringNotContainsString('providerEventsEnabled&quot;:true', $output);
+    }
+
+    public function test_render_keeps_generic_form_mailgun_controls_provider_specific_even_when_enabled(): void
+    {
+        ob_start();
+        (new ProviderAdmin(
+            new ProviderRepository(),
+            featureGate: new FeatureGate([FeatureGate::PROVIDER_EVENTS => true], true)
+        ))->render();
+        $output = (string) ob_get_clean();
+
+        self::assertStringNotContainsString('Mailgun webhook signing key', $output);
+        self::assertStringNotContainsString('onesmtp-mailgun-webhook-guidance', $output);
+        self::assertStringContainsString('providerEventsEnabled&quot;:true', $output);
+        self::assertStringContainsString('webhookEndpoint&quot;:&quot;https:\\/\\/example.org', $output);
+    }
+
     public function test_render_shows_quiet_suremail_analysis_card_without_global_notice_actions(): void
     {
         update_option('suremails_connections', [

@@ -130,9 +130,9 @@ See Mailgun's [webhook security guidance](https://documentation.mailgun.com/docs
 and [webhook payload reference](https://documentation.mailgun.com/docs/mailgun/user-manual/webhooks/webhook-payloads)
 for the provider-side configuration and signed payload contract.
 
-Browser proof for the password-protected signing-key field is captured at
-[desktop width](screenshots/issue-63/provider-webhook-desktop.png) and
-[390px narrow width](screenshots/issue-63/provider-webhook-mobile.png); the
+Browser proof for the gated provider setup surface and password-protected
+signing-key treatment is captured at [desktop width](screenshots/issue-63/provider-webhook-desktop.png)
+and [390px narrow width](screenshots/issue-63/provider-webhook-mobile.png); the
 fixture contains no live credential.
 
 ## Importing from SureMail

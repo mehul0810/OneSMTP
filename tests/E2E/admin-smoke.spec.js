@@ -30,7 +30,6 @@ test.describe( 'Aculect Mail admin browser smoke', () => {
 			false,
 			testInfo.title.includes( 'Pro routing simulation' )
 		);
-
 		await page.route(
 			'https://example.org/wp-admin/options-general.php**',
 			async ( route ) => {
@@ -194,22 +193,42 @@ test.describe( 'Aculect Mail admin browser smoke', () => {
 			} );
 	} );
 
-	test( 'renders the Mailgun webhook signing-key field at desktop and narrow widths', async ( {
+	test( 'renders the gated Mailgun webhook setup contract at desktop and narrow widths', async ( {
 		page,
 	} ) => {
+		const proHtml = renderAdminFixture( true );
+		await page.unroute(
+			'https://example.org/wp-admin/options-general.php**'
+		);
+		await page.route(
+			'https://example.org/wp-admin/options-general.php**',
+			async ( route ) => {
+				await route.fulfill( {
+					status: 200,
+					contentType: 'text/html; charset=utf-8',
+					body: proHtml,
+				} );
+			}
+		);
+		await page.goto( adminUrl );
 		await openWorkspace( page, 'Providers', 'onesmtp-providers' );
-		await page.locator( '#onesmtp-provider-form summary' ).click();
+		const mailgunConfig = page.locator(
+			'[data-provider-type="mailgun"] [data-onesmtp-provider-config]'
+		);
+		await expect( mailgunConfig ).toHaveAttribute(
+			'data-onesmtp-provider-config',
+			/providerEventsEnabled/
+		);
+		await expect( mailgunConfig ).toHaveAttribute(
+			'data-onesmtp-provider-config',
+			/onesmtp.*v1.*webhooks.*mailgun/
+		);
 
-		const signingKey = page.getByLabel( 'Mailgun webhook signing key' );
-		await expect( signingKey ).toHaveAttribute( 'type', 'password' );
-		const webhookGuidance = page.locator(
-			'.onesmtp-mailgun-webhook-guidance'
-		);
-		await expect( webhookGuidance ).toContainText(
-			'https://example.org/wp-json/onesmtp/v1/webhooks/mailgun'
-		);
-		await expect( webhookGuidance ).toContainText( '64 KiB' );
-		await expect( webhookGuidance ).toContainText( 'parent-signature' );
+		await expect(
+			page.locator(
+				'#onesmtp-provider-form input[name="config[webhook_signing_key]"]'
+			)
+		).toHaveCount( 0 );
 		await page.screenshot( {
 			path: 'output/playwright/screenshots/issue-63-provider-webhook-desktop.png',
 			fullPage: true,
@@ -220,6 +239,26 @@ test.describe( 'Aculect Mail admin browser smoke', () => {
 			path: 'output/playwright/screenshots/issue-63-provider-webhook-mobile.png',
 			fullPage: true,
 		} );
+	} );
+
+	test( 'hides Mailgun webhook controls when provider events are disabled', async ( {
+		page,
+	} ) => {
+		await openWorkspace( page, 'Providers', 'onesmtp-providers' );
+		const mailgunConfig = page.locator(
+			'[data-provider-type="mailgun"] [data-onesmtp-provider-config]'
+		);
+		await expect( mailgunConfig ).toHaveAttribute(
+			'data-onesmtp-provider-config',
+			/"providerEventsEnabled":false/
+		);
+
+		await expect( page.locator( '#onesmtp-provider-form' ) ).toBeVisible();
+		await expect(
+			page.locator(
+				'#onesmtp-provider-form input[name="config[webhook_signing_key]"]'
+			)
+		).toHaveCount( 0 );
 	} );
 
 	test( 'renders Pro provider budgets with bounded accessible controls', async ( {
@@ -443,7 +482,7 @@ test.describe( 'Aculect Mail admin browser smoke', () => {
 		);
 		await expect(
 			proCapabilities.getByText( 'Enabled', { exact: true } )
-		).toHaveCount( 3 );
+		).toHaveCount( 4 );
 		await page.screenshot( {
 			path: 'output/playwright/screenshots/issue-63-provider-events-capabilities-desktop.png',
 			fullPage: true,
