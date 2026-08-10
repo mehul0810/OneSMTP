@@ -6,6 +6,8 @@ namespace OneSMTP\Dispatch;
 
 final class RoutingContextBuilder
 {
+    private const MAX_ADDRESS_COUNT = 50;
+
     /**
      * Build a bounded, transient context. The returned values are consumed by
      * dispatch only; callers must not persist or log this array.
@@ -56,6 +58,9 @@ final class RoutingContextBuilder
                 }
                 if (is_scalar($item)) {
                     $values = array_merge($values, $this->addresses( (string) $item));
+                    if (count($values) >= self::MAX_ADDRESS_COUNT) {
+                        return array_slice($values, 0, self::MAX_ADDRESS_COUNT);
+                    }
                 }
             }
 
@@ -66,12 +71,17 @@ final class RoutingContextBuilder
             return [];
         }
 
-        preg_match_all('/[A-Z0-9._%+\-]+@[A-Z0-9.\-]+/i', (string) $value, $matches);
+        $value = substr( (string) $value, 0, RoutingRuleNormalizer::MAX_MATCH_LENGTH);
+        preg_match_all('/[A-Z0-9._%+\-]+@[A-Z0-9.\-]+/i', $value, $matches);
         $addresses = [];
         foreach ($matches[0] as $address) {
             $address = strtolower(trim(sanitize_email( (string) $address)));
             if ($address !== '') {
                 $addresses[] = $address;
+            }
+
+            if (count($addresses) >= self::MAX_ADDRESS_COUNT) {
+                break;
             }
         }
 

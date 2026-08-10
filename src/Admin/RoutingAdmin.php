@@ -8,6 +8,7 @@ use InvalidArgumentException;
 use OneSMTP\Audit\AdminAuditLogger;
 use OneSMTP\Core\Capabilities;
 use OneSMTP\Dispatch\RoutingRuleNormalizer;
+use OneSMTP\Dispatch\RoutingRuleSimulator;
 use OneSMTP\Dispatch\RoutingRulesRepository;
 use OneSMTP\Product\FeatureGate;
 use OneSMTP\Repository\ProviderRepository;
@@ -17,19 +18,34 @@ final class RoutingAdmin
 {
     private const ACTION_NAME = 'onesmtp_routing_action';
     private const NONCE_NAME = 'onesmtp_routing_nonce';
+    private const SIMULATION_SOURCE_SAVED = 'saved';
+    private const SIMULATION_SOURCE_CANDIDATE = 'candidate';
+
+    /** @var array<string,mixed>|null */
+    private ?array $simulationResult = null;
+
+    /** @var array<string,mixed>|null */
+    private ?array $simulationSample = null;
+
+    /** @var array<string,mixed>|null */
+    private ?array $simulationCandidate = null;
+
+    private string $simulationSource = self::SIMULATION_SOURCE_SAVED;
 
     public function __construct(
         private ?RoutingRulesRepository $rules = null,
         private ?ProviderRepository $providers = null,
         private ?FeatureGate $featureGate = null,
         private ?AdminRequest $request = null,
-        private ?AdminAuditLogger $auditLogger = null
+        private ?AdminAuditLogger $auditLogger = null,
+        private ?RoutingRuleSimulator $simulator = null
     ) {
         $this->rules = $rules ?? new RoutingRulesRepository();
         $this->providers = $providers ?? new ProviderRepository();
         $this->featureGate = $featureGate ?? new FeatureGate();
         $this->request = $request ?? new AdminRequest();
         $this->auditLogger = $auditLogger ?? new AdminAuditLogger();
+        $this->simulator = $simulator ?? new RoutingRuleSimulator(featureGate: $this->featureGate);
     }
 
     public function handleRequest(): void
@@ -43,7 +59,7 @@ final class RoutingAdmin
         }
 
         $action = $this->request->postAction(self::ACTION_NAME);
-        if ( ! in_array($action, ['save', 'update', 'delete'], true)) {
+        if ( ! in_array($action, ['save', 'update', 'delete', 'simulate'], true)) {
             return;
         }
 
@@ -59,6 +75,12 @@ final class RoutingAdmin
 
         if ( ! $this->featureGate->isEnabled(FeatureGate::SMART_ROUTING)) {
             $this->redirect('upgrade_required');
+        }
+
+        if ($action === 'simulate') {
+            $this->handleSimulation();
+
+            return;
         }
 
         try {
@@ -121,6 +143,89 @@ final class RoutingAdmin
         }
     }
 
+    private function handleSimulation(): void
+    {
+        $source = sanitize_key($this->postedText('simulation_source'));
+        $this->simulationSource = in_array($source, [self::SIMULATION_SOURCE_SAVED, self::SIMULATION_SOURCE_CANDIDATE], true)
+            ? $source
+            : self::SIMULATION_SOURCE_SAVED;
+        $this->simulationSample = $this->simulationSampleFromPost();
+        $this->simulationCandidate = $this->routingRuleFromPost('simulation_');
+
+        $rules = $this->simulationSource === self::SIMULATION_SOURCE_CANDIDATE
+            ? ($this->simulationCandidate === null ? [] : [$this->simulationCandidate])
+            : $this->rules->get();
+        $providers = $this->providers->getAll();
+        if ($providers === []) {
+            $providers = $this->providers->getActiveProviders();
+        }
+
+        $this->simulationResult = $this->simulator->simulate(
+            $rules,
+            $this->simulationSample,
+            $providers,
+            $this->simulationSource === self::SIMULATION_SOURCE_CANDIDATE
+        );
+    }
+
+    /**
+     * @return array<string,mixed>
+     */
+    private function simulationSampleFromPost(): array
+    {
+        $sample = [];
+        foreach (['sender', 'recipient', 'subject', 'content', 'source_type', 'source_slug', 'source_name', 'source_origin'] as $field) {
+            $sample[ $field ] = $this->postedText('simulation_' . $field);
+        }
+
+        return $sample;
+    }
+
+    // phpcs:disable WordPress.Security.NonceVerification.Missing -- handleRequest verifies the action nonce before invoking these request readers.
+    /**
+     * @return array<string,mixed>|null
+     */
+    private function routingRuleFromPost(string $prefix = ''): ?array
+    {
+        $providerKey = $prefix . 'provider_id';
+        $priorityKey = $prefix . 'priority';
+        $fieldKey = $prefix . 'condition_field';
+        $operatorKey = $prefix . 'condition_operator';
+        $valueKey = $prefix . 'condition_value';
+        $enabledKey = $prefix . 'enabled';
+        $providerId = isset($_POST[ $providerKey ]) ? absint($_POST[ $providerKey ]) : 0;
+        $field = $this->postedText($fieldKey);
+        $operator = $this->postedText($operatorKey);
+        $value = $this->postedText($valueKey);
+
+        if ($providerId <= 0 && $field === '' && $operator === '' && $value === '' && ! isset($_POST[ $enabledKey ])) {
+            return null;
+        }
+
+        return [
+            'provider_id' => $providerId,
+            'priority' => isset($_POST[ $priorityKey ]) ? absint($_POST[ $priorityKey ]) : 100,
+            'enabled' => isset($_POST[ $enabledKey ]),
+            'conditions' => [
+                [
+                    'field' => $field,
+                    'operator' => $operator,
+                    'value' => $value,
+                ],
+            ],
+        ];
+    }
+
+    private function postedText(string $key): string
+    {
+        if ( ! isset($_POST[ $key ]) || ! is_scalar($_POST[ $key ])) {
+            return '';
+        }
+
+        return wp_unslash( (string) $_POST[ $key ]);
+    }
+    // phpcs:enable WordPress.Security.NonceVerification.Missing
+
     /**
      * @param array<int,array<string,mixed>> $activeProviders
      */
@@ -170,6 +275,8 @@ final class RoutingAdmin
             $this->renderRuleForm($activeProviders, $editRule);
         }
 
+        $this->renderSimulation($activeProviders);
+
         echo '</div></section>';
     }
 
@@ -202,6 +309,169 @@ final class RoutingAdmin
             echo '<tr><td>' . esc_html( (string) ( (int) ($rule['priority'] ?? 100))) . '</td><td>' . esc_html($providerNames[ $providerId ] ?? __('Unavailable provider', 'onesmtp')) . '</td><td>' . esc_html($this->fieldLabel($field) . ' — ' . $this->operatorLabel($operator)) . '<br><span class="description">' . esc_html__('Configured value is hidden on this screen.', 'onesmtp') . '</span></td><td>' . esc_html( ! empty($rule['enabled']) ? __('Enabled', 'onesmtp') : __('Disabled', 'onesmtp')) . '</td><td><a class="button button-secondary" href="' . esc_url($editUrl) . '">' . esc_html__('Edit', 'onesmtp') . '</a> <form class="onesmtp-routing-inline-form" method="post" action="' . esc_url(admin_url('options-general.php?page=onesmtp&tab=onesmtp-routing#onesmtp-routing')) . '"><input type="hidden" name="onesmtp_routing_action" value="delete"><input type="hidden" name="rule_id" value="' . esc_attr( (string) ( (int) ($rule['id'] ?? 0))) . '">' . wp_nonce_field(self::ACTION_NAME, self::NONCE_NAME, true, false) . '<button type="submit" class="button button-secondary">' . esc_html__('Delete', 'onesmtp') . '</button></form></td></tr>';
         }
         echo '</tbody></table></div>';
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $activeProviders
+     */
+    private function renderSimulation(array $activeProviders): void
+    {
+        if ( ! $this->featureGate->isEnabled(FeatureGate::SMART_ROUTING)) {
+            return;
+        }
+
+        echo '<section class="onesmtp-routing-simulation" aria-labelledby="onesmtp-routing-simulation-heading">';
+        echo '<h4 id="onesmtp-routing-simulation-heading">' . esc_html__('Simulate routing decision', 'onesmtp') . '</h4>';
+        echo '<p class="description">' . esc_html__('Use synthetic sample values to preview a routing decision. Samples stay in memory for this request only: no provider call, queue, retry, message, attempt, event, audit record, or rule update is created.', 'onesmtp') . '</p>';
+        echo '<p class="description">' . esc_html(sprintf(
+            /* translators: %d: maximum characters inspected from a sample content value. */
+            __('Only the first %d content characters are inspected.', 'onesmtp'),
+            RoutingRuleNormalizer::MAX_MATCH_LENGTH
+        )) . '</p>';
+
+        if ($this->simulationResult === null) {
+            echo '<div class="notice notice-info inline" role="status"><p>' . esc_html__('Enter a sample and simulate to see the matched rule or safe no-match result.', 'onesmtp') . '</p></div>';
+        } else {
+            $this->renderSimulationResult($this->simulationResult);
+        }
+
+        $sample = $this->simulationSample ?? [];
+        $candidate = $this->simulationCandidate ?? [];
+        $condition = is_array($candidate['conditions'][0] ?? null) ? $candidate['conditions'][0] : [];
+        $providerValue = (int) ($candidate['provider_id'] ?? ($activeProviders[0]['id'] ?? 0));
+        $priorityValue = (int) ($candidate['priority'] ?? 100);
+        $fieldValue = (string) ($condition['field'] ?? 'sender');
+        $operatorValue = (string) ($condition['operator'] ?? 'equals');
+        $conditionValue = (string) ($condition['value'] ?? '');
+        $candidateEnabled = ! array_key_exists('enabled', $candidate) || ! empty($candidate['enabled']);
+        $sourceValue = $this->simulationSource;
+
+        echo '<form class="onesmtp-routing-simulation-form" method="post" action="' . esc_url(admin_url('options-general.php?page=onesmtp&tab=onesmtp-routing#onesmtp-routing')) . '"><input type="hidden" name="onesmtp_routing_action" value="simulate">';
+        // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- wp_nonce_field returns the complete nonce input markup.
+        echo wp_nonce_field(self::ACTION_NAME, self::NONCE_NAME, true, false);
+        echo '<fieldset><legend>' . esc_html__('Rules to simulate', 'onesmtp') . '</legend><label for="onesmtp-routing-simulation-source">' . esc_html__('Rule source', 'onesmtp') . '</label> <select id="onesmtp-routing-simulation-source" name="simulation_source">';
+        echo '<option value="saved"' . ($sourceValue === self::SIMULATION_SOURCE_SAVED ? ' selected="selected"' : '') . '>' . esc_html__('Current saved rules', 'onesmtp') . '</option>';
+        echo '<option value="candidate"' . ($sourceValue === self::SIMULATION_SOURCE_CANDIDATE ? ' selected="selected"' : '') . '>' . esc_html__('Unsaved candidate rule set', 'onesmtp') . '</option>';
+        echo '</select><p class="description">' . esc_html__('The candidate set is one bounded rule with the same fields and operators used by saved routing rules.', 'onesmtp') . '</p>';
+        echo '<div class="onesmtp-routing-simulation-candidate"><label for="onesmtp-routing-simulation-provider">' . esc_html__('Candidate provider', 'onesmtp') . '</label> <select id="onesmtp-routing-simulation-provider" name="simulation_provider_id">';
+        if ($activeProviders === []) {
+            echo '<option value="0">' . esc_html__('No active providers', 'onesmtp') . '</option>';
+        }
+        foreach ($activeProviders as $provider) {
+            $id = (int) ($provider['id'] ?? 0);
+            if ($id <= 0) {
+                continue;
+            }
+            echo '<option value="' . esc_attr( (string) $id) . '"' . ($id === $providerValue ? ' selected="selected"' : '') . '>' . esc_html( (string) ($provider['name'] ?? __('Provider', 'onesmtp'))) . '</option>';
+        }
+        echo '</select> <label for="onesmtp-routing-simulation-priority">' . esc_html__('Priority', 'onesmtp') . '</label> <input id="onesmtp-routing-simulation-priority" class="small-text" type="number" min="1" max="9999" name="simulation_priority" value="' . esc_attr( (string) $priorityValue) . '">';
+        echo '<label for="onesmtp-routing-simulation-field">' . esc_html__('Condition', 'onesmtp') . '</label> <select id="onesmtp-routing-simulation-field" name="simulation_condition_field">';
+        foreach (RoutingRuleNormalizer::FIELDS as $field) {
+            echo '<option value="' . esc_attr($field) . '"' . ($field === $fieldValue ? ' selected="selected"' : '') . '>' . esc_html($this->fieldLabel($field)) . '</option>';
+        }
+        echo '</select> <select name="simulation_condition_operator" aria-label="' . esc_attr__('Candidate condition operator', 'onesmtp') . '">';
+        foreach (RoutingRuleNormalizer::OPERATORS as $operator) {
+            echo '<option value="' . esc_attr($operator) . '"' . ($operator === $operatorValue ? ' selected="selected"' : '') . '>' . esc_html($this->operatorLabel($operator)) . '</option>';
+        }
+        echo '</select><label for="onesmtp-routing-simulation-value">' . esc_html__('Condition value', 'onesmtp') . '</label><textarea id="onesmtp-routing-simulation-value" class="large-text" name="simulation_condition_value" rows="2" maxlength="' . esc_attr( (string) RoutingRuleNormalizer::MAX_VALUE_LENGTH) . '">' . esc_textarea($conditionValue) . '</textarea>';
+        $checked = $candidateEnabled ? ' checked="checked"' : '';
+        echo '<label><input type="checkbox" name="simulation_enabled" value="1"' . esc_attr($checked) . '> ' . esc_html__('Include candidate rule', 'onesmtp') . '</label></div></fieldset>';
+
+        echo '<fieldset><legend>' . esc_html__('Sample message fields', 'onesmtp') . '</legend>';
+        $this->renderSimulationInput('sender', __('Sender', 'onesmtp'), $sample, 'text');
+        $this->renderSimulationInput('recipient', __('Recipient(s)', 'onesmtp'), $sample, 'text', __('Separate multiple recipients with commas.', 'onesmtp'));
+        $this->renderSimulationInput('subject', __('Subject', 'onesmtp'), $sample, 'text');
+        $this->renderSimulationInput('content', __('Content', 'onesmtp'), $sample, 'textarea', __('Content is evaluated in memory and bounded to the first 4096 characters.', 'onesmtp'));
+        $this->renderSimulationInput('source_type', __('Source type', 'onesmtp'), $sample, 'text');
+        $this->renderSimulationInput('source_slug', __('Source slug', 'onesmtp'), $sample, 'text');
+        $this->renderSimulationInput('source_name', __('Source name', 'onesmtp'), $sample, 'text');
+        $this->renderSimulationInput('source_origin', __('Source origin', 'onesmtp'), $sample, 'text');
+        echo '</fieldset><p class="submit"><button type="submit" class="button button-secondary">' . esc_html__('Simulate routing', 'onesmtp') . '</button></p></form></section>';
+    }
+
+    /**
+     * @param array<string,mixed> $sample
+     */
+    private function renderSimulationInput(string $field, string $label, array $sample, string $type, string $description = ''): void
+    {
+        $value = isset($sample[ $field ]) && is_scalar($sample[ $field ])
+            ? substr( (string) $sample[ $field ], 0, RoutingRuleNormalizer::MAX_MATCH_LENGTH)
+            : '';
+        $inputId = 'onesmtp-routing-simulation-' . $field;
+        echo '<p><label for="' . esc_attr($inputId) . '">' . esc_html($label) . '</label>';
+        if ($type === 'textarea') {
+            echo '<textarea id="' . esc_attr($inputId) . '" class="large-text" name="simulation_' . esc_attr($field) . '" rows="5" maxlength="' . esc_attr( (string) RoutingRuleNormalizer::MAX_MATCH_LENGTH) . '">' . esc_textarea($value) . '</textarea>';
+        } else {
+            echo '<input id="' . esc_attr($inputId) . '" class="regular-text" type="text" name="simulation_' . esc_attr($field) . '" value="' . esc_attr($value) . '" maxlength="' . esc_attr( (string) RoutingRuleNormalizer::MAX_MATCH_LENGTH) . '">';
+        }
+        if ($description !== '') {
+            echo '<span class="description">' . esc_html($description) . '</span>';
+        }
+        echo '</p>';
+    }
+
+    /**
+     * @param array<string,mixed> $result
+     */
+    private function renderSimulationResult(array $result): void
+    {
+        $status = (string) ($result['status'] ?? 'error');
+        $class = 'info';
+        $message = __('No matching rule. The normal healthy-provider route would handle this sample.', 'onesmtp');
+        if ($status === 'matched') {
+            $class = 'success';
+            $providerName = (string) ($result['provider_name'] ?? __('Unavailable provider', 'onesmtp'));
+            $ruleId = (int) ($result['rule_id'] ?? 0);
+            $message = sprintf(
+                /* translators: 1: rule ID, 2: provider name. */
+                __('Matched rule #%1$d; selected provider: %2$s.', 'onesmtp'),
+                $ruleId,
+                $providerName
+            );
+        } elseif ($status === 'sample_empty') {
+            $class = 'warning';
+            $message = __('Enter at least one sample field before simulating.', 'onesmtp');
+        } elseif ($status === 'candidate_empty') {
+            $class = 'warning';
+            $message = __('Add a candidate rule before simulating the unsaved rule set.', 'onesmtp');
+        } elseif ($status === 'candidate_invalid') {
+            $class = 'error';
+            $message = __('The candidate rule is invalid. Review its provider, condition, and bounded value.', 'onesmtp');
+        } elseif ($status === 'no_rules') {
+            $message = __('No saved routing rules are configured. The normal healthy-provider route would handle this sample.', 'onesmtp');
+        } elseif ($status === 'no_eligible_provider') {
+            $class = 'warning';
+            $message = __('No eligible provider was available. No message was sent or queued.', 'onesmtp');
+        } elseif ($status === 'pro_required') {
+            $class = 'warning';
+            $message = __('Routing simulation requires an enabled Pro capability.', 'onesmtp');
+        }
+
+        echo '<div class="notice notice-' . esc_attr($class) . ' inline" role="status" aria-live="polite"><p>' . esc_html($message) . '</p>';
+        $truncatedFields = isset($result['truncated_fields']) && is_array($result['truncated_fields']) ? $result['truncated_fields'] : [];
+        if ($truncatedFields !== []) {
+            echo '<p>' . esc_html__('Long sample values were bounded before matching: ', 'onesmtp') . esc_html(implode(', ', array_map(fn (mixed $field): string => $this->fieldLabel( (string) $field), $truncatedFields))) . '</p>';
+        }
+        echo '</div>';
+
+        $effects = isset($result['provider_effects']) && is_array($result['provider_effects']) ? $result['provider_effects'] : [];
+        if ($effects !== []) {
+            echo '<details class="onesmtp-routing-simulation-effects"><summary>' . esc_html__('Provider eligibility effects', 'onesmtp') . '</summary><ul>';
+            foreach (array_slice($effects, 0, 50) as $effect) {
+                if ( ! is_array($effect)) {
+                    continue;
+                }
+                $name = (string) ($effect['provider_name'] ?? __('Provider', 'onesmtp'));
+                $state = (string) ($effect['state'] ?? 'eligible');
+                $stateLabel = match ($state) {
+                    'inactive' => __('inactive', 'onesmtp'),
+                    'circuit_open' => __('skipped by open circuit breaker', 'onesmtp'),
+                    default => __('eligible', 'onesmtp'),
+                };
+                echo '<li>' . esc_html($name . ': ' . $stateLabel) . '</li>';
+            }
+            echo '</ul></details>';
+        }
     }
 
     /**
