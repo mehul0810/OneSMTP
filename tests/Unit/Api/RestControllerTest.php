@@ -244,6 +244,31 @@ final class RestControllerTest extends TestCase
         self::assertSame('invalid_provider_type', $result->get_error_code());
     }
 
+    public function test_free_rest_provider_updates_do_not_activate_pro_only_budget_fields(): void
+    {
+        $controller = $this->controllerWithoutConstructor();
+        $this->setControllerProperty($controller, 'providers', new ProviderRepository());
+        $GLOBALS['wpdb'] = new FakeWpdb();
+
+        $response = $controller->saveProvider(new WP_REST_Request([], [
+            'name' => 'Primary SMTP',
+            'adapter_type' => 'smtp',
+            'config' => [
+                'host' => 'smtp.example.test',
+                'quota_per_minute' => 10,
+                'quota_per_hour' => 20,
+                'quota_per_day' => 30,
+            ],
+        ]));
+
+        self::assertSame(201, $response->status);
+        $config = json_decode((string) $GLOBALS['wpdb']->inserts[0]['data']['config_json'], true);
+        self::assertSame('smtp.example.test', $config['host']);
+        self::assertArrayNotHasKey('quota_per_minute', $config);
+        self::assertArrayNotHasKey('quota_per_hour', $config);
+        self::assertArrayNotHasKey('quota_per_day', $config);
+    }
+
     public function test_list_providers_returns_safe_provider_config(): void
     {
         $GLOBALS['wpdb'] = new FakeWpdb();

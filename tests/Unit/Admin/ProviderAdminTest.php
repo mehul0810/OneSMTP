@@ -7,6 +7,7 @@ namespace OneSMTP\Tests\Unit\Admin;
 use OneSMTP\Admin\ProviderAdmin;
 use OneSMTP\Dns\DnsResolverInterface;
 use OneSMTP\Dns\DomainAuthenticationChecker;
+use OneSMTP\Product\FeatureGate;
 use OneSMTP\Repository\ProviderRepository;
 use OneSMTP\Security\SecretVault;
 use OneSMTP\Tests\Support\FakeWpdb;
@@ -116,6 +117,39 @@ final class ProviderAdminTest extends TestCase
         self::assertStringContainsString('Circuit closed', $output);
         self::assertStringNotContainsString('<script>alert(1)</script>', $output);
         self::assertStringNotContainsString('not-a-date', $output);
+    }
+
+    public function test_render_exposes_accessible_quota_controls_only_when_pro_is_enabled(): void
+    {
+        $GLOBALS['wpdb']->activeProviders = [
+            [
+                'id' => 9,
+                'name' => 'Budgeted SMTP',
+                'adapter_type' => 'smtp',
+                'priority' => 1,
+                'weight' => 1,
+                'is_active' => 1,
+                'circuit_state' => 'closed',
+                'config_json' => wp_json_encode([
+                    'host' => 'smtp.example.test',
+                    'quota_per_minute' => 7,
+                    'quota_per_hour' => 20,
+                    'quota_per_day' => 100,
+                ]),
+            ],
+        ];
+
+        ob_start();
+        (new ProviderAdmin(new ProviderRepository(), featureGate: new FeatureGate([
+            FeatureGate::PROVIDER_QUOTA_BUDGETS => true,
+        ], true)))->render();
+        $output = (string) ob_get_clean();
+
+        self::assertStringContainsString('Provider sending budget', $output);
+        self::assertStringContainsString('Per-minute attempts', $output);
+        self::assertStringContainsString('max="1000000"', $output);
+        self::assertStringContainsString('aria-describedby="onesmtp-provider-quota-help"', $output);
+        self::assertStringNotContainsString('quota[per_minute]', $output);
     }
 
     public function test_render_shows_quiet_suremail_analysis_card_without_global_notice_actions(): void
@@ -355,6 +389,45 @@ final class ProviderAdminTest extends TestCase
         self::assertStringContainsString('"credential_fields_updated":["api_key","password"]', $json);
         self::assertStringNotContainsString('secret-password', $json);
         self::assertStringNotContainsString('secret-api-key', $json);
+    }
+
+    public function test_pro_quota_post_is_clamped_and_audit_contains_only_safe_limits(): void
+    {
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = [
+            'onesmtp_provider_action' => 'save',
+            'onesmtp_provider_nonce' => 'test-nonce',
+            'name' => 'Budgeted SMTP',
+            'adapter_type' => 'smtp',
+            'priority' => '10',
+            'weight' => '1',
+            'is_active' => '1',
+            'config' => [
+                'host' => 'smtp.example.test',
+                'quota_per_minute' => '999999999999999999999999',
+                'quota_per_hour' => '-3',
+                'quota_per_day' => '',
+                'password' => 'secret-value',
+            ],
+        ];
+
+        $gate = new FeatureGate([FeatureGate::PROVIDER_QUOTA_BUDGETS => true], true);
+        try {
+            (new ProviderAdmin(new ProviderRepository(), featureGate: $gate))->handleRequest();
+        } catch (RuntimeException $e) {
+            self::assertSame('Aculect Mail provider admin redirected.', $e->getMessage());
+        }
+
+        $config = json_decode((string) $GLOBALS['wpdb']->inserts[0]['data']['config_json'], true);
+        self::assertSame(1000000, $config['quota_per_minute']);
+        self::assertSame(0, $config['quota_per_hour']);
+        self::assertSame(0, $config['quota_per_day']);
+        $audit = end($GLOBALS['wpdb']->inserts);
+        $json = (string) $audit['data']['context_json'];
+        self::assertStringContainsString('"quota_enabled":true', $json);
+        self::assertStringContainsString('"per_minute":1000000', $json);
+        self::assertStringNotContainsString('secret-value', $json);
+        self::assertStringNotContainsString('qa@example.com', $json);
     }
 
     public function test_update_preserves_unavailable_secret_when_secret_field_is_blank(): void

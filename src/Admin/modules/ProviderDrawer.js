@@ -127,6 +127,33 @@ const initialProviderConfig = ( type ) => {
 	return {};
 };
 
+const providerQuotaFields = [
+	[ 'quota_per_minute', __( 'Per-minute attempts', 'onesmtp' ) ],
+	[ 'quota_per_hour', __( 'Per-hour attempts', 'onesmtp' ) ],
+	[ 'quota_per_day', __( 'Per-day attempts', 'onesmtp' ) ],
+];
+
+const initialProviderQuota = () =>
+	providerQuotaFields.reduce( ( quota, [ field ] ) => {
+		quota[ field ] = '0';
+		return quota;
+	}, {} );
+
+const normalizeProviderQuota = ( storedConfig = {} ) =>
+	providerQuotaFields.reduce( ( quota, [ field ] ) => {
+		const value = storedConfig?.[ field ];
+		if ( value === '' || value === null || typeof value === 'undefined' ) {
+			quota[ field ] = '0';
+			return quota;
+		}
+
+		const number = Number( value );
+		quota[ field ] = Number.isFinite( number )
+			? String( Math.max( 0, Math.min( 1000000, Math.floor( number ) ) ) )
+			: '0';
+		return quota;
+	}, {} );
+
 const isSensitiveField = ( field ) =>
 	/pass|secret|token|api(?:_|-)?key|client_id/i.test( field );
 
@@ -174,6 +201,9 @@ export default function ProviderInlineSettings( { config } ) {
 	const [ isActive, setIsActive ] = useState( true );
 	const [ providerConfig, setProviderConfig ] = useState(
 		initialProviderConfig( type )
+	);
+	const [ providerQuota, setProviderQuota ] = useState(
+		initialProviderQuota()
 	);
 	const [ isSaving, setIsSaving ] = useState( false );
 	const [ notice, setNotice ] = useState( null );
@@ -227,6 +257,7 @@ export default function ProviderInlineSettings( { config } ) {
 		setWeight( 1 );
 		setIsActive( false );
 		setProviderConfig( initialProviderConfig( type ) );
+		setProviderQuota( initialProviderQuota() );
 		setNotice( null );
 		setIsConfirmingDelete( false );
 		setIsOpen( true );
@@ -249,6 +280,7 @@ export default function ProviderInlineSettings( { config } ) {
 		setWeight( Number( connection.weight ) || 1 );
 		setIsActive( Boolean( connection.isActive ) );
 		setProviderConfig( editableConfig( type, connection.config ) );
+		setProviderQuota( normalizeProviderQuota( connection.config ) );
 		setNotice( null );
 		setIsConfirmingDelete( false );
 		setIsOpen( true );
@@ -258,6 +290,11 @@ export default function ProviderInlineSettings( { config } ) {
 		setNotice( null );
 
 		try {
+			const configToSave = requestConfig( providerConfig, isEditing );
+			if ( config.quotaEnabled ) {
+				Object.assign( configToSave, providerQuota );
+			}
+
 			const response = await apiFetch( {
 				url: isEditing
 					? `${ config.endpoint }/${ editingId }`
@@ -270,7 +307,7 @@ export default function ProviderInlineSettings( { config } ) {
 					priority: Number( priority ) || 100,
 					weight: Number( weight ) || 1,
 					is_active: isActive,
-					config: requestConfig( providerConfig, isEditing ),
+					config: configToSave,
 				},
 			} );
 			const providerId = Number(
@@ -583,6 +620,53 @@ export default function ProviderInlineSettings( { config } ) {
 							) }
 						/>
 					</div>
+					{ config.quotaEnabled ? (
+						<fieldset
+							className="onesmtp-provider-quota"
+							aria-describedby="onesmtp-provider-quota-help"
+						>
+							<legend>
+								{ __( 'Provider sending budget', 'onesmtp' ) }
+							</legend>
+							<p
+								id="onesmtp-provider-quota-help"
+								className="description"
+							>
+								{ __(
+									'Count production send attempts for this provider across bounded windows. Enter 0 to disable a window; values above 1,000,000 are safely clamped.',
+									'onesmtp'
+								) }
+							</p>
+							{ providerQuotaFields.map( ( [ field, label ] ) => (
+								<TextControl
+									__next40pxDefaultSize
+									key={ field }
+									label={ label }
+									type="number"
+									min={ 0 }
+									max={ 1000000 }
+									value={ providerQuota[ field ] }
+									help={ __(
+										'0 disables this window.',
+										'onesmtp'
+									) }
+									onChange={ ( value ) =>
+										setProviderQuota( ( current ) => ( {
+											...current,
+											[ field ]: value,
+										} ) )
+									}
+								/>
+							) ) }
+						</fieldset>
+					) : (
+						<Notice status="info" isDismissible={ false }>
+							{ __(
+								'Per-provider sending budgets are available with Pro and remain disabled on this installation.',
+								'onesmtp'
+							) }
+						</Notice>
+					) }
 					<ToggleControl
 						label={ __( 'Activate for delivery', 'onesmtp' ) }
 						checked={ isActive }

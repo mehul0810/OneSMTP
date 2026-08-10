@@ -10,6 +10,8 @@ use OneSMTP\Providers\ProviderAdapterRegistry;
 use OneSMTP\Providers\ProviderDeliveryManager;
 use OneSMTP\Providers\ProviderTypes;
 use OneSMTP\Providers\ProviderTestService;
+use OneSMTP\Product\FeatureGate;
+use OneSMTP\Quota\ProviderQuotaSettingsKey;
 use OneSMTP\Repository\AttemptRepository;
 use OneSMTP\Repository\EventRepository;
 use OneSMTP\Repository\MessageRepository;
@@ -32,6 +34,7 @@ final class RestController
     private ProviderDeliveryManager $deliveryManager;
     private SenderIdentityRepository $senderIdentity;
     private ProviderTestService $providerTests;
+    private FeatureGate $featureGate;
 
     public function __construct(
         ProviderRepository $providers,
@@ -40,7 +43,8 @@ final class RestController
         SendPipeline $pipeline,
         ?ProviderAdapterRegistry $registry = null,
         ?SenderIdentityRepository $senderIdentity = null,
-        ?ProviderTestService $providerTests = null
+        ?ProviderTestService $providerTests = null,
+        ?FeatureGate $featureGate = null
     ) {
         $this->providers = $providers;
         $this->messages = $messages;
@@ -49,6 +53,7 @@ final class RestController
         $this->registry = $registry ?? new ProviderAdapterRegistry();
         $this->deliveryManager = new ProviderDeliveryManager($this->registry);
         $this->senderIdentity = $senderIdentity ?? new SenderIdentityRepository();
+        $this->featureGate = $featureGate ?? new FeatureGate();
         $this->providerTests = $providerTests ?? new ProviderTestService(
             $messages,
             $attempts,
@@ -556,10 +561,15 @@ final class RestController
     private function normalizeProviderConfig(array $config): array
     {
         $normalized = [];
+        $featureGate = isset($this->featureGate) ? $this->featureGate : new FeatureGate();
 
         foreach ($config as $key => $value) {
             $key = sanitize_key((string) $key);
             if ($key === '' || is_array($value) || is_object($value)) {
+                continue;
+            }
+
+            if (! $featureGate->isEnabled(FeatureGate::PROVIDER_QUOTA_BUDGETS) && in_array($key, ProviderQuotaSettingsKey::fields(), true)) {
                 continue;
             }
 

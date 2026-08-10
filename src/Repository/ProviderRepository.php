@@ -9,6 +9,8 @@ use OneSMTP\Providers\ProviderStateCache;
 use OneSMTP\Providers\ProviderTypes;
 use OneSMTP\Security\Redactor;
 use OneSMTP\Security\SecretVault;
+use OneSMTP\Quota\ProviderQuotaSettings;
+use OneSMTP\Quota\ProviderQuotaSettingsKey;
 
 final class ProviderRepository
 {
@@ -127,8 +129,10 @@ final class ProviderRepository
         $config = isset($provider['config']) && is_array($provider['config']) ? $provider['config'] : [];
         if ($id > 0) {
             $config = $this->preserveStoredSensitiveConfig($id, $config);
+            $config = $this->preserveStoredQuotaConfig($id, $config);
         }
 
+        $config = $this->normalizeQuotaConfig($config);
         $config = $this->encryptSecrets($config);
 
         $payload = [
@@ -331,6 +335,47 @@ final class ProviderRepository
         }
 
         return $config;
+    }
+
+    /**
+     * Keep an existing non-secret budget when a free/core update omits the
+     * Pro-only field. This preserves provider configuration without enabling
+     * quota enforcement on installations where the feature gate is absent.
+     *
+     * @param array<string,mixed> $config
+     * @return array<string,mixed>
+     */
+    private function preserveStoredQuotaConfig(int $providerId, array $config): array
+    {
+        if (array_intersect(ProviderQuotaSettingsKey::fields(), array_keys($config)) !== []) {
+            return $config;
+        }
+
+        $storedConfig = $this->getRawConfig($providerId);
+        $storedQuota = ProviderQuotaSettings::fromProviderConfig($storedConfig);
+        if (! $storedQuota->hasAnyLimit() && array_intersect(ProviderQuotaSettingsKey::fields(), array_keys($storedConfig)) === []) {
+            return $config;
+        }
+
+        $config = array_merge($config, $storedQuota->toProviderConfig());
+
+        return $config;
+    }
+
+    /**
+     * Normalize non-secret budget values at the storage boundary as a second
+     * line of defence for REST or extension callers that bypass the admin UI.
+     *
+     * @param array<string,mixed> $config
+     * @return array<string,mixed>
+     */
+    private function normalizeQuotaConfig(array $config): array
+    {
+        if (array_intersect(ProviderQuotaSettingsKey::fields(), array_keys($config)) === []) {
+            return $config;
+        }
+
+        return array_merge($config, ProviderQuotaSettings::fromProviderConfig($config)->toProviderConfig());
     }
 
     /**

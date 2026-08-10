@@ -59,6 +59,9 @@ $provider = [
         'password' => 'fixture-password-never-rendered',
         'from_email' => 'admin@example.test',
         'from_name' => 'Admin Sender',
+        'quota_per_minute' => 7,
+        'quota_per_hour' => 20,
+        'quota_per_day' => 100,
     ]),
     'created_at' => '2026-06-26 10:00:00',
     'updated_at' => '2026-06-26 10:00:00',
@@ -157,6 +160,21 @@ $GLOBALS['wpdb']->eventRows = [
         ]),
         'created_at' => '2026-06-26 09:45:00',
     ],
+    43 => [
+        'id' => 43,
+        'event_type' => 'terminal_failure',
+        'actor_id' => null,
+        'message_id' => 19,
+        'provider_id' => 7,
+        'context_json' => wp_json_encode([
+            'summary' => 'Provider quota deferred until the next capacity window.',
+            'reason' => 'provider_quota_deferred',
+            'attempt' => 2,
+            'retry_after' => 120,
+            'next_capacity_at' => '2026-06-26 10:07:00',
+        ]),
+        'created_at' => '2026-06-26 09:47:00',
+    ],
 ];
 $GLOBALS['wpdb']->eventAcknowledgementRows = [
     [
@@ -241,6 +259,7 @@ $queue = new QueueDiagnostics(
 $featureFlags = [
     FeatureGate::ADVANCED_ANALYTICS => true,
     FeatureGate::COMPLIANCE_CONTROLS => true,
+    FeatureGate::PROVIDER_QUOTA_BUDGETS => true,
 ];
 if (getenv('ONESMTP_PLAYWRIGHT_PRO_ROUTING') === '1') {
     $featureFlags[FeatureGate::SMART_ROUTING] = true;

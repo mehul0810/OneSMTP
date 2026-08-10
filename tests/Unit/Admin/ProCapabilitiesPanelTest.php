@@ -35,6 +35,7 @@ final class ProCapabilitiesPanelTest extends TestCase
 
         self::assertStringContainsString('Smart routing rules', $output);
         self::assertStringContainsString('Enabled', $output);
-        self::assertSame(5, substr_count($output, 'disabled aria-disabled="true"'));
+        self::assertStringContainsString('Provider sending budgets', $output);
+        self::assertSame(6, substr_count($output, 'disabled aria-disabled="true"'));
     }
 }

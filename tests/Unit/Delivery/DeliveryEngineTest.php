@@ -11,6 +11,8 @@ use OneSMTP\Providers\ProviderAdapterRegistry;
 use OneSMTP\Providers\ProviderConfig;
 use OneSMTP\Providers\ProviderDeliveryManager;
 use OneSMTP\Providers\SendResult;
+use OneSMTP\Product\FeatureGate;
+use OneSMTP\Quota\ProviderQuotaManager;
 use OneSMTP\Repository\AttemptRepository;
 use OneSMTP\Repository\EventRepository;
 use OneSMTP\Repository\ProviderRepository;
@@ -93,6 +95,49 @@ final class DeliveryEngineTest extends TestCase
         self::assertSame('provider_pool_exhausted', $context['reason'] ?? null);
     }
 
+    public function test_quota_exhausted_provider_is_skipped_when_another_provider_is_available(): void
+    {
+        $now = 1700000000;
+        $since = gmdate('Y-m-d H:i:s', $now - 60);
+        $GLOBALS['wpdb']->activeProviders = [
+            ['id' => 100, 'adapter_type' => 'missing', 'is_active' => 1, 'priority' => 1, 'weight' => 1, 'config_json' => wp_json_encode(['quota_per_minute' => 1])],
+            ['id' => 200, 'adapter_type' => 'missing', 'is_active' => 1, 'priority' => 2, 'weight' => 1, 'config_json' => '{}'],
+        ];
+        $GLOBALS['wpdb']->providerRowsById[200] = $GLOBALS['wpdb']->activeProviders[1];
+        $GLOBALS['wpdb']->providerAttemptWindowStatsByProviderSince['100|' . $since] = [
+            'attempt_count' => 1,
+            'oldest_created_at' => gmdate('Y-m-d H:i:s', $now - 30),
+        ];
+
+        $engine = $this->buildEngine(new FeatureGate([FeatureGate::PROVIDER_QUOTA_BUDGETS => true], true), $now);
+        $outcome = $engine->deliver(505, 1, ['to' => ['qa@example.com'], 'subject' => 'quota skip']);
+
+        self::assertFalse($outcome->isSuccess());
+        self::assertFalse($outcome->isDeferred());
+        self::assertSame(200, $outcome->getProviderId());
+    }
+
+    public function test_all_quota_exhausted_providers_return_typed_deferral_without_terminal_event(): void
+    {
+        $now = 1700000000;
+        $since = gmdate('Y-m-d H:i:s', $now - 60);
+        $GLOBALS['wpdb']->activeProviders = [
+            ['id' => 100, 'adapter_type' => 'missing', 'is_active' => 1, 'priority' => 1, 'weight' => 1, 'config_json' => wp_json_encode(['quota_per_minute' => 1])],
+        ];
+        $GLOBALS['wpdb']->providerAttemptWindowStatsByProviderSince['100|' . $since] = [
+            'attempt_count' => 1,
+            'oldest_created_at' => gmdate('Y-m-d H:i:s', $now - 30),
+        ];
+
+        $engine = $this->buildEngine(new FeatureGate([FeatureGate::PROVIDER_QUOTA_BUDGETS => true], true), $now);
+        $outcome = $engine->deliver(506, 2, ['to' => ['qa@example.com'], 'subject' => 'quota defer']);
+
+        self::assertTrue($outcome->isDeferred());
+        self::assertSame('provider_quota_deferred', $outcome->getCode());
+        self::assertSame(30, $outcome->getRetryAfter());
+        self::assertNull($this->findEventInsert('terminal_failure'));
+    }
+
     public function test_forced_provider_override_rejects_ineligible_provider_without_fallback(): void
     {
         $GLOBALS['wpdb']->activeProviders = [
@@ -167,14 +212,21 @@ final class DeliveryEngineTest extends TestCase
         self::assertSame(125, $outcome->getLatencyMs());
     }
 
-    private function buildEngine(): DeliveryEngine
+    private function buildEngine(?FeatureGate $featureGate = null, ?int $now = null): DeliveryEngine
     {
+        $attempts = new AttemptRepository();
+        $quota = $featureGate !== null
+            ? new ProviderQuotaManager($attempts, $featureGate, static fn (): int => $now ?? time())
+            : null;
+
         return new DeliveryEngine(
             new ProviderRepository(),
-            new AttemptRepository(),
+            $attempts,
             new DefaultDispatchPolicy(),
             null,
-            new EventRepository()
+            new EventRepository(),
+            null,
+            $quota
         );
     }
 
