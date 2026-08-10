@@ -159,6 +159,9 @@ final class FakeWpdb
     /** @var array<int,string> */
     public array $existingTables = [];
 
+    /** @var array<string,array<int,string>> */
+    public array $existingColumnsByTable = [];
+
     public function get_charset_collate(): string
     {
         return 'DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci';
@@ -778,6 +781,16 @@ final class FakeWpdb
             $table = stripslashes((string) ($preparedArgs[0] ?? ''));
 
             return in_array($table, $this->existingTables, true) ? $table : null;
+        }
+        if (str_contains($preparedQuery, 'SHOW COLUMNS FROM ')) {
+            if (preg_match('/SHOW COLUMNS FROM ([^ ]+) LIKE %s/', $preparedQuery, $matches) !== 1) {
+                return null;
+            }
+
+            $table = (string) $matches[1];
+            $column = stripslashes((string) ($preparedArgs[0] ?? ''));
+
+            return in_array($column, $this->existingColumnsByTable[ $table ] ?? [], true) ? $column : null;
         }
         if (str_contains($preparedQuery, $this->prefix . 'onesmtp_quota_leases') && str_contains($preparedQuery, 'COUNT(*)')) {
             $providerId = (int) ($preparedArgs[0] ?? 0);

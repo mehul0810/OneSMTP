@@ -241,4 +241,45 @@ final class DatabaseSchema
 
         return true;
     }
+
+    /**
+     * Return additive columns that must exist before the schema can be marked
+     * current. The map is intentionally bounded to columns introduced by a
+     * plugin-owned migration rather than mirroring every table definition.
+     *
+     * @return array<string,array<int,string>>
+     */
+    public static function requiredColumns(): array
+    {
+        return [
+            TableNames::suppressionDerivations() => [ 'claim_token' ],
+        ];
+    }
+
+    public static function verifyRequiredColumns(): bool
+    {
+        global $wpdb;
+
+        foreach (self::requiredColumns() as $table => $columns) {
+            foreach ($columns as $column) {
+                // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared -- Table names are returned only by the plugin-owned required-column map.
+                $sql = $wpdb->prepare(
+                    'SHOW COLUMNS FROM ' . $table . ' LIKE %s',
+                    $wpdb->esc_like($column)
+                );
+                // phpcs:enable WordPress.DB.PreparedSQL.NotPrepared
+                if ( ! is_string($sql) ) {
+                    return false;
+                }
+
+                // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- The query is prepared immediately above.
+                $foundColumn = $wpdb->get_var($sql);
+                if ( (string) $foundColumn !== $column ) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
 }

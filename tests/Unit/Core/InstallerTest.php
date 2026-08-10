@@ -6,6 +6,7 @@ namespace OneSMTP\Tests\Unit\Core;
 
 use OneSMTP\Core\Installer;
 use OneSMTP\Core\DatabaseSchema;
+use OneSMTP\Core\TableNames;
 use OneSMTP\Tests\Support\FakeWpdb;
 use PHPUnit\Framework\TestCase;
 
@@ -15,6 +16,7 @@ final class InstallerTest extends TestCase
     {
         $GLOBALS['wpdb'] = new FakeWpdb();
         $GLOBALS['wpdb']->existingTables = DatabaseSchema::requiredTables();
+        $GLOBALS['wpdb']->existingColumnsByTable = DatabaseSchema::requiredColumns();
         $GLOBALS['onesmtp_test_options'] = [];
         $GLOBALS['onesmtp_test_dbdelta_queries'] = [];
         unset($GLOBALS['onesmtp_test_throw_on_update_option'], $GLOBALS['onesmtp_test_throw_on_get_option']);
@@ -155,5 +157,41 @@ final class InstallerTest extends TestCase
         self::assertSame(Installer::SCHEMA_VERSION, get_option(Installer::SCHEMA_VERSION_OPTION));
         self::assertSame((string) constant('ONESMTP_VERSION'), get_option(Installer::VERSION_OPTION));
         self::assertCount(count(DatabaseSchema::requiredTables()) * 2, $GLOBALS['onesmtp_test_dbdelta_queries']);
+    }
+
+    public function test_v2_schema_retries_when_claim_token_column_is_missing_after_dbdelta(): void
+    {
+        $GLOBALS['onesmtp_test_options'][Installer::VERSION_OPTION]['value'] = (string) constant('ONESMTP_VERSION');
+        $GLOBALS['onesmtp_test_options'][Installer::SCHEMA_VERSION_OPTION]['value'] = Installer::SCHEMA_VERSION - 1;
+        $GLOBALS['wpdb']->existingColumnsByTable[ TableNames::suppressionDerivations() ] = [ 'claimXtoken' ];
+
+        Installer::maybeUpgrade();
+
+        self::assertSame(Installer::SCHEMA_VERSION - 1, get_option(Installer::SCHEMA_VERSION_OPTION));
+        self::assertCount(count(DatabaseSchema::requiredTables()), $GLOBALS['onesmtp_test_dbdelta_queries']);
+
+        $GLOBALS['wpdb']->existingColumnsByTable = DatabaseSchema::requiredColumns();
+        Installer::maybeUpgrade();
+
+        self::assertSame(Installer::SCHEMA_VERSION, get_option(Installer::SCHEMA_VERSION_OPTION));
+        self::assertCount(count(DatabaseSchema::requiredTables()) * 2, $GLOBALS['onesmtp_test_dbdelta_queries']);
+    }
+
+    public function test_current_schema_with_missing_claim_token_retries_without_staying_false_current(): void
+    {
+        $GLOBALS['onesmtp_test_options'][Installer::VERSION_OPTION]['value'] = (string) constant('ONESMTP_VERSION');
+        $GLOBALS['onesmtp_test_options'][Installer::SCHEMA_VERSION_OPTION]['value'] = Installer::SCHEMA_VERSION;
+        $GLOBALS['wpdb']->existingColumnsByTable[ TableNames::suppressionDerivations() ] = [ 'claimXtoken' ];
+
+        Installer::maybeUpgrade();
+
+        self::assertSame(Installer::SCHEMA_VERSION, get_option(Installer::SCHEMA_VERSION_OPTION));
+        self::assertCount(count(DatabaseSchema::requiredTables()), $GLOBALS['onesmtp_test_dbdelta_queries']);
+
+        $GLOBALS['wpdb']->existingColumnsByTable = DatabaseSchema::requiredColumns();
+        Installer::maybeUpgrade();
+
+        self::assertSame(Installer::SCHEMA_VERSION, get_option(Installer::SCHEMA_VERSION_OPTION));
+        self::assertCount(count(DatabaseSchema::requiredTables()), $GLOBALS['onesmtp_test_dbdelta_queries']);
     }
 }
