@@ -43,6 +43,15 @@ not a claim that a plan, license, purchase flow, or upgrade URL is available.
 The candidate has no purchase CTA, license activation path, hosted service,
 pricing, tier, site-count, support/SLA, telemetry, or privacy promise.
 
+## Visual reference
+
+These fixture-backed captures show the candidate Advanced panel after the
+multisite release tip was merged. The files are committed evidence, contain no
+credentials or message data, and include both desktop and narrow viewport
+states: [desktop panel screenshot](screenshots/issue-57/pro-capabilities-panel-desktop.png)
+and [mobile panel screenshot](screenshots/issue-57/pro-capabilities-panel-mobile.png).
+For the full claim context and captions, see the [0.4.0 claim ledger](../release/0.4.0-pro-claim-ledger.md#screenshot-inventory).
+
 ## Planned or excluded boundaries
 
 The following are not shipped by this candidate and must not be presented as

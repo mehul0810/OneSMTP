@@ -67,7 +67,9 @@ The filters above are internal integration points for the candidate runtime and
 fixtures, not a supported way to activate paid behavior. Do not add license
 activation, purchase URLs, pricing, tiers, hosted-service claims, telemetry,
 privacy promises, or public schema changes here. Owner-gated issues #40, #50,
-#63, #64, and #66, plus issue #51, remain planned/excluded from this candidate.
+#51, #54, #63, #64, and #66 remain planned/excluded from this candidate.
+Provider quota windows and sending budgets from [issue #54](https://github.com/mehul0810/aculect-mail/issues/54)
+are not a shipped control while that issue remains open.
 
 The additive provider adapter catalog in
 [`provider-adapters.md`](provider-adapters.md) is a developer extension
