@@ -5,13 +5,14 @@ declare(strict_types=1);
 namespace OneSMTP\Tests\Unit\Dispatch;
 
 use OneSMTP\Dispatch\RoutingRuleEvaluator;
+use OneSMTP\Product\FeatureGate;
 use PHPUnit\Framework\TestCase;
 
 final class RoutingRuleEvaluatorTest extends TestCase
 {
     public function test_first_matching_rule_wins_after_deterministic_priority_ordering(): void
     {
-        $evaluator = new RoutingRuleEvaluator();
+        $evaluator = $this->enabledEvaluator();
 
         self::assertSame(22, $evaluator->evaluate(
             [
@@ -45,7 +46,7 @@ final class RoutingRuleEvaluatorTest extends TestCase
 
     public function test_same_priority_rules_keep_configured_order(): void
     {
-        $evaluator = new RoutingRuleEvaluator();
+        $evaluator = $this->enabledEvaluator();
 
         self::assertSame(11, $evaluator->evaluate(
             [
@@ -67,7 +68,7 @@ final class RoutingRuleEvaluatorTest extends TestCase
 
     public function test_no_match_returns_null_for_default_dispatch_fallback(): void
     {
-        $evaluator = new RoutingRuleEvaluator();
+        $evaluator = $this->enabledEvaluator();
 
         self::assertNull($evaluator->evaluate(
             [
@@ -89,7 +90,7 @@ final class RoutingRuleEvaluatorTest extends TestCase
 
     public function test_disabled_invalid_and_ineligible_rules_are_skipped_safely(): void
     {
-        $evaluator = new RoutingRuleEvaluator();
+        $evaluator = $this->enabledEvaluator();
 
         self::assertSame(33, $evaluator->evaluate(
             [
@@ -122,7 +123,7 @@ final class RoutingRuleEvaluatorTest extends TestCase
 
     public function test_privacy_sensitive_fields_are_not_eligible_for_matching(): void
     {
-        $evaluator = new RoutingRuleEvaluator();
+        $evaluator = $this->enabledEvaluator();
 
         self::assertNull($evaluator->evaluate(
             [
@@ -154,6 +155,87 @@ final class RoutingRuleEvaluatorTest extends TestCase
         ));
     }
 
+    public function test_sender_recipient_subject_content_and_source_conditions_match_in_one_rule(): void
+    {
+        $evaluator = $this->enabledEvaluator();
+
+        self::assertSame(22, $evaluator->evaluate(
+            [
+                [
+                    'provider_id' => 22,
+                    'conditions' => [
+                        [
+							'field' => 'sender',
+							'operator' => 'equals',
+							'value' => 'billing@example.test',
+						],
+                        [
+							'field' => 'recipient',
+							'operator' => 'contains',
+							'value' => '@customer.test',
+						],
+                        [
+							'field' => 'subject',
+							'operator' => 'starts_with',
+							'value' => '[Invoice]',
+						],
+                        [
+							'field' => 'content',
+							'operator' => 'contains',
+							'value' => 'payment due',
+						],
+                        [
+							'field' => 'source_slug',
+							'operator' => 'equals',
+							'value' => 'checkout',
+						],
+                    ],
+                ],
+            ],
+            [
+                'sender' => ['billing@example.test'],
+                'recipient' => ['person@customer.test', 'copy@example.test'],
+                'subject' => '[Invoice] April',
+                'content' => 'Your payment due date is April 30.',
+                'source_slug' => 'checkout',
+            ],
+            $this->providers()
+        ));
+    }
+
+    public function test_matching_is_bounded_and_regex_like_operators_fail_closed(): void
+    {
+        $evaluator = $this->enabledEvaluator();
+        $longContent = str_repeat('x', 4096) . 'needle';
+
+        self::assertNull($evaluator->evaluate(
+            [
+                [
+                    'provider_id' => 22,
+                    'conditions' => [
+                        [
+							'field' => 'content',
+							'operator' => 'contains',
+							'value' => 'needle',
+						],
+                    ],
+                ],
+                [
+                    'provider_id' => 33,
+                    'conditions' => [
+                        [
+							'field' => 'content',
+							'operator' => 'regex',
+							'value' => '.*',
+						],
+                    ],
+                ],
+            ],
+            ['content' => $longContent],
+            $this->providers()
+        ));
+    }
+
     /**
      * @return array<int,array<string,mixed>>
      */
@@ -179,5 +261,10 @@ final class RoutingRuleEvaluatorTest extends TestCase
                 'is_active' => 1,
             ],
         ];
+    }
+
+    private function enabledEvaluator(): RoutingRuleEvaluator
+    {
+        return new RoutingRuleEvaluator(new FeatureGate([FeatureGate::SMART_ROUTING => true], true));
     }
 }
