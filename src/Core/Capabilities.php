@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace OneSMTP\Core;
 
+use OneSMTP\Product\FeatureGate;
+
 final class Capabilities
 {
     public const MANAGE_PLUGIN = 'manage_onesmtp';
@@ -71,5 +73,20 @@ final class Capabilities
     public static function canResendEmails(): bool
     {
         return current_user_can(self::RESEND_EMAILS) || current_user_can('manage_options');
+    }
+
+    public static function canManageNetwork(?FeatureGate $featureGate = null): bool
+    {
+        return function_exists('is_multisite')
+            && is_multisite()
+            && function_exists('is_network_admin')
+            && is_network_admin()
+            && ($featureGate ?? FeatureGate::fromRuntime())->isEnabled(FeatureGate::MULTISITE_MANAGEMENT)
+            && current_user_can('manage_network_options');
+    }
+
+    public static function canViewNetworkLogs(?FeatureGate $featureGate = null): bool
+    {
+        return self::canManageNetwork($featureGate);
     }
 }

@@ -127,6 +127,10 @@ final class FakeWpdb
 
     public bool $failAdvancedQueries = false;
 
+    public bool $throwOnMessageQueries = false;
+
+    public bool $throwOnProviderQueries = false;
+
     public bool $suppressErrors = false;
 
     public function get_charset_collate(): string
@@ -327,6 +331,13 @@ final class FakeWpdb
         $query = $isPreparedQuery ? $prepared['query'] : $sql;
         $args = $isPreparedQuery ? $prepared['args'] : [];
 
+        if ($this->throwOnMessageQueries && str_contains($query, $this->prefix . 'onesmtp_messages')) {
+            throw new \RuntimeException('Synthetic message query failure.');
+        }
+        if ($this->throwOnProviderQueries && str_contains($query, $this->prefix . 'onesmtp_providers')) {
+            throw new \RuntimeException('Synthetic provider query failure.');
+        }
+
         if ($this->failAdvancedQueries && str_contains($query, 'created_at < %s')) {
             $this->last_error = 'synthetic advanced report query failure';
 
@@ -455,7 +466,7 @@ final class FakeWpdb
             && str_contains($query, 'FROM ' . $this->prefix . 'onesmtp_attempts')
             && str_contains($query, 'attempt_count')
         ) {
-            return $this->recentMessageRows;
+            return $this->filterRecentMessageRows($query, $args);
         }
 
         if (
@@ -487,6 +498,10 @@ final class FakeWpdb
 
     public function get_var(string $sql): int
     {
+        if ($this->throwOnMessageQueries && str_contains($sql, $this->prefix . 'onesmtp_messages')) {
+            throw new \RuntimeException('Synthetic message query failure.');
+        }
+
         $prepared = $this->lastPrepared;
         $preparedQuery = is_array($prepared) ? (string) ($prepared['query'] ?? '') : '';
         $preparedArgs = is_array($prepared) && isset($prepared['args']) && is_array($prepared['args']) ? $prepared['args'] : [];
@@ -512,7 +527,7 @@ final class FakeWpdb
             str_contains($sql, $this->prefix . 'onesmtp_messages')
             && str_contains($sql, 'SELECT COUNT(*)')
         ) {
-            return $this->filteredMessageCount > 0 ? $this->filteredMessageCount : count($this->recentMessageRows);
+            return $this->filteredMessageCount > 0 ? $this->filteredMessageCount : count($this->filterRecentMessageRows($sql, []));
         }
 
         $prepared = $this->lastPrepared;
@@ -524,7 +539,7 @@ final class FakeWpdb
             str_contains($prepared['query'], $this->prefix . 'onesmtp_messages')
             && str_contains($prepared['query'], 'SELECT COUNT(*)')
         ) {
-            return $this->filteredMessageCount > 0 ? $this->filteredMessageCount : count($this->recentMessageRows);
+            return $this->filteredMessageCount > 0 ? $this->filteredMessageCount : count($this->filterRecentMessageRows($prepared['query'], $prepared['args']));
         }
 
         if (
@@ -546,6 +561,76 @@ final class FakeWpdb
         }
 
         return 0;
+    }
+
+    /**
+     * Apply the subset of MessageRepository's log WHERE contract used by the
+     * network fixture. This keeps fixture pagination and counts faithful to
+     * the prepared SQL instead of returning every synthetic row.
+     *
+     * @param array<int,mixed> $args
+     * @return array<int,array<string,mixed>>
+     */
+    private function filterRecentMessageRows(string $query, array $args): array
+    {
+        $rows = $this->recentMessageRows;
+        $argIndex = 0;
+        if (str_contains($query, 'status = %s')) {
+            $status = (string) ($args[$argIndex++] ?? '');
+            $rows = array_values(array_filter($rows, static fn (array $row): bool => (string) ($row['status'] ?? '') === $status));
+        }
+        if (str_contains($query, 'selected_provider_id = %d')) {
+            $providerId = (int) ($args[$argIndex++] ?? 0);
+            $rows = array_values(array_filter($rows, static fn (array $row): bool => (int) ($row['selected_provider_id'] ?? 0) === $providerId));
+        }
+        if (str_contains($query, 'created_at >= %s')) {
+            $dateFrom = (string) ($args[$argIndex++] ?? '');
+            $rows = array_values(array_filter($rows, static fn (array $row): bool => (string) ($row['created_at'] ?? '') >= $dateFrom));
+        }
+        if (str_contains($query, 'created_at <= %s')) {
+            $dateTo = (string) ($args[$argIndex++] ?? '');
+            $rows = array_values(array_filter($rows, static fn (array $row): bool => (string) ($row['created_at'] ?? '') <= $dateTo));
+        }
+        $hasDirectRecipientFilter = str_contains($query, 'WHERE m.recipients_hash = %s')
+            || str_contains($query, 'AND m.recipients_hash = %s');
+        if ($hasDirectRecipientFilter) {
+            $recipientHash = (string) ($args[$argIndex++] ?? '');
+            $rows = array_values(array_filter($rows, static fn (array $row): bool => (string) ($row['recipients_hash'] ?? '') === $recipientHash));
+        }
+        if (str_contains($query, 'message_uuid LIKE %s')) {
+            $searchPattern = (string) ($args[$argIndex++] ?? '');
+            $search = trim(str_replace(['\\%', '\\_', '\\\\'], ['%', '_', '\\'], $searchPattern), '%');
+            $recipientHash = null;
+            $searchId = null;
+            if (str_contains($query, ' OR m.recipients_hash = %s')) {
+                $recipientHash = (string) ($args[$argIndex++] ?? '');
+            }
+            if (str_contains($query, ' OR m.id = %d')) {
+                $searchId = (int) ($args[$argIndex++] ?? 0);
+            }
+            $rows = array_values(array_filter($rows, static function (array $row) use ($search, $recipientHash, $searchId): bool {
+                return stripos((string) ($row['message_uuid'] ?? ''), $search) !== false
+                    || ($recipientHash !== null && (string) ($row['recipients_hash'] ?? '') === $recipientHash)
+                    || ($searchId !== null && (int) ($row['id'] ?? 0) === $searchId);
+            }));
+        }
+
+        usort($rows, static fn (array $left, array $right): int => (int) ($right['id'] ?? 0) <=> (int) ($left['id'] ?? 0));
+        if (str_contains($query, 'LIMIT %d OFFSET %d')) {
+            $limit = max(1, (int) ($args[count($args) - 2] ?? 1));
+            $offset = max(0, (int) ($args[count($args) - 1] ?? 0));
+
+            // Some legacy unit fixtures provide one representative row while
+            // overriding the total count; keep that row visible for page-link
+            // assertions without weakening filtering for real fixture data.
+            if ($this->filteredMessageCount > 0 && count($rows) < $offset + $limit) {
+                return $rows;
+            }
+
+            return array_slice($rows, $offset, $limit);
+        }
+
+        return $rows;
     }
 
     private function handleQuotaLeaseQuery(string $sql): int
