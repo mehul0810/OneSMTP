@@ -51,9 +51,9 @@ final class ProCapabilitiesPanel
                 'availability' => 'shipped',
             ],
             FeatureGate::PROVIDER_EVENTS => [
-                'label' => __('Provider events and suppression', 'onesmtp'),
-                'description' => __('Provider event ingestion and suppression controls are planned. Current provider delivery, tests, and logs remain available without them.', 'onesmtp'),
-                'availability' => 'planned',
+                'label' => __('Provider event ingestion', 'onesmtp'),
+                'description' => __('Mailgun delivery events are ingested into privacy-safe site-local records when enabled. Bounce and complaint suppression controls remain planned.', 'onesmtp'),
+                'availability' => 'shipped',
             ],
             FeatureGate::ADVANCED_ANALYTICS => [
                 'label' => __('Advanced analytics', 'onesmtp'),

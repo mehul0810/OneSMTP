@@ -8,6 +8,7 @@ final class Redactor
 {
     private const MASK = '[REDACTED]';
     private const SECRET_PATTERNS = [
+        '/((["\']?)webhook[_-]?signing[_-]?key\2\s*[=:]\s*)(["\']?)([^"\'\s,;}]+)\3/i',
         '/(api(?:_|-)?key\s*[=:]\s*)([^\s,;]+)/i',
         '/(token\s*[=:]\s*)([^\s,;]+)/i',
         '/(authorization\s*:\s*bearer\s+)([^\s,;]+)/i',
@@ -61,7 +62,7 @@ final class Redactor
         $key = strtolower(trim($key));
 
         return (bool) preg_match(
-            '/pass|secret|token|api(?:_|-)?key|authorization|oauth|(^|_)(recipient|recipients|raw_recipient|raw_recipients|message_body|raw_body|header|headers|raw_headers|payload|payload_json|raw_payload)(?!_count)(_|$)/',
+            '/pass|secret|token|api(?:_|-)?key|signing|authorization|oauth|(^|_)(recipient|recipients|raw_recipient|raw_recipients|message_body|raw_body|header|headers|raw_headers|payload|payload_json|raw_payload)(?!_count)(_|$)/',
             $key
         );
     }

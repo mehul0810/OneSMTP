@@ -255,6 +255,7 @@ final class RestControllerTest extends TestCase
             'adapter_type' => 'smtp',
             'config' => [
                 'host' => 'smtp.example.test',
+                'webhook_signing_key' => 'must-not-be-accepted',
                 'quota_per_minute' => 10,
                 'quota_per_hour' => 20,
                 'quota_per_day' => 30,
@@ -264,6 +265,7 @@ final class RestControllerTest extends TestCase
         self::assertSame(201, $response->status);
         $config = json_decode((string) $GLOBALS['wpdb']->inserts[0]['data']['config_json'], true);
         self::assertSame('smtp.example.test', $config['host']);
+        self::assertArrayNotHasKey('webhook_signing_key', $config);
         self::assertArrayNotHasKey('quota_per_minute', $config);
         self::assertArrayNotHasKey('quota_per_hour', $config);
         self::assertArrayNotHasKey('quota_per_day', $config);

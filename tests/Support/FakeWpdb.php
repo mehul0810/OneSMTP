@@ -102,6 +102,21 @@ final class FakeWpdb
     /** @var array<int,array<string,mixed>> */
     public array $eventRows = [];
 
+    /** @var array<string,int> */
+    public array $providerEventRowsByHash = [];
+
+    /** @var array<string,array<string,mixed>> */
+    public array $providerEventReplayRowsByHash = [];
+
+    /** @var array<string,array<string,mixed>> */
+    public array $providerEventRowsByReplayToken = [];
+
+    /** @var array<int|string,array<string,mixed>> */
+    public array $providerEventRows = [];
+
+    /** @var array<string,int> */
+    public array $providerEventMessageIds = [];
+
     /** @var array<string,array{lease_type:string,provider_id:?int,owner_token:string,expires_at:string,created_at:string}> */
     public array $quotaLeaseRows = [];
 
@@ -133,9 +148,17 @@ final class FakeWpdb
 
     public bool $suppressErrors = false;
 
+    /** @var array<int,string> */
+    public array $existingTables = [];
+
     public function get_charset_collate(): string
     {
         return 'DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci';
+    }
+
+    public function esc_like(string $text): string
+    {
+        return addcslashes($text, '_%\\');
     }
 
     public function insert(string $table, array $data, array $format): int
@@ -178,6 +201,70 @@ final class FakeWpdb
     {
         if (str_contains($sql, $this->prefix . 'onesmtp_quota_leases')) {
             return $this->handleQuotaLeaseQuery($sql);
+        }
+
+        if (str_contains($sql, $this->prefix . 'onesmtp_provider_events')) {
+            $this->queries[] = $sql;
+            $args = is_array($this->lastPrepared) ? ($this->lastPrepared['args'] ?? []) : [];
+
+            if (str_starts_with(strtoupper(ltrim($sql)), 'UPDATE')) {
+                $messageId = (int) ($args[0] ?? 0);
+                $providerId = (int) ($args[1] ?? 0);
+                $providerMessageId = (string) ($args[2] ?? '');
+                foreach ($this->providerEventRows as &$row) {
+                    if ((int) ($row['provider_id'] ?? 0) === $providerId && (string) ($row['provider_message_id'] ?? '') === $providerMessageId && ($row['message_id'] ?? null) === null) {
+                        $row['message_id'] = $messageId;
+                    }
+                }
+                unset($row);
+
+                return 1;
+            }
+
+            $hash = '';
+            $hashes = [];
+            foreach ($args as $arg) {
+                if (is_string($arg) && preg_match('/\A[a-f0-9]{64}\z/D', $arg) === 1) {
+                    $hashes[] = $arg;
+                }
+            }
+            $hash = $hashes[0] ?? '';
+            if ($hash !== '') {
+                if (isset($this->providerEventRowsByHash[$hash])) {
+                    return 0;
+                }
+
+                $this->insert_id++;
+                $this->providerEventRowsByHash[$hash] = $this->insert_id;
+                $this->providerEventRowsByReplayToken[$hashes[2] ?? ''] = [
+                    'id' => $this->insert_id,
+                    'external_event_hash' => $hash,
+                    'event_data_hash' => $hashes[1] ?? null,
+                ];
+            }
+
+            return 1;
+        }
+
+        if (str_contains($sql, $this->prefix . 'onesmtp_provider_event_replays') && str_contains(strtoupper($sql), 'INSERT INTO')) {
+            $this->queries[] = $sql;
+            $args = is_array($this->lastPrepared) ? ($this->lastPrepared['args'] ?? []) : [];
+            $replayHash = (string) ($args[1] ?? '');
+            if ($replayHash === '') {
+                return false;
+            }
+            if (isset($this->providerEventReplayRowsByHash[$replayHash])) {
+                return 0;
+            }
+
+            $this->insert_id++;
+            $this->providerEventReplayRowsByHash[$replayHash] = [
+                'id' => $this->insert_id,
+                'event_data_hash' => (string) ($args[2] ?? ''),
+                'external_event_hash' => (string) ($args[3] ?? ''),
+            ];
+
+            return 1;
         }
 
         $this->queries[] = $sql;
@@ -223,6 +310,36 @@ final class FakeWpdb
             $messageId = isset($args[0]) ? (int) $args[0] : 0;
 
             return $this->messageRowsById[$messageId] ?? null;
+        }
+
+        if (str_contains($query, $this->prefix . 'onesmtp_provider_events')) {
+            if (str_contains($query, 'replay_token_hash = %s')) {
+                $replayHash = (string) ($args[0] ?? '');
+                if (isset($this->providerEventRowsByReplayToken[$replayHash])) {
+                    return $this->providerEventRowsByReplayToken[$replayHash];
+                }
+            }
+
+            if (str_contains($query, 'external_event_hash = %s')) {
+                $externalHash = (string) ($args[1] ?? '');
+                foreach ($this->providerEventRowsByReplayToken as $row) {
+                    if (($row['external_event_hash'] ?? '') === $externalHash) {
+                        return $row;
+                    }
+                }
+                if (isset($this->providerEventRowsByHash[$externalHash])) {
+                    return [
+                        'external_event_hash' => $externalHash,
+                        'event_data_hash' => null,
+                    ];
+                }
+            }
+        }
+
+        if (str_contains($query, $this->prefix . 'onesmtp_provider_event_replays') && str_contains($query, 'replay_token_hash = %s')) {
+            $replayHash = (string) ($args[0] ?? '');
+
+            return $this->providerEventReplayRowsByHash[$replayHash] ?? null;
         }
 
         if (
@@ -496,7 +613,7 @@ final class FakeWpdb
         return [];
     }
 
-    public function get_var(string $sql): int
+    public function get_var(string $sql): mixed
     {
         if ($this->throwOnMessageQueries && str_contains($sql, $this->prefix . 'onesmtp_messages')) {
             throw new \RuntimeException('Synthetic message query failure.');
@@ -505,6 +622,12 @@ final class FakeWpdb
         $prepared = $this->lastPrepared;
         $preparedQuery = is_array($prepared) ? (string) ($prepared['query'] ?? '') : '';
         $preparedArgs = is_array($prepared) && isset($prepared['args']) && is_array($prepared['args']) ? $prepared['args'] : [];
+
+        if (str_contains($preparedQuery, 'SHOW TABLES LIKE %s')) {
+            $table = stripslashes((string) ($preparedArgs[0] ?? ''));
+
+            return in_array($table, $this->existingTables, true) ? $table : null;
+        }
         if (str_contains($preparedQuery, $this->prefix . 'onesmtp_quota_leases') && str_contains($preparedQuery, 'COUNT(*)')) {
             $providerId = (int) ($preparedArgs[0] ?? 0);
             $now = strtotime((string) ($preparedArgs[1] ?? '')) ?: 0;
@@ -521,6 +644,12 @@ final class FakeWpdb
             }
 
             return $count;
+        }
+
+        if (str_contains($preparedQuery, $this->prefix . 'onesmtp_attempts') && str_contains($preparedQuery, 'provider_message_id = %s')) {
+            $key = (string) ($preparedArgs[0] ?? '') . '|' . (string) ($preparedArgs[1] ?? '');
+
+            return (int) ($this->providerEventMessageIds[$key] ?? 0);
         }
 
         if (

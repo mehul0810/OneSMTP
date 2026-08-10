@@ -30,7 +30,6 @@ test.describe( 'Aculect Mail admin browser smoke', () => {
 			false,
 			testInfo.title.includes( 'Pro routing simulation' )
 		);
-
 		await page.route(
 			'https://example.org/wp-admin/options-general.php**',
 			async ( route ) => {
@@ -192,6 +191,74 @@ test.describe( 'Aculect Mail admin browser smoke', () => {
 				'config[port]': '2525',
 				'config[username]': 'browser-smoke',
 			} );
+	} );
+
+	test( 'renders the gated Mailgun webhook setup contract at desktop and narrow widths', async ( {
+		page,
+	} ) => {
+		const proHtml = renderAdminFixture( true );
+		await page.unroute(
+			'https://example.org/wp-admin/options-general.php**'
+		);
+		await page.route(
+			'https://example.org/wp-admin/options-general.php**',
+			async ( route ) => {
+				await route.fulfill( {
+					status: 200,
+					contentType: 'text/html; charset=utf-8',
+					body: proHtml,
+				} );
+			}
+		);
+		await page.goto( adminUrl );
+		await openWorkspace( page, 'Providers', 'onesmtp-providers' );
+		const mailgunConfig = page.locator(
+			'[data-provider-type="mailgun"] [data-onesmtp-provider-config]'
+		);
+		await expect( mailgunConfig ).toHaveAttribute(
+			'data-onesmtp-provider-config',
+			/providerEventsEnabled/
+		);
+		await expect( mailgunConfig ).toHaveAttribute(
+			'data-onesmtp-provider-config',
+			/onesmtp.*v1.*webhooks.*mailgun/
+		);
+
+		await expect(
+			page.locator(
+				'#onesmtp-provider-form input[name="config[webhook_signing_key]"]'
+			)
+		).toHaveCount( 0 );
+		await page.screenshot( {
+			path: 'output/playwright/screenshots/issue-63-provider-webhook-desktop.png',
+			fullPage: true,
+		} );
+
+		await page.setViewportSize( { width: 390, height: 844 } );
+		await page.screenshot( {
+			path: 'output/playwright/screenshots/issue-63-provider-webhook-mobile.png',
+			fullPage: true,
+		} );
+	} );
+
+	test( 'hides Mailgun webhook controls when provider events are disabled', async ( {
+		page,
+	} ) => {
+		await openWorkspace( page, 'Providers', 'onesmtp-providers' );
+		const mailgunConfig = page.locator(
+			'[data-provider-type="mailgun"] [data-onesmtp-provider-config]'
+		);
+		await expect( mailgunConfig ).toHaveAttribute(
+			'data-onesmtp-provider-config',
+			/"providerEventsEnabled":false/
+		);
+
+		await expect( page.locator( '#onesmtp-provider-form' ) ).toBeVisible();
+		await expect(
+			page.locator(
+				'#onesmtp-provider-form input[name="config[webhook_signing_key]"]'
+			)
+		).toHaveCount( 0 );
 	} );
 
 	test( 'renders Pro provider budgets with bounded accessible controls', async ( {
@@ -363,7 +430,7 @@ test.describe( 'Aculect Mail admin browser smoke', () => {
 		await expect( proCapabilities ).toContainText( 'Available with Pro' );
 		await expect(
 			proCapabilities.getByRole( 'button', { name: 'Requires Pro' } )
-		).toHaveCount( 6 );
+		).toHaveCount( 7 );
 		await expect(
 			proCapabilities
 				.getByRole( 'button', { name: 'Requires Pro' } )
@@ -383,6 +450,49 @@ test.describe( 'Aculect Mail admin browser smoke', () => {
 		await expect(
 			page.locator( '#onesmtp-diagnostic-preview' )
 		).not.toContainText( 'smtp.local.test' );
+	} );
+
+	test( 'renders candidate provider-event capability state with screenshots', async ( {
+		page,
+	} ) => {
+		const proHtml = renderAdminFixture( true );
+		await page.unroute(
+			'https://example.org/wp-admin/options-general.php**'
+		);
+		await page.route(
+			'https://example.org/wp-admin/options-general.php**',
+			async ( route ) => {
+				await route.fulfill( {
+					status: 200,
+					contentType: 'text/html; charset=utf-8',
+					body: proHtml,
+				} );
+			}
+		);
+		await page.goto(
+			`${ adminUrl }?tab=onesmtp-advanced#onesmtp-advanced`
+		);
+
+		const proCapabilities = page.locator( '.onesmtp-pro-capabilities' );
+		await expect( proCapabilities ).toContainText(
+			'Mailgun delivery events are ingested into privacy-safe site-local records'
+		);
+		await expect( proCapabilities ).toContainText(
+			'Bounce and complaint suppression controls remain planned'
+		);
+		await expect(
+			proCapabilities.getByText( 'Enabled', { exact: true } )
+		).toHaveCount( 4 );
+		await page.screenshot( {
+			path: 'output/playwright/screenshots/issue-63-provider-events-capabilities-desktop.png',
+			fullPage: true,
+		} );
+
+		await page.setViewportSize( { width: 390, height: 844 } );
+		await page.screenshot( {
+			path: 'output/playwright/screenshots/issue-63-provider-events-capabilities-mobile.png',
+			fullPage: true,
+		} );
 	} );
 
 	test( 'renders compliance retention and export profile controls with screenshots', async ( {

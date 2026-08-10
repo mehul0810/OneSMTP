@@ -22,6 +22,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Pro-gated per-provider sending budgets for bounded minute, hour, and day windows, deterministic capacity-aware routing, and typed queue deferrals without message or recipient metadata.
 - Attachment-bearing quota deferrals fail closed before UUID resolution or scheduling with safe terminal metadata when sanitized retry data cannot reproduce files.
 - Candidate Pro onboarding, default-deny fallback boundaries, planned exclusions, and claim evidence are documented without purchase, licensing, pricing, or upgrade claims.
+- Candidate Mailgun webhook ingestion behind `provider_events`, with strict HTTPS/JSON bounds, five-minute timestamp skew, encrypted signing-key storage, a dedicated hashed replay-token claim store, normalized privacy-safe event records, and suppression enforcement explicitly deferred to #64.
 
 ## [0.3.0] - Unreleased
 

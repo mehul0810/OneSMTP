@@ -37,6 +37,13 @@ if (! defined('DAY_IN_SECONDS')) {
     define('DAY_IN_SECONDS', 86400);
 }
 
+if (! function_exists('wp_salt')) {
+    function wp_salt(string $scheme = 'auth'): string
+    {
+        return (string) ($GLOBALS['onesmtp_test_wp_salt'] ?? str_repeat('fixture-wp-managed-salt-', 4));
+    }
+}
+
 if (! defined('WEEK_IN_SECONDS')) {
     define('WEEK_IN_SECONDS', 604800);
 }

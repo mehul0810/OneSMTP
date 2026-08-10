@@ -17,6 +17,8 @@ final class DatabaseSchema
         $attemptsTable  = TableNames::attempts();
         $eventsTable    = TableNames::events();
         $quotaLeasesTable = TableNames::quotaLeases();
+        $providerEventsTable = TableNames::providerEvents();
+        $providerEventReplaysTable = TableNames::providerEventReplays();
 
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
@@ -82,6 +84,7 @@ final class DatabaseSchema
             KEY result (result),
             KEY failure_category (failure_category),
             UNIQUE KEY message_attempt (message_id, attempt_no),
+            KEY provider_message_id (provider_id, provider_message_id),
             KEY provider_result_time (provider_id, result, created_at),
             KEY created_at (created_at)
         ) {$charsetCollate};";
@@ -113,10 +116,88 @@ final class DatabaseSchema
             KEY expires_at (expires_at)
         ) {$charsetCollate};";
 
+        $providerEventsSql = "CREATE TABLE {$providerEventsTable} (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            provider VARCHAR(64) NOT NULL,
+            provider_id BIGINT UNSIGNED NULL,
+            message_id BIGINT UNSIGNED NULL,
+            provider_message_id VARCHAR(128) NULL,
+            event_type VARCHAR(20) NOT NULL,
+            occurred_at DATETIME NOT NULL,
+            external_event_hash CHAR(64) NOT NULL,
+            event_data_hash CHAR(64) NULL,
+            replay_token_hash CHAR(64) NULL,
+            recipient_fingerprint CHAR(64) NULL,
+            created_at DATETIME NOT NULL,
+            PRIMARY KEY  (id),
+            UNIQUE KEY external_event_hash (external_event_hash),
+            UNIQUE KEY replay_token_hash (replay_token_hash),
+            KEY provider_message_id (provider_id, provider_message_id),
+            KEY message_id (message_id),
+            KEY event_data_hash (event_data_hash),
+            KEY event_type (event_type),
+            KEY occurred_at (occurred_at),
+            KEY created_at (created_at)
+        ) {$charsetCollate};";
+
+        $providerEventReplaysSql = "CREATE TABLE {$providerEventReplaysTable} (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            provider VARCHAR(64) NOT NULL,
+            replay_token_hash CHAR(64) NOT NULL,
+            event_data_hash CHAR(64) NOT NULL,
+            external_event_hash CHAR(64) NOT NULL,
+            created_at DATETIME NOT NULL,
+            PRIMARY KEY  (id),
+            UNIQUE KEY replay_token_hash (replay_token_hash),
+            KEY external_event_hash (external_event_hash),
+            KEY created_at (created_at)
+        ) {$charsetCollate};";
+
         dbDelta($providersSql);
         dbDelta($messagesSql);
         dbDelta($attemptsSql);
         dbDelta($eventsSql);
         dbDelta($quotaLeasesSql);
+        dbDelta($providerEventsSql);
+        dbDelta($providerEventReplaysSql);
+    }
+
+    /**
+     * Return every plugin-owned table that must exist before schema migration
+     * can be marked current.
+     *
+     * @return array<int,string>
+     */
+    public static function requiredTables(): array
+    {
+        return [
+            TableNames::providers(),
+            TableNames::messages(),
+            TableNames::attempts(),
+            TableNames::events(),
+            TableNames::quotaLeases(),
+            TableNames::providerEvents(),
+            TableNames::providerEventReplays(),
+        ];
+    }
+
+    public static function verifyRequiredTables(): bool
+    {
+        global $wpdb;
+
+        foreach (self::requiredTables() as $table) {
+            $sql = $wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($table));
+            if ( ! is_string($sql) ) {
+                return false;
+            }
+
+            // phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- The query is prepared immediately above.
+            $foundTable = $wpdb->get_var($sql);
+            if ( (string) $foundTable !== $table ) {
+                return false;
+            }
+        }
+
+        return true;
     }
 }

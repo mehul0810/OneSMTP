@@ -9,6 +9,7 @@ import {
 	ToggleControl,
 } from '@wordpress/components';
 import { __ } from '@wordpress/i18n';
+import { filterProviderConfig } from './providerConfigFilter';
 
 const fieldsByType = {
 	smtp: [
@@ -34,6 +35,11 @@ const fieldsByType = {
 		[ 'api_key', __( 'Private API key', 'onesmtp' ), 'password' ],
 		[ 'domain', __( 'Sending domain', 'onesmtp' ) ],
 		[ 'region', __( 'API region (us or eu)', 'onesmtp' ) ],
+		[
+			'webhook_signing_key',
+			__( 'Mailgun webhook signing key', 'onesmtp' ),
+			'password',
+		],
 	],
 	resend: [ [ 'api_key', __( 'API key', 'onesmtp' ), 'password' ] ],
 	mailjet: [
@@ -155,7 +161,7 @@ const normalizeProviderQuota = ( storedConfig = {} ) =>
 	}, {} );
 
 const isSensitiveField = ( field ) =>
-	/pass|secret|token|api(?:_|-)?key|client_id/i.test( field );
+	/pass|secret|token|api(?:_|-)?key|signing|client_id/i.test( field );
 
 const editableConfig = ( type, storedConfig = {} ) =>
 	Object.entries( storedConfig ).reduce(
@@ -174,8 +180,10 @@ const editableConfig = ( type, storedConfig = {} ) =>
 		{ ...initialProviderConfig( type ) }
 	);
 
-const requestConfig = ( providerConfig, isEditing ) =>
-	Object.entries( providerConfig ).reduce( ( config, [ field, value ] ) => {
+const requestConfig = ( providerConfig, isEditing, providerEventsEnabled ) =>
+	Object.entries(
+		filterProviderConfig( providerConfig, providerEventsEnabled )
+	).reduce( ( config, [ field, value ] ) => {
 		if (
 			isEditing &&
 			isSensitiveField( field ) &&
@@ -190,6 +198,7 @@ const requestConfig = ( providerConfig, isEditing ) =>
 
 export default function ProviderInlineSettings( { config } ) {
 	const type = config.type || 'smtp';
+	const providerEventsEnabled = config.providerEventsEnabled === true;
 	const connections = Array.isArray( config.connections )
 		? config.connections
 		: [];
@@ -290,7 +299,11 @@ export default function ProviderInlineSettings( { config } ) {
 		setNotice( null );
 
 		try {
-			const configToSave = requestConfig( providerConfig, isEditing );
+			const configToSave = requestConfig(
+				providerConfig,
+				isEditing,
+				providerEventsEnabled
+			);
 			if ( config.quotaEnabled ) {
 				Object.assign( configToSave, providerQuota );
 			}
@@ -524,8 +537,13 @@ export default function ProviderInlineSettings( { config } ) {
 							'onesmtp'
 						) }
 					/>
-					{ ( fieldsByType[ type ] || [] ).map(
-						( [ field, label, inputType = 'text' ] ) =>
+					{ ( fieldsByType[ type ] || [] )
+						.filter(
+							( [ field ] ) =>
+								field !== 'webhook_signing_key' ||
+								providerEventsEnabled
+						)
+						.map( ( [ field, label, inputType = 'text' ] ) =>
 							inputType === 'number' ? (
 								<TextControl
 									__next40pxDefaultSize
@@ -564,6 +582,38 @@ export default function ProviderInlineSettings( { config } ) {
 									}
 								/>
 							)
+						) }
+					{ type === 'mailgun' && providerEventsEnabled && (
+						<div className="onesmtp-provider-field-note onesmtp-mailgun-webhook-guidance">
+							<strong>
+								{ __( 'Mailgun delivery webhook', 'onesmtp' ) }
+							</strong>
+							<p>
+								{ __(
+									'In Mailgun, open Webhooks, add a JSON POST webhook, and paste this HTTPS endpoint:',
+									'onesmtp'
+								) }
+							</p>
+							<code className="onesmtp-mailgun-webhook-endpoint">
+								{ config.webhookEndpoint ||
+									__(
+										'Save the site URL before configuring Mailgun.',
+										'onesmtp'
+									) }
+							</code>
+							<p>
+								{ __(
+									'Select delivered, permanent failure, temporary failure, and spam complaint events. The signing key above verifies the timestamp and token; a subaccount parent-signature is accepted with the primary account key.',
+									'onesmtp'
+								) }
+							</p>
+							<p>
+								{ __(
+									'Use HTTPS end to end and enforce a 64 KiB request cap at your proxy/PHP layer. WordPress may buffer the request before this callback; oversized bodies are still rejected before ingestion.',
+									'onesmtp'
+								) }
+							</p>
+						</div>
 					) }
 					{ type === 'amazon_ses' && (
 						<p className="onesmtp-provider-field-note">

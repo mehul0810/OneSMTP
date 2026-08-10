@@ -1357,6 +1357,8 @@
 .onesmtp-provider-inline-heading p { margin:0; color:#50575e; }
 .onesmtp-provider-inline-settings > .components-base-control { max-width:640px; }
 .onesmtp-provider-field-note { max-width:640px; margin:-4px 0 18px; padding:10px 12px; border-left:3px solid #3858e9; background:#fff; color:#50575e; }
+.onesmtp-mailgun-webhook-guidance p { margin:8px 0 0; }
+.onesmtp-mailgun-webhook-endpoint { display:block; max-width:100%; margin-top:8px; overflow-wrap:anywhere; white-space:normal; }
 .onesmtp-provider-form { margin-top:20px; }
 .onesmtp-provider-form > summary { cursor:pointer; font-weight:600; }
 .onesmtp-workspace-actions {

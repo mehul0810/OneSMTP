@@ -200,9 +200,13 @@ final class ProviderAdmin
                 'connectionCount' => $connectionCount,
                 'connections' => $this->connectionEditorData($connections),
                 'endpoint' => rest_url('onesmtp/v1/providers'),
+                'webhookEndpoint' => $type === ProviderTypes::MAILGUN && $this->featureGate->isEnabled(FeatureGate::PROVIDER_EVENTS)
+                    ? (string) preg_replace('/\Ahttp:/i', 'https:', rest_url('onesmtp/v1/webhooks/mailgun'))
+                    : '',
                 'nonce' => wp_create_nonce('wp_rest'),
                 'adminEmail' => sanitize_email((string) get_option('admin_email')),
                 'quotaEnabled' => $this->featureGate->isEnabled(FeatureGate::PROVIDER_QUOTA_BUDGETS),
+                'providerEventsEnabled' => $this->featureGate->isEnabled(FeatureGate::PROVIDER_EVENTS),
             ];
 
             echo '<article class="onesmtp-provider-list-item" data-provider-type="' . esc_attr((string) $type) . '">';
@@ -316,7 +320,14 @@ final class ProviderAdmin
         echo '</label></td></tr>';
 
         foreach ($this->configFields() as $field => $label) {
-            $type = str_contains($field, 'password') || str_contains($field, 'secret') || str_contains($field, 'token') || str_contains($field, 'api_key') ? 'password' : 'text';
+            // The provider-specific drawer is the only supported Mailgun
+            // webhook setup surface. The legacy generic form has no provider
+            // context, so never expose this Mailgun-only field here.
+            if ($field === 'webhook_signing_key') {
+                continue;
+            }
+
+            $type = str_contains($field, 'password') || str_contains($field, 'secret') || str_contains($field, 'token') || str_contains($field, 'api_key') || str_contains($field, 'signing') ? 'password' : 'text';
             $this->renderTextInput('config[' . $field . ']', $label, '', $type);
         }
 
@@ -397,6 +408,7 @@ final class ProviderAdmin
             'from_email' => __('From email', 'onesmtp'),
             'from_name' => __('From name', 'onesmtp'),
             'dkim_selector' => __('DKIM selector', 'onesmtp'),
+            'webhook_signing_key' => __('Mailgun webhook signing key', 'onesmtp'),
         ];
     }
 
@@ -446,7 +458,7 @@ final class ProviderAdmin
 
     private function isSensitiveConfigField(string $field): bool
     {
-        return (bool) preg_match('/pass|secret|token|api(?:_|-)?key|client_id/i', $field);
+        return (bool) preg_match('/pass|secret|token|api(?:_|-)?key|signing|client_id/i', $field);
     }
 
     /**
@@ -636,6 +648,10 @@ final class ProviderAdmin
         $posted = isset($_POST['config']) && is_array($_POST['config']) ? wp_unslash($_POST['config']) : [];
 
         foreach ($this->configFields() as $field => $label) {
+            if ($field === 'webhook_signing_key' && ! $this->featureGate->isEnabled(FeatureGate::PROVIDER_EVENTS)) {
+                continue;
+            }
+
             if (! array_key_exists($field, $posted)) {
                 continue;
             }
@@ -675,7 +691,7 @@ final class ProviderAdmin
 
     private function isSensitiveField(string $field): bool
     {
-        return (bool) preg_match('/pass|secret|token|api(?:_|-)?key/i', $field);
+        return (bool) preg_match('/pass|secret|token|api(?:_|-)?key|signing/i', $field);
     }
 
     private function normalizePostedPositiveInteger(string $field, int $default): int

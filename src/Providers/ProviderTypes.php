@@ -405,6 +405,7 @@ final class ProviderTypes
                 'api_key' => $apiKey,
                 'domain' => self::credentialField('string', true, false, 255),
                 'region' => $region,
+                'webhook_signing_key' => self::credentialField('string', false, true, 512),
                 'timeout' => $timeout,
             ],
             self::RESEND => ['api_key' => $apiKey, 'timeout' => $timeout],

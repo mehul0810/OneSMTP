@@ -20,19 +20,24 @@ final class AttemptRepository
     {
         global $wpdb;
 
+        $providerId = isset($data['provider_id']) && (int) $data['provider_id'] > 0 ? (int) $data['provider_id'] : null;
+        $providerMessageId = isset($data['provider_message_id']) && trim((string) $data['provider_message_id']) !== ''
+            ? (string) $data['provider_message_id']
+            : null;
+
         $inserted = $wpdb->insert(
             TableNames::attempts(),
             [
                 'message_id'           => (int) $data['message_id'],
                 'attempt_no'           => (int) $data['attempt_no'],
-                'provider_id'          => isset($data['provider_id']) ? (int) $data['provider_id'] : null,
+                'provider_id'          => $providerId,
                 'trigger_type'         => (string) ($data['trigger_type'] ?? 'initial'),
                 'result'               => (string) ($data['result'] ?? 'fail'),
                 'error_code'           => isset($data['error_code']) ? (string) $data['error_code'] : null,
                 'error_message'        => isset($data['error_message']) ? (string) $data['error_message'] : null,
                 'failure_category'     => isset($data['failure_category']) ? (string) $data['failure_category'] : null,
                 'latency_ms'           => isset($data['latency_ms']) ? (int) $data['latency_ms'] : null,
-                'provider_message_id'  => isset($data['provider_message_id']) ? (string) $data['provider_message_id'] : null,
+                'provider_message_id'  => $providerMessageId,
                 'created_at'           => current_time('mysql', true),
             ],
             ['%d', '%d', '%d', '%s', '%s', '%s', '%s', '%s', '%d', '%s', '%s']
@@ -42,7 +47,12 @@ final class AttemptRepository
             return 0;
         }
 
-        return (int) $wpdb->insert_id;
+        $attemptId = (int) $wpdb->insert_id;
+        if ($attemptId > 0 && $providerId !== null && $providerMessageId !== null) {
+            (new ProviderEventRepository())->backfillMessageId($providerId, $providerMessageId, (int) $data['message_id']);
+        }
+
+        return $attemptId;
     }
 
     public function getAttemptCountForMessage(int $messageId): int
