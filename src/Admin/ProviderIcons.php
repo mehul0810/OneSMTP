@@ -22,6 +22,31 @@ final class ProviderIcons
             'view_box' => '0 0 24 24',
             'body' => '<rect x="2.5" y="4.5" width="19" height="15" rx="2.5" fill="#52627B"/><path d="m4.4 7 7.6 5.6L19.6 7" fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/>',
         ],
+        // Legacy metadata names remain supported as bundled local marks.
+        'envelope' => [
+            'view_box' => '0 0 24 24',
+            'body' => '<rect x="2.5" y="4.5" width="19" height="15" rx="2.5" fill="#52627B"/><path d="m4.4 7 7.6 5.6L19.6 7" fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"/>',
+        ],
+        'cloud' => [
+            'view_box' => '0 0 24 24',
+            'body' => '<path d="M7.2 18.7h9.7a4.1 4.1 0 0 0 .6-8.16A5.8 5.8 0 0 0 6.4 9.6a4.55 4.55 0 0 0 .8 9.1Z" fill="#5B7DB1" stroke="#fff" stroke-width="1.2"/>',
+        ],
+        'server-stack' => [
+            'view_box' => '0 0 24 24',
+            'body' => '<rect x="3" y="4" width="18" height="6" rx="1.5" fill="#6B7280"/><rect x="3" y="14" width="18" height="6" rx="1.5" fill="#4B5563"/><circle cx="6.5" cy="7" r=".9" fill="#fff"/><circle cx="6.5" cy="17" r=".9" fill="#fff"/>',
+        ],
+        'paper-airplane' => [
+            'view_box' => '0 0 24 24',
+            'body' => '<path d="m3 11.2 18-7.2-5.7 16-3.8-6.2z" fill="#4C85C5" stroke="#fff" stroke-linejoin="round" stroke-width="1.2"/><path d="m11.5 13.8 9.5-9.8" fill="none" stroke="#fff" stroke-width="1.2"/>',
+        ],
+        'inbox' => [
+            'view_box' => '0 0 24 24',
+            'body' => '<path d="M4 5.5h16l2 9.5v3.5a1.5 1.5 0 0 1-1.5 1.5h-17A1.5 1.5 0 0 1 2 18.5V15z" fill="#F59E0B" stroke="#fff" stroke-width="1.2"/><path d="M2.4 15h5.2l1.5 2h5.8l1.5-2h5.2" fill="none" stroke="#fff" stroke-linejoin="round" stroke-width="1.2"/>',
+        ],
+        'bolt' => [
+            'view_box' => '0 0 24 24',
+            'body' => '<path d="m13.5 2-8 11h5.2L9.8 22l8.7-12h-5.1z" fill="#10B981" stroke="#fff" stroke-linejoin="round" stroke-width="1.2"/>',
+        ],
         'amazon_ses' => [
             'view_box' => '0 0 256 256',
             'body' => '<defs><linearGradient id="onesmtp-aws-ses-gradient" x1="0%" x2="100%" y1="100%" y2="0%"><stop offset="0%" stop-color="#BD0816"/><stop offset="100%" stop-color="#FF5252"/></linearGradient></defs><path fill="url(#onesmtp-aws-ses-gradient)" d="M0 0h256v256H0z"/><path fill="#fff" d="M182.4 195.2c0-5.204-4.397-9.6-9.6-9.6s-9.6 4.396-9.6 9.6s4.397 9.6 9.6 9.6s9.6-4.397 9.6-9.6M128 192c-5.203 0-9.6 4.396-9.6 9.6s4.397 9.6 9.6 9.6s9.6-4.397 9.6-9.6c0-5.204-4.397-9.6-9.6-9.6m-44.8-6.4c-5.203 0-9.6 4.396-9.6 9.6s4.397 9.6 9.6 9.6s9.6-4.397 9.6-9.6m8.336-48.001h72.928l-24.5-22.046l-9.887 8.474a3.18 3.18 0 0 1-2.08.771a3.18 3.18 0 0 1-2.08-.77l-9.885-8.475zM86.4 90.155v43.46l24.733-22.26zm77.75-3.757h-72.3l36.147 30.986zm5.45 47.217v-43.46l-24.733 21.197zm19.2 61.585c0 8.672-7.328 16-16 16s-16-7.328-16-16c0-7.581 5.6-14.132 12.8-15.661v-9.94h-38.4v16.34c7.2 1.53 12.8 8.08 12.8 15.66c0 8.673-7.328 16.001-16 16.001s-16-7.328-16-16c0-7.581 5.6-14.132 12.8-15.661v-16.34H86.4v9.94c7.2 1.53 12.8 8.08 12.8 15.66c0 8.673-7.328 16.001-16 16s-16-7.327-16-16c0-7.58 5.6-14.13 12.8-15.66v-13.14a3.2 3.2 0 0 1 3.2-3.2h41.6v-19.2H83.2a3.2 3.2 0 0 1-3.2-3.2V83.198a3.2 3.2 0 0 1 3.2-3.2h89.6a3.2 3.2 0 0 1 3.2 3.2v57.6a3.2 3.2 0 0 1-3.2 3.2h-41.6V163.2h41.6a3.2 3.2 0 0 1 3.2 3.2v13.14c7.2 1.53 12.8 8.08 12.8 15.66m28.8-67.202c0 18.903-5.834 36.993-16.874 52.305l-5.193-3.744c10.25-14.218 15.667-31.008 15.667-48.56c0-45.873-37.322-83.199-83.197-83.199c-45.878 0-83.203 37.326-83.203 83.198c0 17.553 5.418 34.343 15.667 48.561l-5.193 3.744C44.234 164.991 38.4 146.901 38.4 127.998c0-49.402 40.195-89.598 89.597-89.598c49.405 0 89.603 40.196 89.603 89.598"/>',
@@ -95,6 +120,11 @@ final class ProviderIcons
             'body' => '<circle cx="12" cy="12" r="10" fill="#6A36C9"/><path d="M7 17V7h2.4l5.2 6.1V7H17v10h-2.3L9.4 10.9V17z" fill="#fff"/>',
         ],
     ];
+
+    public static function exists(string $type): bool
+    {
+        return isset(self::ICONS[ $type ]);
+    }
 
     public static function render(string $type): string
     {
