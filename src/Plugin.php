@@ -13,6 +13,7 @@ use OneSMTP\Diagnostics\DiagnosticReportGenerator;
 use OneSMTP\Delivery\DeliveryEngine;
 use OneSMTP\Dispatch\DefaultDispatchPolicy;
 use OneSMTP\Logging\RetentionPruner;
+use OneSMTP\Alerts\FailureAlertDispatcher;
 use OneSMTP\Pipeline\SenderIdentityApplier;
 use OneSMTP\Pipeline\SendPipeline;
 use OneSMTP\Providers\ProviderStateCache;
@@ -29,6 +30,7 @@ use OneSMTP\Settings\BackgroundSendingSettingsRepository;
 use OneSMTP\Settings\SenderIdentityRepository;
 use OneSMTP\Settings\SimulationModeSettingsRepository;
 use OneSMTP\Summary\WeeklySummaryMailer;
+use OneSMTP\Product\FeatureGate;
 
 final class Plugin
 {
@@ -38,11 +40,12 @@ final class Plugin
 
         $dispatchPolicy = new DefaultDispatchPolicy();
         $deliveryOwnership = new MailDeliveryOwnership();
+        $featureGate = FeatureGate::fromWordPress();
 
         $messages  = new MessageRepository();
         $attempts  = new AttemptRepository();
         $providers = new ProviderRepository();
-        $events    = new EventRepository();
+        $events    = new EventRepository(new FailureAlertDispatcher(null, null, $featureGate));
         $stateCache = new ProviderStateCache();
         $stateCache->registerInvalidationHooks();
 
@@ -54,7 +57,7 @@ final class Plugin
         $weeklySummary = new WeeklySummaryMailer(null, new MetricsRepository());
         $weeklySummary->registerHooks();
 
-        $deliveryEngine = new DeliveryEngine($providers, $attempts, $dispatchPolicy);
+        $deliveryEngine = new DeliveryEngine($providers, $attempts, $dispatchPolicy, null, $events);
         $rateLimiter = new RateLimiter($attempts);
         $backgroundSending = new BackgroundSendingSettingsRepository();
         $senderIdentity = new SenderIdentityApplier();
@@ -84,7 +87,9 @@ final class Plugin
             null,
             null,
             null,
-            $deliveryOwnership
+            $deliveryOwnership,
+            null,
+            $featureGate
         );
         $adminPage->registerHooks();
 

@@ -6,6 +6,7 @@ namespace OneSMTP\Tests\Unit\Admin;
 
 use OneSMTP\Admin\SettingsAdmin;
 use OneSMTP\Conflict\MailDeliveryOwnership;
+use OneSMTP\Product\FeatureGate;
 use OneSMTP\Tests\Support\FakeWpdb;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
@@ -395,6 +396,81 @@ final class SettingsAdminTest extends TestCase
         self::assertSame([], get_option('onesmtp_settings', []));
         self::assertStringContainsString('onesmtp_settings_status=invalid', (string) $GLOBALS['onesmtp_test_redirect']['location']);
         self::assertStringContainsString('webhook+URL+must+be+a+valid+HTTPS+URL', (string) $GLOBALS['onesmtp_test_redirect']['location']);
+    }
+
+    public function test_pro_advanced_alert_settings_save_with_nonce_and_multiple_destinations(): void
+    {
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = [
+            'onesmtp_settings_action' => 'save_advanced_alerts',
+            'onesmtp_settings_nonce' => 'test-nonce',
+            'onesmtp_return_tab' => 'onesmtp-advanced',
+            'failure_alert_advanced_enabled' => '1',
+            'failure_alert_advanced_destinations' => "email:ops@example.test\nwebhook:https://hooks.example.test/escalations",
+            'failure_alert_escalation_failure_threshold' => '4',
+            'failure_alert_high_priority_message_types' => "password_reset\norder_update",
+        ];
+
+        $admin = new SettingsAdmin(featureGate: new FeatureGate([
+            FeatureGate::ADVANCED_ALERTS => true,
+        ], true));
+
+        try {
+            $admin->handleRequest();
+        } catch (RuntimeException $e) {
+            self::assertSame('Aculect Mail settings admin redirected.', $e->getMessage());
+        }
+
+        $settings = get_option('onesmtp_settings', []);
+        self::assertTrue($settings['failure_alerts']['advanced_enabled']);
+        self::assertCount(2, $settings['failure_alerts']['advanced_destinations']);
+        self::assertSame(4, $settings['failure_alerts']['escalation_failure_threshold']);
+        self::assertSame(['password_reset', 'order_update'], $settings['failure_alerts']['high_priority_message_types']);
+        self::assertStringContainsString('onesmtp_settings_status=advanced_alerts_saved', (string) $GLOBALS['onesmtp_test_redirect']['location']);
+        self::assertStringContainsString('destination_count":2', (string) ($GLOBALS['wpdb']->inserts[0]['data']['context_json'] ?? ''));
+        self::assertStringNotContainsString('ops@example.test', (string) ($GLOBALS['wpdb']->inserts[0]['data']['context_json'] ?? ''));
+        self::assertStringNotContainsString('hooks.example.test', (string) ($GLOBALS['wpdb']->inserts[0]['data']['context_json'] ?? ''));
+    }
+
+    public function test_free_installation_cannot_save_pro_advanced_alert_settings(): void
+    {
+        $_SERVER['REQUEST_METHOD'] = 'POST';
+        $_POST = [
+            'onesmtp_settings_action' => 'save_advanced_alerts',
+            'onesmtp_settings_nonce' => 'test-nonce',
+            'failure_alert_advanced_enabled' => '1',
+            'failure_alert_advanced_destinations' => 'email:ops@example.test',
+        ];
+
+        $admin = new SettingsAdmin();
+
+        try {
+            $admin->handleRequest();
+        } catch (RuntimeException $e) {
+            self::assertSame('Aculect Mail settings admin redirected.', $e->getMessage());
+        }
+
+        self::assertSame([], get_option('onesmtp_settings', []));
+        self::assertStringContainsString('onesmtp_settings_status=invalid', (string) $GLOBALS['onesmtp_test_redirect']['location']);
+        self::assertStringContainsString('requires+an+enabled+Pro+entitlement', (string) $GLOBALS['onesmtp_test_redirect']['location']);
+    }
+
+    public function test_pro_advanced_alert_form_has_empty_state_and_bounded_long_fields(): void
+    {
+        $admin = new SettingsAdmin(featureGate: new FeatureGate([
+            FeatureGate::ADVANCED_ALERTS => true,
+        ], true));
+
+        ob_start();
+        $admin->renderAdvanced();
+        $output = (string) ob_get_clean();
+
+        self::assertStringContainsString('Advanced alert routing is disabled until at least one destination is configured.', $output);
+        self::assertStringContainsString('name="failure_alert_advanced_destinations"', $output);
+        self::assertStringContainsString('maxlength="20480"', $output);
+        self::assertStringContainsString('name="failure_alert_high_priority_message_types"', $output);
+        self::assertStringContainsString('maxlength="1280"', $output);
+        self::assertStringContainsString('Save advanced alert routing', $output);
     }
 
     public function test_handle_request_saves_weekly_summary_settings(): void

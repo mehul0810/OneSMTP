@@ -64,7 +64,8 @@ final class AdminPage
         $this->logs = $logs ?? new LogAdmin(new MessageRepository(), new AttemptRepository(), $this->providerRepository);
         $this->settings = $settings ?? new SettingsAdmin(
             simulationMode: $this->simulationMode,
-            deliveryOwnership: $this->deliveryOwnership
+            deliveryOwnership: $this->deliveryOwnership,
+            featureGate: $this->featureGate
         );
         $this->diagnostics = $diagnostics ?? new QueueDiagnosticsAdmin();
         $this->alerts = $alerts ?? new AlertHistoryAdmin();

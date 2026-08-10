@@ -17,6 +17,7 @@ final class FeatureGate
     public const ADVANCED_ANALYTICS = 'advanced_analytics';
     public const COMPLIANCE_CONTROLS = 'compliance_controls';
     public const MULTISITE_MANAGEMENT = 'multisite_management';
+    public const ADVANCED_ALERTS = 'advanced_alerts';
 
     public const STATE_ENABLED = 'enabled';
     public const STATE_FLAG_DISABLED = 'flag_disabled';
@@ -29,6 +30,7 @@ final class FeatureGate
         self::ADVANCED_ANALYTICS,
         self::COMPLIANCE_CONTROLS,
         self::MULTISITE_MANAGEMENT,
+        self::ADVANCED_ALERTS,
     ];
 
     /** @var array<string,bool> */
@@ -42,6 +44,19 @@ final class FeatureGate
         foreach (self::FEATURES as $feature) {
             $this->flags[ $feature ] = isset( $flags[ $feature ] ) && $flags[ $feature ] === true;
         }
+    }
+
+    public static function fromWordPress(): self
+    {
+        $flags = apply_filters('onesmtp_pro_feature_flags', []);
+        if ( ! is_array($flags)) {
+            $flags = [];
+        }
+
+        return new self(
+            $flags,
+            (bool) apply_filters('onesmtp_pro_entitled', false)
+        );
     }
 
     /** @return array<int,string> */

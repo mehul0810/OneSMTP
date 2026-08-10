@@ -12,6 +12,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 
 - Default-deny Pro capability gates with separate entitlement and rollout checks.
 - Clear disabled states for upcoming Pro modules without blocking core delivery workflows.
+- Pro-gated advanced alert escalation with multiple email/HTTPS webhook destinations, deterministic repeated-failure and high-priority message-type rules, and privacy-safe payload/context handling.
 
 ## [0.3.0] - Unreleased
 

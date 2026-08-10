@@ -11,6 +11,7 @@ use OneSMTP\Alerts\FailureAlertSettingsRepository;
 use OneSMTP\Core\Capabilities;
 use OneSMTP\Core\RetentionPolicy;
 use OneSMTP\Conflict\MailDeliveryOwnership;
+use OneSMTP\Product\FeatureGate;
 use OneSMTP\Settings\AttachmentLoggingSettings;
 use OneSMTP\Settings\AttachmentLoggingSettingsRepository;
 use OneSMTP\Settings\BackgroundSendingSettings;
@@ -46,7 +47,8 @@ final class SettingsAdmin
         private ?AdminAuditLogger $auditLogger = null,
         private ?AdminRequest $request = null,
         private ?SimulationModeSettingsRepository $simulationMode = null,
-        private ?MailDeliveryOwnership $deliveryOwnership = null
+        private ?MailDeliveryOwnership $deliveryOwnership = null,
+        private ?FeatureGate $featureGate = null
     ) {
         $this->senderIdentity = $senderIdentity ?? new SenderIdentityRepository();
         $this->rateLimits = $rateLimits ?? new RateLimitSettingsRepository();
@@ -59,6 +61,7 @@ final class SettingsAdmin
         $this->request = $request ?? new AdminRequest();
         $this->simulationMode = $simulationMode ?? new SimulationModeSettingsRepository();
         $this->deliveryOwnership = $deliveryOwnership ?? new MailDeliveryOwnership();
+        $this->featureGate = $featureGate ?? new FeatureGate();
     }
 
     public function handleRequest(): void
@@ -129,6 +132,31 @@ final class SettingsAdmin
                     'throttle_seconds' => (int) ($alertValues['throttle_seconds'] ?? 0),
                 ]);
                 $this->redirect('failure_alerts_saved');
+                return;
+            }
+
+            if ($action === 'save_advanced_alerts') {
+                if (! $this->featureGate->isEnabled(FeatureGate::ADVANCED_ALERTS)) {
+                    $this->redirect('invalid', __('Advanced alert routing requires an enabled Pro entitlement.', 'onesmtp'));
+                    return;
+                }
+
+                $alerts = FailureAlertSettings::fromArray([
+                    'advanced_enabled' => isset($_POST['failure_alert_advanced_enabled']),
+                    'advanced_destinations' => isset($_POST['failure_alert_advanced_destinations']) ? wp_unslash((string) $_POST['failure_alert_advanced_destinations']) : '',
+                    'escalation_failure_threshold' => isset($_POST['failure_alert_escalation_failure_threshold']) ? wp_unslash((string) $_POST['failure_alert_escalation_failure_threshold']) : 3,
+                    'high_priority_message_types' => isset($_POST['failure_alert_high_priority_message_types']) ? wp_unslash((string) $_POST['failure_alert_high_priority_message_types']) : '',
+                ]);
+                $this->failureAlerts->save($alerts);
+                $alertValues = $alerts->toArray();
+                $this->auditLogger->logSettingsChange('advanced_alerts', [
+                    'source' => 'settings_admin',
+                    'enabled' => ! empty($alertValues['advanced_enabled']),
+                    'destination_count' => count((array) ($alertValues['advanced_destinations'] ?? [])),
+                    'escalation_failure_threshold' => (int) ($alertValues['escalation_failure_threshold'] ?? 0),
+                    'high_priority_type_count' => count((array) ($alertValues['high_priority_message_types'] ?? [])),
+                ]);
+                $this->redirect('advanced_alerts_saved');
                 return;
             }
 
@@ -342,11 +370,51 @@ final class SettingsAdmin
         $backgroundSending = $this->backgroundSending->get();
         $attachmentLogging = $this->attachmentLogging->get();
         $simulationMode = $this->simulationMode->get();
+        $alerts = $this->failureAlerts->get();
+        $alertValues = $alerts->toArray();
         $actionUrl = admin_url('options-general.php?page=onesmtp&tab=onesmtp-advanced#onesmtp-advanced');
 
         echo '<div class="onesmtp-settings-shell onesmtp-advanced-settings-shell">';
         $this->renderStatusNotice($status, $message);
         echo '<div class="onesmtp-settings-grid">';
+
+        $this->renderPanel(
+            __('Advanced alert routing', 'onesmtp'),
+            __('Escalate repeated failures or configured high-priority message types to multiple email and HTTPS webhook destinations.', 'onesmtp'),
+            true,
+            function () use ($alerts, $alertValues, $actionUrl): void {
+                if (! $this->featureGate->isEnabled(FeatureGate::ADVANCED_ALERTS)) {
+                    $this->renderInlineNotice('info', __('Advanced alert routing is available with an enabled Pro entitlement. Existing core failure alerts remain unchanged.', 'onesmtp'));
+                    return;
+                }
+
+                if (! $alerts->isAdvancedEnabled()) {
+                    $this->renderInlineNotice('info', __('Advanced alert routing is disabled until at least one destination is configured.', 'onesmtp'));
+                }
+
+                echo '<form class="onesmtp-settings-form" method="post" action="' . esc_url($actionUrl) . '">';
+                echo '<input type="hidden" name="onesmtp_settings_action" value="save_advanced_alerts">';
+                echo '<input type="hidden" name="onesmtp_return_tab" value="onesmtp-advanced">';
+                wp_nonce_field(self::ACTION_NAME, self::NONCE_NAME);
+                echo '<table class="form-table" role="presentation"><tbody>';
+                $this->renderCheckbox('failure_alert_advanced_enabled', __('Enable Pro advanced alert escalation.', 'onesmtp'), ! empty($alertValues['advanced_enabled']));
+                $destinations = [];
+                foreach ((array) ($alertValues['advanced_destinations'] ?? []) as $destination) {
+                    if (! is_array($destination)) {
+                        continue;
+                    }
+                    $destinations[] = (string) ($destination['channel'] ?? '') . ':' . (string) ($destination['target'] ?? '');
+                }
+                $this->renderTextarea('failure_alert_advanced_destinations', __('Escalation destinations', 'onesmtp'), implode("\n", $destinations), 20480);
+                echo '<tr><th scope="row"></th><td><p class="description">' . esc_html__('Use one email:address@example.test or webhook:https://hooks.example.test/path per line. Destinations are validated server-side and never written to alert or audit context.', 'onesmtp') . '</p></td></tr>';
+                $this->renderNumberInput('failure_alert_escalation_failure_threshold', __('Repeated failure threshold', 'onesmtp'), (int) ($alertValues['escalation_failure_threshold'] ?? 3));
+                $this->renderTextarea('failure_alert_high_priority_message_types', __('High-priority message types', 'onesmtp'), implode("\n", (array) ($alertValues['high_priority_message_types'] ?? [])), 1280);
+                echo '<tr><th scope="row"></th><td><p class="description">' . esc_html__('Escalation occurs at the threshold or when a failure context marks a configured message type, high, urgent, or critical priority. Raw message content is never inspected or sent.', 'onesmtp') . '</p></td></tr>';
+                echo '</tbody></table>';
+                $this->renderActionFooter(__('Save advanced alert routing', 'onesmtp'));
+                echo '</form>';
+            }
+        );
 
         $this->renderPanel(
             __('Simulation mode', 'onesmtp'),
@@ -457,10 +525,10 @@ final class SettingsAdmin
         echo '</td></tr>';
     }
 
-    private function renderTextarea(string $name, string $label, string $value): void
+    private function renderTextarea(string $name, string $label, string $value, int $maxlength = 0): void
     {
         echo '<tr><th scope="row"><label for="' . esc_attr($name) . '">' . esc_html($label) . '</label></th><td>';
-        echo '<textarea class="large-text code" rows="3" id="' . esc_attr($name) . '" name="' . esc_attr($name) . '">' . esc_html($value) . '</textarea>';
+        echo '<textarea class="large-text code" rows="3" id="' . esc_attr($name) . '" name="' . esc_attr($name) . '"' . ($maxlength > 0 ? ' maxlength="' . esc_attr((string) $maxlength) . '"' : '') . '>' . esc_html($value) . '</textarea>';
         echo '<p class="description">' . esc_html__('Enter one email address per line or separate addresses with commas.', 'onesmtp') . '</p>';
         echo '</td></tr>';
     }
@@ -519,6 +587,9 @@ final class SettingsAdmin
         } elseif ($status === 'failure_alerts_saved') {
             $noticeClass = 'success';
             $noticeText = __('Failure alert settings saved.', 'onesmtp');
+        } elseif ($status === 'advanced_alerts_saved') {
+            $noticeClass = 'success';
+            $noticeText = __('Advanced alert routing settings saved.', 'onesmtp');
         } elseif ($status === 'background_sending_saved') {
             $noticeClass = 'success';
             $noticeText = __('Background sending settings saved.', 'onesmtp');

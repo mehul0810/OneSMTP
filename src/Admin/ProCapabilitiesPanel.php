@@ -65,6 +65,10 @@ final class ProCapabilitiesPanel
                 'label' => __('Multisite management', 'onesmtp'),
                 'description' => __('Manage network-level settings and delivery visibility across sites.', 'onesmtp'),
             ],
+            FeatureGate::ADVANCED_ALERTS => [
+                'label' => __('Advanced alert escalation', 'onesmtp'),
+                'description' => __('Escalate repeated failures and high-priority message types to multiple safe destinations.', 'onesmtp'),
+            ],
         ];
     }
 
