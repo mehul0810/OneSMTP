@@ -238,7 +238,7 @@ final class FailureAlertSettings
             return false;
         }
 
-        return ! function_exists('wp_http_validate_url') || wp_http_validate_url($normalized) !== false;
+        return function_exists('wp_http_validate_url') && wp_http_validate_url($normalized) !== false;
     }
 
     /** @param array<int,mixed> $destinations @return array<int,array{channel:string,target:string}> */
