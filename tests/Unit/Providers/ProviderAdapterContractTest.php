@@ -123,6 +123,31 @@ final class ProviderAdapterContractTest extends TestCase
         self::assertNotEmpty($errors);
         self::assertStringContainsString('no valid descriptor', implode(' ', $errors));
     }
+
+    public function test_malformed_capability_metadata_fails_closed_without_throwing(): void
+    {
+        $adapter = new ProviderAdapterContractFixture(ProviderTypes::SMTP);
+        $descriptor = new ProviderAdapterDescriptor(
+            ProviderTypes::SMTP,
+            $adapter,
+            [
+                'label' => 'SMTP',
+                'description' => 'fixture',
+                'icon' => 'envelope',
+                'capabilities' => 'malformed',
+                'notes' => [],
+            ],
+            ProviderTypes::credentialSchema()[ ProviderTypes::SMTP ]
+        );
+        $registry = new ProviderAdapterRegistry(
+            [ProviderTypes::SMTP => $adapter],
+            [ProviderTypes::SMTP => $descriptor]
+        );
+
+        self::assertFalse($registry->isValid());
+        self::assertNull($registry->get(ProviderTypes::SMTP));
+        self::assertStringContainsString('capability declarations are malformed', implode(' ', $registry->getValidationErrors()));
+    }
 }
 
 final class ProviderAdapterContractFixture implements ProviderAdapterInterface

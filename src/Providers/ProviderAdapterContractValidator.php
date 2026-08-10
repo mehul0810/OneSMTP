@@ -56,6 +56,10 @@ final class ProviderAdapterContractValidator
             }
 
             $capabilities = $descriptor->getMetadata()['capabilities'] ?? [];
+            if ( ! is_array($capabilities)) {
+                $errors[] = sprintf('Adapter %s capability declarations are malformed.', $slug);
+                $capabilities = [];
+            }
             if (array_keys($capabilities) !== array_keys(ProviderTypes::capabilityLabels())) {
                 $errors[] = sprintf('Adapter %s capability declarations are incomplete or unordered.', $slug);
             }

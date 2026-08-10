@@ -15,7 +15,7 @@ namespace OneSMTP\Providers;
 final class ProviderAdapterDescriptor
 {
     /**
-     * @param array{label:string,description:string,icon:string,capabilities:array<string,bool>,notes:array<string,string>} $metadata
+     * @param array<string,mixed> $metadata Metadata is validated before use.
      * @param array<string,array{type:string,required:bool,secret:bool,max_length:int,enum?:array<int,string>}> $credentialSchema
      */
     public function __construct(
