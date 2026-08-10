@@ -10,9 +10,9 @@ use OneSMTP\Security\Redactor;
  * Produces stable, privacy-safe labels for the existing stored message subject.
  *
  * Advanced reports never read payload_json. The subject is normalized for a
- * deterministic group key, then redacted and bounded before it can reach an
- * admin response. Callers still escape the returned label for their output
- * context.
+ * deterministic group key, then redacted for secret/address-like values and
+ * bounded before it can reach an admin response. Callers still escape the
+ * returned label for their output context.
  */
 final class SubjectGroupFormatter
 {
@@ -34,6 +34,17 @@ final class SubjectGroupFormatter
         if ($normalized === '') {
             return __('No subject', 'onesmtp');
         }
+
+        $normalized = (string) preg_replace(
+            '/\b[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}\b/i',
+            '[REDACTED]',
+            $normalized
+        );
+        $normalized = (string) preg_replace(
+            '~\bhttps?://[^\s<]+~i',
+            '[REDACTED]',
+            $normalized
+        );
 
         return $this->redactor->redactText($normalized, self::LABEL_LIMIT);
     }

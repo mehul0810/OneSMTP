@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace OneSMTP\Admin;
 
 use OneSMTP\Analytics\ProviderReliabilityScorer;
-use OneSMTP\Analytics\SubjectGroupFormatter;
 use OneSMTP\Core\Capabilities;
 use OneSMTP\Product\FeatureGate;
 use OneSMTP\Repository\MetricsRepository;
@@ -20,7 +19,6 @@ final class DashboardAdmin
 
     private MetricsRepository $metrics;
     private ProviderReliabilityScorer $reliability;
-    private SubjectGroupFormatter $subjectGroups;
     private FeatureGate $features;
 
     /** @var callable():int */
@@ -33,15 +31,13 @@ final class DashboardAdmin
         ?MetricsRepository $metrics = null,
         ?callable $nowProvider = null,
         ?ProviderReliabilityScorer $reliability = null,
-        ?FeatureGate $features = null,
-        ?SubjectGroupFormatter $subjectGroups = null
+        ?FeatureGate $features = null
     )
     {
         $this->metrics = $metrics ?? new MetricsRepository();
         $this->nowProvider = $nowProvider ?? static fn (): int => time();
         $this->reliability = $reliability ?? new ProviderReliabilityScorer();
         $this->features = $features ?? new FeatureGate();
-        $this->subjectGroups = $subjectGroups ?? new SubjectGroupFormatter();
     }
 
     public function render(): void
@@ -171,7 +167,7 @@ final class DashboardAdmin
      *     error:bool,
      *     providers:array<int,array<string,mixed>>,
      *     statuses:array<int,array{status:string,count:int}>,
-     *     subjects:array<int,array{subject:string,count:int}>,
+     *     subjects:array<int,array{key:string,label:string,count:int}>,
      *     trend:array<int,array{period:string,status:string,count:int}>,
      *     failure_categories:array<int,array{category:string,count:int,last_seen_at:?string}>
      * } $report
@@ -246,32 +242,20 @@ final class DashboardAdmin
     }
 
     /**
-     * @param array<int,array{subject:string,count:int}> $rows
-     * @return array<int,array{subject:string,count:int}>
+     * @param array<int,array{key:string,label:string,count:int}> $rows
+     * @return array<int,array{label:string,count:int}>
      */
     private function advancedSubjectRows(array $rows): array
     {
-        $groups = [];
+        $safeRows = [];
         foreach ($rows as $row) {
-            $subject = (string) ($row['subject'] ?? '');
-            $key = $this->subjectGroups->key($subject);
-            if (! isset($groups[$key])) {
-                $groups[$key] = [
-                    'subject' => $this->subjectGroups->label($subject),
-                    'count' => 0,
-                ];
-            }
-
-            $groups[$key]['count'] += max(0, (int) ($row['count'] ?? 0));
+            $safeRows[] = [
+                'label' => (string) ($row['label'] ?? __('No subject', 'onesmtp')),
+                'count' => max(0, (int) ($row['count'] ?? 0)),
+            ];
         }
 
-        $groups = array_values($groups);
-        usort(
-            $groups,
-            static fn (array $a, array $b): int => ((int) $b['count'] <=> (int) $a['count']) ?: strcmp((string) $a['subject'], (string) $b['subject'])
-        );
-
-        return $groups;
+        return $safeRows;
     }
 
     /** @param array<int,array{provider:string,score:int,attempts:int,sent:int,failed:int,latency:string}> $rows */
@@ -308,10 +292,10 @@ final class DashboardAdmin
         echo '</tbody></table></div></div>';
     }
 
-    /** @param array<int,array{subject:string,count:int}> $rows */
+    /** @param array<int,array{label:string,count:int}> $rows */
     private function renderAdvancedSubjectTable(array $rows): void
     {
-        echo '<div class="onesmtp-advanced-report-card"><h4>' . esc_html__('Subject groups', 'onesmtp') . '</h4><p class="description">' . esc_html__('Labels use only the stored subject, with redaction and an 80-character display bound.', 'onesmtp') . '</p>';
+        echo '<div class="onesmtp-advanced-report-card"><h4>' . esc_html__('Subject groups', 'onesmtp') . '</h4><p class="description">' . esc_html__('Labels use only the stored subject and are redacted and bounded before rendering.', 'onesmtp') . '</p>';
         if ($rows === []) {
             echo '<p>' . esc_html__('No subject groups were recorded in this window.', 'onesmtp') . '</p></div>';
 
@@ -320,7 +304,7 @@ final class DashboardAdmin
 
         echo '<div class="onesmtp-advanced-report-table-wrap"><table class="widefat striped"><thead><tr><th scope="col">' . esc_html__('Subject group', 'onesmtp') . '</th><th scope="col">' . esc_html__('Messages', 'onesmtp') . '</th></tr></thead><tbody>';
         foreach ($rows as $row) {
-            echo '<tr><th scope="row" style="max-width:32em;white-space:normal;overflow-wrap:anywhere;">' . esc_html($row['subject']) . '</th><td>' . esc_html($this->formatCount((int) $row['count'])) . '</td></tr>';
+            echo '<tr><th scope="row" style="max-width:32em;white-space:normal;overflow-wrap:anywhere;">' . esc_html($row['label']) . '</th><td>' . esc_html($this->formatCount((int) $row['count'])) . '</td></tr>';
         }
         echo '</tbody></table></div></div>';
     }

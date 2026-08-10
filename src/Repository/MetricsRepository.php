@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 namespace OneSMTP\Repository;
 
+use OneSMTP\Analytics\SubjectGroupFormatter;
 use OneSMTP\Core\TableNames;
 
 final class MetricsRepository
 {
+    private const SUBJECT_CANDIDATE_MULTIPLIER = 10;
+    private const SUBJECT_CANDIDATE_MAX = 500;
+
     /*
      * Repository queries use only plugin-owned identifiers from TableNames.
      * Every runtime value is passed through wpdb::prepare() before execution.
@@ -15,6 +19,13 @@ final class MetricsRepository
      * and intermediate prepared SQL variables.
      */
     // phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter
+
+    private SubjectGroupFormatter $subjectGroups;
+
+    public function __construct(?SubjectGroupFormatter $subjectGroups = null)
+    {
+        $this->subjectGroups = $subjectGroups ?? new SubjectGroupFormatter();
+    }
 
     /**
      * @return array{sent_count:int,failed_count:int,retry_count:int,failover_count:int}
@@ -84,15 +95,17 @@ final class MetricsRepository
      * Read the bounded Pro report slices for one validated analytics window.
      *
      * Each slice is limited independently so a high-cardinality subject or
-     * status distribution cannot hydrate an unbounded admin payload. The
-     * date predicates are range predicates on the indexed created_at fields;
+     * status distribution cannot hydrate an unbounded admin payload. Subject
+     * candidates are deliberately overfetched (up to 500) before grouping so
+     * case/whitespace variants can combine, then the final limit is applied.
+     * The date predicates are range predicates on indexed created_at fields;
      * no message payload or event context is selected.
      *
      * @return array{
      *     error:bool,
      *     providers:array<int,array<string,mixed>>,
      *     statuses:array<int,array{status:string,count:int}>,
-     *     subjects:array<int,array{subject:string,count:int}>,
+     *     subjects:array<int,array{key:string,label:string,count:int}>,
      *     trend:array<int,array{period:string,status:string,count:int}>,
      *     failure_categories:array<int,array{category:string,count:int,last_seen_at:?string}>
      * }
@@ -209,11 +222,15 @@ final class MetricsRepository
         );
     }
 
-    /** @return array<int,array{subject:string,count:int}>|null */
+    /** @return array<int,array{key:string,label:string,count:int}>|null */
     private function queryAdvancedSubjectRows(string $since, string $until, int $limit): ?array
     {
         global $wpdb;
 
+        $candidateLimit = min(
+            self::SUBJECT_CANDIDATE_MAX,
+            max($limit, $limit * self::SUBJECT_CANDIDATE_MULTIPLIER)
+        );
         $messagesTable = TableNames::messages();
         $sql = $wpdb->prepare(
             "SELECT COALESCE(subject, '') AS subject, COUNT(*) AS subject_count
@@ -224,20 +241,44 @@ final class MetricsRepository
             LIMIT %d",
             $since,
             $until,
-            $limit
+            $candidateLimit
         );
         $rows = $wpdb->get_results($sql, ARRAY_A);
         if (! is_array($rows)) {
             return null;
         }
 
-        return array_map(
-            static fn (array $row): array => [
-                'subject' => (string) ($row['subject'] ?? ''),
-                'count' => max(0, (int) ($row['subject_count'] ?? 0)),
-            ],
-            $rows
+        $groups = [];
+        foreach ($rows as $row) {
+            $subject = (string) ($row['subject'] ?? '');
+            $key = $this->subjectGroups->key($subject);
+            if (! isset($groups[$key])) {
+                $groups[$key] = [
+                    'key' => $key,
+                    'label' => $this->subjectGroups->label($subject),
+                    'count' => 0,
+                ];
+            }
+
+            $groups[$key]['count'] += max(0, (int) ($row['subject_count'] ?? 0));
+        }
+
+        $groups = array_values($groups);
+        usort(
+            $groups,
+            static function (array $a, array $b): int {
+                $count = (int) $b['count'] <=> (int) $a['count'];
+                if ($count !== 0) {
+                    return $count;
+                }
+
+                $key = strcmp((string) $a['key'], (string) $b['key']);
+
+                return $key !== 0 ? $key : strcmp((string) $a['label'], (string) $b['label']);
+            }
         );
+
+        return array_slice($groups, 0, $limit);
     }
 
     /** @return array<int,array{period:string,status:string,count:int}>|null */

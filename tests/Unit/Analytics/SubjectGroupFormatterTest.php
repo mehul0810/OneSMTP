@@ -29,4 +29,11 @@ final class SubjectGroupFormatterTest extends TestCase
         self::assertSame('No subject', $formatter->label(''));
         self::assertSame($formatter->key('Invoice update'), $formatter->key(' invoice   update '));
     }
+
+    public function test_subject_label_masks_address_like_values(): void
+    {
+        $formatter = new SubjectGroupFormatter();
+
+        self::assertSame('Invite [REDACTED] [REDACTED]', $formatter->label('Invite team@example.test https://example.test/reset'));
+    }
 }

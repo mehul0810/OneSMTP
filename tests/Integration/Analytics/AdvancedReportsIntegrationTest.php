@@ -42,7 +42,6 @@ final class AdvancedReportsIntegrationTest extends TestCase
 
         self::assertSame(1, $messageId);
         self::assertSame(2, $attemptId);
-        self::assertSame('Invoice token=fixture-secret', $GLOBALS['wpdb']->inserts[0]['data']['subject']);
 
         $key = self::SINCE . '|' . self::UNTIL;
         $GLOBALS['wpdb']->advancedProviderRowsByWindow[ $key ] = [
@@ -89,9 +88,12 @@ final class AdvancedReportsIntegrationTest extends TestCase
         self::assertFalse($report['error']);
         self::assertSame(1, $report['providers'][0]['failed_count']);
         self::assertSame('failed', $report['statuses'][0]['status']);
-        self::assertSame('Invoice token=fixture-secret', $report['subjects'][0]['subject']);
+        self::assertSame('Invoice token=[REDACTED]', $report['subjects'][0]['label']);
+        self::assertArrayHasKey('key', $report['subjects'][0]);
+        self::assertArrayNotHasKey('subject', $report['subjects'][0]);
         self::assertSame('timeout', $report['failure_categories'][0]['category']);
         self::assertStringNotContainsString('Private body', wp_json_encode($report));
         self::assertStringNotContainsString('recipient@example.test', wp_json_encode($report));
+        self::assertStringNotContainsString('fixture-secret', wp_json_encode($report));
     }
 }
