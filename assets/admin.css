@@ -141,9 +141,68 @@
 	margin: 18px 0 0;
 }
 
+.onesmtp-advanced-reports {
+	margin: 20px 0;
+	padding: 20px;
+	border: 1px solid var(--aculect-admin-border, #dcdcde);
+	border-radius: 10px;
+	background: #fff;
+}
+
+.onesmtp-advanced-reports > .onesmtp-reliability-heading {
+	margin-bottom: 12px;
+}
+
+.onesmtp-advanced-reports-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 16px;
+}
+
+.onesmtp-advanced-report-card {
+	min-width: 0;
+	padding: 14px;
+	border: 1px solid var(--aculect-admin-border, #dcdcde);
+	border-radius: 8px;
+	background: var(--aculect-admin-surface-alt, #f6f7f7);
+}
+
+.onesmtp-advanced-report-card h4 {
+	margin: 0 0 8px;
+}
+
+.onesmtp-advanced-report-card .description {
+	margin: 0 0 10px;
+}
+
+.onesmtp-advanced-report-card .widefat {
+	margin: 0;
+}
+
+.onesmtp-advanced-report-table-wrap {
+	max-width: 100%;
+	overflow-x: auto;
+}
+
+.onesmtp-advanced-report-table-wrap .widefat {
+	min-width: 100%;
+}
+
+.onesmtp-advanced-reports-empty {
+	margin: 0;
+}
+
 @media (max-width: 782px) {
 	.onesmtp-reliability-panel {
 		padding: 20px;
+	}
+
+	.onesmtp-advanced-reports {
+		padding: 20px;
+	}
+
+	.onesmtp-advanced-reports-grid {
+		grid-template-columns: 1fr;
 	}
 
 	.onesmtp-reliability-heading {

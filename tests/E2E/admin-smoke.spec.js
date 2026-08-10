@@ -408,6 +408,37 @@ test.describe( 'Aculect Mail admin browser smoke', () => {
 		await expect( reliability ).toContainText(
 			'do not guarantee inbox placement or a provider SLA'
 		);
+
+		const reports = page.locator( '.onesmtp-advanced-reports' );
+		await expect( reports ).toBeVisible();
+		await expect( reports ).toContainText( 'Advanced reports' );
+		await expect( reports ).toContainText( 'Provider report' );
+		await expect( reports ).toContainText( 'Status distribution' );
+		await expect( reports ).toContainText( 'Subject groups' );
+		await expect( reports ).toContainText( 'Delivery trend' );
+		await expect( reports ).toContainText( 'Failure categories' );
+		await expect( reports ).toContainText(
+			'Smoke report token=[REDACTED]'
+		);
+		await expect( reports ).toContainText( 'No subject' );
+		await expect( reports ).not.toContainText(
+			'fixture-secret-never-rendered'
+		);
+		await page.screenshot( {
+			path: path.join(
+				repoRoot,
+				'output/playwright/advanced-reports-desktop.png'
+			),
+			fullPage: true,
+		} );
+		await page.setViewportSize( { width: 390, height: 844 } );
+		await page.screenshot( {
+			path: path.join(
+				repoRoot,
+				'output/playwright/advanced-reports-mobile.png'
+			),
+			fullPage: true,
+		} );
 	} );
 } );
 

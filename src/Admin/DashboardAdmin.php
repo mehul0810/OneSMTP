@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace OneSMTP\Admin;
 
 use OneSMTP\Analytics\ProviderReliabilityScorer;
+use OneSMTP\Analytics\SubjectGroupFormatter;
 use OneSMTP\Core\Capabilities;
 use OneSMTP\Product\FeatureGate;
 use OneSMTP\Repository\MetricsRepository;
@@ -19,6 +20,7 @@ final class DashboardAdmin
 
     private MetricsRepository $metrics;
     private ProviderReliabilityScorer $reliability;
+    private SubjectGroupFormatter $subjectGroups;
     private FeatureGate $features;
 
     /** @var callable():int */
@@ -31,13 +33,15 @@ final class DashboardAdmin
         ?MetricsRepository $metrics = null,
         ?callable $nowProvider = null,
         ?ProviderReliabilityScorer $reliability = null,
-        ?FeatureGate $features = null
+        ?FeatureGate $features = null,
+        ?SubjectGroupFormatter $subjectGroups = null
     )
     {
         $this->metrics = $metrics ?? new MetricsRepository();
         $this->nowProvider = $nowProvider ?? static fn (): int => time();
         $this->reliability = $reliability ?? new ProviderReliabilityScorer();
         $this->features = $features ?? new FeatureGate();
+        $this->subjectGroups = $subjectGroups ?? new SubjectGroupFormatter();
     }
 
     public function render(): void
@@ -70,6 +74,12 @@ final class DashboardAdmin
 
         if ($this->features->isEnabled(FeatureGate::ADVANCED_ANALYTICS)) {
             $this->renderReliabilityDashboard($providers, (string) $providerWindow['label']);
+            $advancedReport = $this->metrics->getAdvancedReport(
+                (string) $providerWindow['since'],
+                (string) $providerWindow['until'],
+                20
+            );
+            $this->renderAdvancedReports($advancedReport, (string) $providerWindow['label']);
         }
 
         $this->renderWindowTable($windows);
@@ -153,6 +163,203 @@ final class DashboardAdmin
         echo '</tbody></table></details></section>';
     }
 
+    /**
+     * Render bounded Pro report slices sourced from the message and attempt
+     * tables. The output intentionally excludes payload_json and event context.
+     *
+     * @param array{
+     *     error:bool,
+     *     providers:array<int,array<string,mixed>>,
+     *     statuses:array<int,array{status:string,count:int}>,
+     *     subjects:array<int,array{subject:string,count:int}>,
+     *     trend:array<int,array{period:string,status:string,count:int}>,
+     *     failure_categories:array<int,array{category:string,count:int,last_seen_at:?string}>
+     * } $report
+     */
+    private function renderAdvancedReports(array $report, string $windowLabel): void
+    {
+        echo '<section class="onesmtp-advanced-reports" aria-labelledby="onesmtp-advanced-reports-heading">';
+        echo '<div class="onesmtp-reliability-heading"><div><h3 id="onesmtp-advanced-reports-heading">' . esc_html__('Advanced reports', 'onesmtp') . '</h3><p>' . esc_html(sprintf(
+            /* translators: %s: selected analytics date window. */
+            __('Bounded report slices for %s, matched to stored delivery logs.', 'onesmtp'),
+            $windowLabel
+        )) . '</p></div><span class="onesmtp-status-pill is-ready">' . esc_html__('Pro analytics', 'onesmtp') . '</span></div>';
+        echo '<p class="onesmtp-reliability-disclaimer">' . esc_html__('Reports use aggregate message and attempt records only. Message bodies, recipients, credentials, provider payloads, and raw event context are never included.', 'onesmtp') . '</p>';
+
+        if ((bool) ($report['error'] ?? false)) {
+            echo '<div class="notice notice-error inline"><p>' . esc_html__('Advanced reports are temporarily unavailable. Review the Activity logs and try again later.', 'onesmtp') . '</p></div></section>';
+
+            return;
+        }
+
+        $providers = $this->advancedProviderRows($report['providers'] ?? []);
+        $subjects = $this->advancedSubjectRows($report['subjects'] ?? []);
+        $statuses = $report['statuses'] ?? [];
+        $trend = $report['trend'] ?? [];
+        $failures = $report['failure_categories'] ?? [];
+        if ($providers === [] && $subjects === [] && $statuses === [] && $trend === [] && $failures === []) {
+            echo '<p class="onesmtp-advanced-reports-empty">' . esc_html__('No report data is available for this window yet.', 'onesmtp') . '</p></section>';
+
+            return;
+        }
+
+        echo '<div class="onesmtp-advanced-reports-grid">';
+        $this->renderAdvancedProviderTable($providers);
+        $this->renderAdvancedStatusTable($statuses);
+        $this->renderAdvancedSubjectTable($subjects);
+        $this->renderAdvancedTrendTable($trend);
+        $this->renderAdvancedFailureTable($failures);
+        echo '</div></section>';
+    }
+
+    /**
+     * @param array<int,array<string,mixed>> $rows
+     * @return array<int,array{provider:string,score:int,attempts:int,sent:int,failed:int,latency:string}>
+     */
+    private function advancedProviderRows(array $rows): array
+    {
+        $result = [];
+        foreach ($rows as $provider) {
+            $score = $this->reliability->score($provider);
+            $attempts = max(0, (int) ($provider['attempt_count'] ?? $score['attempt_count']));
+            if ($attempts === 0) {
+                continue;
+            }
+
+            $result[] = [
+                'provider' => (string) ($provider['provider_name'] ?? __('Unknown provider', 'onesmtp')),
+                'score' => $score['score'],
+                'attempts' => $attempts,
+                'sent' => max(0, (int) ($provider['sent_count'] ?? 0)),
+                'failed' => max(0, (int) ($provider['failed_count'] ?? 0)),
+                'latency' => $score['avg_latency_ms'] !== null
+                    ? sprintf(
+                        /* translators: %d: average provider response time in milliseconds. */
+                        __('%d ms', 'onesmtp'),
+                        $score['avg_latency_ms']
+                    )
+                    : __('No latency data', 'onesmtp'),
+            ];
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param array<int,array{subject:string,count:int}> $rows
+     * @return array<int,array{subject:string,count:int}>
+     */
+    private function advancedSubjectRows(array $rows): array
+    {
+        $groups = [];
+        foreach ($rows as $row) {
+            $subject = (string) ($row['subject'] ?? '');
+            $key = $this->subjectGroups->key($subject);
+            if (! isset($groups[$key])) {
+                $groups[$key] = [
+                    'subject' => $this->subjectGroups->label($subject),
+                    'count' => 0,
+                ];
+            }
+
+            $groups[$key]['count'] += max(0, (int) ($row['count'] ?? 0));
+        }
+
+        $groups = array_values($groups);
+        usort(
+            $groups,
+            static fn (array $a, array $b): int => ((int) $b['count'] <=> (int) $a['count']) ?: strcmp((string) $a['subject'], (string) $b['subject'])
+        );
+
+        return $groups;
+    }
+
+    /** @param array<int,array{provider:string,score:int,attempts:int,sent:int,failed:int,latency:string}> $rows */
+    private function renderAdvancedProviderTable(array $rows): void
+    {
+        echo '<div class="onesmtp-advanced-report-card"><h4>' . esc_html__('Provider report', 'onesmtp') . '</h4>';
+        if ($rows === []) {
+            echo '<p>' . esc_html__('No provider attempts were recorded in this window.', 'onesmtp') . '</p></div>';
+
+            return;
+        }
+
+        echo '<div class="onesmtp-advanced-report-table-wrap"><table class="widefat striped"><thead><tr><th scope="col">' . esc_html__('Provider', 'onesmtp') . '</th><th scope="col">' . esc_html__('Score', 'onesmtp') . '</th><th scope="col">' . esc_html__('Attempts', 'onesmtp') . '</th><th scope="col">' . esc_html__('Sent', 'onesmtp') . '</th><th scope="col">' . esc_html__('Failed', 'onesmtp') . '</th><th scope="col">' . esc_html__('Latency', 'onesmtp') . '</th></tr></thead><tbody>';
+        foreach ($rows as $row) {
+            echo '<tr><th scope="row">' . esc_html($row['provider']) . '</th><td>' . esc_html((string) $row['score']) . '</td><td>' . esc_html((string) $row['attempts']) . '</td><td>' . esc_html((string) $row['sent']) . '</td><td>' . esc_html((string) $row['failed']) . '</td><td>' . esc_html($row['latency']) . '</td></tr>';
+        }
+        echo '</tbody></table></div></div>';
+    }
+
+    /** @param array<int,array{status:string,count:int}> $rows */
+    private function renderAdvancedStatusTable(array $rows): void
+    {
+        echo '<div class="onesmtp-advanced-report-card"><h4>' . esc_html__('Status distribution', 'onesmtp') . '</h4>';
+        if ($rows === []) {
+            echo '<p>' . esc_html__('No message statuses were recorded in this window.', 'onesmtp') . '</p></div>';
+
+            return;
+        }
+
+        echo '<div class="onesmtp-advanced-report-table-wrap"><table class="widefat striped"><thead><tr><th scope="col">' . esc_html__('Status', 'onesmtp') . '</th><th scope="col">' . esc_html__('Messages', 'onesmtp') . '</th></tr></thead><tbody>';
+        foreach ($rows as $row) {
+            echo '<tr><th scope="row">' . esc_html($this->formatStatus($row['status'])) . '</th><td>' . esc_html($this->formatCount((int) $row['count'])) . '</td></tr>';
+        }
+        echo '</tbody></table></div></div>';
+    }
+
+    /** @param array<int,array{subject:string,count:int}> $rows */
+    private function renderAdvancedSubjectTable(array $rows): void
+    {
+        echo '<div class="onesmtp-advanced-report-card"><h4>' . esc_html__('Subject groups', 'onesmtp') . '</h4><p class="description">' . esc_html__('Labels use only the stored subject, with redaction and an 80-character display bound.', 'onesmtp') . '</p>';
+        if ($rows === []) {
+            echo '<p>' . esc_html__('No subject groups were recorded in this window.', 'onesmtp') . '</p></div>';
+
+            return;
+        }
+
+        echo '<div class="onesmtp-advanced-report-table-wrap"><table class="widefat striped"><thead><tr><th scope="col">' . esc_html__('Subject group', 'onesmtp') . '</th><th scope="col">' . esc_html__('Messages', 'onesmtp') . '</th></tr></thead><tbody>';
+        foreach ($rows as $row) {
+            echo '<tr><th scope="row" style="max-width:32em;white-space:normal;overflow-wrap:anywhere;">' . esc_html($row['subject']) . '</th><td>' . esc_html($this->formatCount((int) $row['count'])) . '</td></tr>';
+        }
+        echo '</tbody></table></div></div>';
+    }
+
+    /** @param array<int,array{period:string,status:string,count:int}> $rows */
+    private function renderAdvancedTrendTable(array $rows): void
+    {
+        echo '<div class="onesmtp-advanced-report-card"><h4>' . esc_html__('Delivery trend', 'onesmtp') . '</h4>';
+        if ($rows === []) {
+            echo '<p>' . esc_html__('No daily message trend is available for this window.', 'onesmtp') . '</p></div>';
+
+            return;
+        }
+
+        echo '<div class="onesmtp-advanced-report-table-wrap"><table class="widefat striped"><thead><tr><th scope="col">' . esc_html__('Day (UTC)', 'onesmtp') . '</th><th scope="col">' . esc_html__('Status', 'onesmtp') . '</th><th scope="col">' . esc_html__('Messages', 'onesmtp') . '</th></tr></thead><tbody>';
+        foreach ($rows as $row) {
+            echo '<tr><th scope="row">' . esc_html($row['period']) . '</th><td>' . esc_html($this->formatStatus($row['status'])) . '</td><td>' . esc_html($this->formatCount((int) $row['count'])) . '</td></tr>';
+        }
+        echo '</tbody></table></div></div>';
+    }
+
+    /** @param array<int,array{category:string,count:int,last_seen_at:?string}> $rows */
+    private function renderAdvancedFailureTable(array $rows): void
+    {
+        echo '<div class="onesmtp-advanced-report-card"><h4>' . esc_html__('Failure categories', 'onesmtp') . '</h4>';
+        if ($rows === []) {
+            echo '<p>' . esc_html__('No failed attempts were recorded in this window.', 'onesmtp') . '</p></div>';
+
+            return;
+        }
+
+        echo '<div class="onesmtp-advanced-report-table-wrap"><table class="widefat striped"><thead><tr><th scope="col">' . esc_html__('Category', 'onesmtp') . '</th><th scope="col">' . esc_html__('Failed attempts', 'onesmtp') . '</th><th scope="col">' . esc_html__('Last seen (UTC)', 'onesmtp') . '</th></tr></thead><tbody>';
+        foreach ($rows as $row) {
+            $category = sanitize_key((string) $row['category']);
+            echo '<tr><th scope="row">' . esc_html($category !== '' ? str_replace('_', ' ', $category) : __('Uncategorized', 'onesmtp')) . '</th><td>' . esc_html($this->formatCount((int) $row['count'])) . '</td><td>' . esc_html((string) ($row['last_seen_at'] ?? __('Unavailable', 'onesmtp'))) . '</td></tr>';
+        }
+        echo '</tbody></table></div></div>';
+    }
+
     private function renderEmptyAnalytics(): void
     {
         // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Heroicons renders an SVG selected from a private allowlist and escapes its only dynamic attribute.
@@ -180,7 +387,7 @@ final class DashboardAdmin
     }
 
     /**
-     * @return array<string,array{label:string,since:string,sent_count:int,failed_count:int,retry_count:int,failover_count:int}>
+     * @return array<string,array{label:string,since:string,until:string,sent_count:int,failed_count:int,retry_count:int,failover_count:int}>
      */
     private function windowSummaries(): array
     {
@@ -189,14 +396,17 @@ final class DashboardAdmin
             self::WINDOW_LAST_24_HOURS => [
                 'label' => __('Last 24 hours', 'onesmtp'),
                 'since' => gmdate('Y-m-d H:i:s', $now - DAY_IN_SECONDS),
+                'until' => gmdate('Y-m-d H:i:s', $now),
             ],
             self::WINDOW_LAST_7_DAYS => [
                 'label' => __('Last 7 days', 'onesmtp'),
                 'since' => gmdate('Y-m-d H:i:s', $now - (7 * DAY_IN_SECONDS)),
+                'until' => gmdate('Y-m-d H:i:s', $now),
             ],
             self::WINDOW_LAST_30_DAYS => [
                 'label' => __('Last 30 days', 'onesmtp'),
                 'since' => gmdate('Y-m-d H:i:s', $now - (30 * DAY_IN_SECONDS)),
+                'until' => gmdate('Y-m-d H:i:s', $now),
             ],
         ];
 
@@ -208,7 +418,7 @@ final class DashboardAdmin
     }
 
     /**
-     * @param array<string,array{label:string,since:string,sent_count:int,failed_count:int,retry_count:int,failover_count:int}> $windows
+     * @param array<string,array{label:string,since:string,until:string,sent_count:int,failed_count:int,retry_count:int,failover_count:int}> $windows
      */
     private function renderWindowTable(array $windows): void
     {
@@ -373,6 +583,17 @@ final class DashboardAdmin
         $type = sanitize_key($type);
 
         return $type !== '' ? str_replace('_', ' ', $type) : __('unknown', 'onesmtp');
+    }
+
+    private function formatStatus(string $status): string
+    {
+        $status = sanitize_key($status);
+
+        if ($status === 'simulated') {
+            return __('Simulated', 'onesmtp');
+        }
+
+        return $status !== '' ? str_replace('_', ' ', $status) : __('Unknown', 'onesmtp');
     }
 
     private function shorten(string $value): string

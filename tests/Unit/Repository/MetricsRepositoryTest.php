@@ -11,6 +11,7 @@ use PHPUnit\Framework\TestCase;
 final class MetricsRepositoryTest extends TestCase
 {
     private const SINCE = '2026-06-23 12:00:00';
+    private const UNTIL = '2026-06-30 12:00:00';
 
     protected function setUp(): void
     {
@@ -131,5 +132,68 @@ final class MetricsRepositoryTest extends TestCase
 
         self::assertSame(2, $breakdown[0]['switch_out_count']);
         self::assertSame(4, $breakdown[0]['total_activity']);
+    }
+
+    public function test_advanced_report_returns_bounded_log_slices_without_sensitive_columns(): void
+    {
+        $key = self::SINCE . '|' . self::UNTIL;
+        $GLOBALS['wpdb']->advancedProviderRowsByWindow[$key] = [[
+            'provider_id' => 10,
+            'provider_name' => 'Primary SMTP',
+            'adapter_type' => 'smtp',
+            'sent_count' => 8,
+            'failed_count' => 2,
+            'retry_count' => 1,
+            'attempt_count' => 10,
+            'avg_latency_ms' => '812.4',
+            'payload_json' => '{"body":"secret"}',
+        ]];
+        $GLOBALS['wpdb']->advancedStatusRowsByWindow[$key] = [
+            ['status' => 'sent', 'status_count' => 4],
+            ['status' => 'failed', 'status_count' => 1],
+        ];
+        $GLOBALS['wpdb']->advancedSubjectRowsByWindow[$key] = [[
+            'subject' => 'Invoice token=secret-value',
+            'subject_count' => 3,
+        ]];
+        $GLOBALS['wpdb']->advancedTrendRowsByWindow[$key] = [[
+            'period' => '2026-06-24',
+            'status' => 'sent',
+            'status_count' => 4,
+        ]];
+        $GLOBALS['wpdb']->advancedFailureRowsByWindow[$key] = [[
+            'failure_category' => 'timeout',
+            'failure_count' => 2,
+            'last_seen_at' => '2026-06-29 10:00:00',
+        ]];
+
+        $report = (new MetricsRepository())->getAdvancedReport(self::SINCE, self::UNTIL, 20);
+
+        self::assertFalse($report['error']);
+        self::assertSame(10, $report['providers'][0]['attempt_count']);
+        self::assertSame('sent', $report['statuses'][0]['status']);
+        self::assertSame('Invoice token=secret-value', $report['subjects'][0]['subject']);
+        self::assertSame('2026-06-24', $report['trend'][0]['period']);
+        self::assertSame('timeout', $report['failure_categories'][0]['category']);
+        self::assertArrayNotHasKey('payload_json', $report['providers'][0]);
+
+        $queries = array_map(static fn (array $prepared): string => $prepared['query'], $GLOBALS['wpdb']->preparedQueries);
+        $advancedQueries = array_values(array_filter($queries, static fn (string $query): bool => str_contains($query, 'created_at < %s')));
+        self::assertCount(5, $advancedQueries);
+        foreach ($advancedQueries as $query) {
+            self::assertStringContainsString('LIMIT %d', $query);
+            self::assertStringContainsString('created_at >= %s', $query);
+        }
+    }
+
+    public function test_advanced_report_marks_database_error_without_fabricating_data(): void
+    {
+        $GLOBALS['wpdb']->failAdvancedQueries = true;
+
+        $report = (new MetricsRepository())->getAdvancedReport(self::SINCE, self::UNTIL);
+
+        self::assertTrue($report['error']);
+        self::assertSame([], $report['providers']);
+        self::assertSame([], $report['subjects']);
     }
 }

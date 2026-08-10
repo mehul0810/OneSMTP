@@ -81,6 +81,21 @@ final class FakeWpdb
     /** @var array<string,array<int,array<string,mixed>>> */
     public array $dashboardProviderEventRowsBySince = [];
 
+    /** @var array<string,array<int,array<string,mixed>>> */
+    public array $advancedProviderRowsByWindow = [];
+
+    /** @var array<string,array<int,array<string,mixed>>> */
+    public array $advancedStatusRowsByWindow = [];
+
+    /** @var array<string,array<int,array<string,mixed>>> */
+    public array $advancedSubjectRowsByWindow = [];
+
+    /** @var array<string,array<int,array<string,mixed>>> */
+    public array $advancedTrendRowsByWindow = [];
+
+    /** @var array<string,array<int,array<string,mixed>>> */
+    public array $advancedFailureRowsByWindow = [];
+
     /** @var array<int,array<string,mixed>> */
     public array $eventRows = [];
 
@@ -98,6 +113,13 @@ final class FakeWpdb
 
     /** @var array{query:string,args:array<int,mixed>}|null */
     public ?array $lastPrepared = null;
+
+    /** @var array<int,array{query:string,args:array<int,mixed>}> */
+    public array $preparedQueries = [];
+
+    public string $last_error = '';
+
+    public bool $failAdvancedQueries = false;
 
     public bool $suppressErrors = false;
 
@@ -155,6 +177,7 @@ final class FakeWpdb
             'query' => $query,
             'args' => $args,
         ];
+        $this->preparedQueries[] = $this->lastPrepared;
 
         return $query;
     }
@@ -263,12 +286,57 @@ final class FakeWpdb
         return null;
     }
 
-    public function get_results(string $sql, mixed $output = null): array
+    public function get_results(string $sql, mixed $output = null): array|null
     {
         $prepared = $this->lastPrepared;
         $isPreparedQuery = is_array($prepared) && $sql === $prepared['query'];
         $query = $isPreparedQuery ? $prepared['query'] : $sql;
         $args = $isPreparedQuery ? $prepared['args'] : [];
+
+        if ($this->failAdvancedQueries && str_contains($query, 'created_at < %s')) {
+            $this->last_error = 'synthetic advanced report query failure';
+
+            return null;
+        }
+
+        if (
+            str_contains($query, $this->prefix . 'onesmtp_attempts')
+            && str_contains($query, 'attempt_count')
+            && str_contains($query, 'GROUP BY COALESCE(a.provider_id, 0), p.name, p.adapter_type')
+            && str_contains($query, 'LIMIT %d')
+        ) {
+            $key = (string) ($args[0] ?? '') . '|' . (string) ($args[1] ?? '');
+
+            return $this->advancedProviderRowsByWindow[$key] ?? [];
+        }
+
+        if (str_contains($query, $this->prefix . 'onesmtp_messages') && str_contains($query, 'status_count')) {
+            $key = (string) ($args[0] ?? '') . '|' . (string) ($args[1] ?? '');
+
+            if (str_contains($query, 'DATE(created_at)')) {
+                return $this->advancedTrendRowsByWindow[$key] ?? [];
+            }
+
+            return $this->advancedStatusRowsByWindow[$key] ?? [];
+        }
+
+        if (str_contains($query, $this->prefix . 'onesmtp_messages') && str_contains($query, 'subject_count')) {
+            $key = (string) ($args[0] ?? '') . '|' . (string) ($args[1] ?? '');
+
+            return $this->advancedSubjectRowsByWindow[$key] ?? [];
+        }
+
+        if (
+            str_contains($query, $this->prefix . 'onesmtp_attempts')
+            && str_contains($query, 'failure_count')
+            && str_contains($query, 'last_seen_at')
+            && str_contains($query, 'created_at < %s')
+            && str_contains($query, 'LIMIT %d')
+        ) {
+            $key = (string) ($args[1] ?? '') . '|' . (string) ($args[2] ?? '');
+
+            return $this->advancedFailureRowsByWindow[$key] ?? [];
+        }
 
         if (
             str_contains($query, $this->prefix . 'onesmtp_attempts')

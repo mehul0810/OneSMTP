@@ -81,6 +81,236 @@ final class MetricsRepository
     }
 
     /**
+     * Read the bounded Pro report slices for one validated analytics window.
+     *
+     * Each slice is limited independently so a high-cardinality subject or
+     * status distribution cannot hydrate an unbounded admin payload. The
+     * date predicates are range predicates on the indexed created_at fields;
+     * no message payload or event context is selected.
+     *
+     * @return array{
+     *     error:bool,
+     *     providers:array<int,array<string,mixed>>,
+     *     statuses:array<int,array{status:string,count:int}>,
+     *     subjects:array<int,array{subject:string,count:int}>,
+     *     trend:array<int,array{period:string,status:string,count:int}>,
+     *     failure_categories:array<int,array{category:string,count:int,last_seen_at:?string}>
+     * }
+     */
+    public function getAdvancedReport(string $since, string $until, int $limit = 20): array
+    {
+        $limit = max(1, min(50, $limit));
+        $providerRows = $this->queryAdvancedProviderRows($since, $until, $limit);
+        $statusRows = $this->queryAdvancedStatusRows($since, $until, $limit);
+        $subjectRows = $this->queryAdvancedSubjectRows($since, $until, $limit);
+        $trendRows = $this->queryAdvancedTrendRows($since, $until, 100);
+        $failureRows = $this->queryAdvancedFailureRows($since, $until, $limit);
+
+        return [
+            'error' => $providerRows === null
+                || $statusRows === null
+                || $subjectRows === null
+                || $trendRows === null
+                || $failureRows === null,
+            'providers' => $providerRows ?? [],
+            'statuses' => $statusRows ?? [],
+            'subjects' => $subjectRows ?? [],
+            'trend' => $trendRows ?? [],
+            'failure_categories' => $failureRows ?? [],
+        ];
+    }
+
+    /**
+     * @return array<int,array{provider_id:int,provider_name:string,adapter_type:string,sent_count:int,failed_count:int,retry_count:int,attempt_count:int,avg_latency_ms:?int,failover_count:int,switch_out_count:int,total_activity:int}|null>
+     */
+    private function queryAdvancedProviderRows(string $since, string $until, int $limit): ?array
+    {
+        global $wpdb;
+
+        $attemptsTable = TableNames::attempts();
+        $providersTable = TableNames::providers();
+        $sql = $wpdb->prepare(
+            "SELECT
+                COALESCE(a.provider_id, 0) AS provider_id,
+                COALESCE(p.name, 'Unknown provider') AS provider_name,
+                COALESCE(p.adapter_type, 'unknown') AS adapter_type,
+                COALESCE(SUM(CASE WHEN a.result = 'sent' THEN 1 ELSE 0 END), 0) AS sent_count,
+                COALESCE(SUM(CASE WHEN a.result = 'fail' THEN 1 ELSE 0 END), 0) AS failed_count,
+                COALESCE(SUM(CASE WHEN a.trigger_type = 'retry' THEN 1 ELSE 0 END), 0) AS retry_count,
+                COUNT(a.id) AS attempt_count,
+                AVG(CASE WHEN a.latency_ms IS NOT NULL THEN a.latency_ms END) AS avg_latency_ms
+            FROM {$attemptsTable} a
+            LEFT JOIN {$providersTable} p ON p.id = a.provider_id
+            WHERE a.created_at >= %s AND a.created_at < %s
+            GROUP BY COALESCE(a.provider_id, 0), p.name, p.adapter_type
+            ORDER BY attempt_count DESC, provider_name ASC
+            LIMIT %d",
+            $since,
+            $until,
+            $limit
+        );
+        $rows = $wpdb->get_results($sql, ARRAY_A);
+        if (! is_array($rows)) {
+            return null;
+        }
+
+        return array_map(
+            static function (array $row): array {
+                $sent = (int) ($row['sent_count'] ?? 0);
+                $failed = (int) ($row['failed_count'] ?? 0);
+                $retry = (int) ($row['retry_count'] ?? 0);
+
+                return [
+                    'provider_id' => (int) ($row['provider_id'] ?? 0),
+                    'provider_name' => (string) ($row['provider_name'] ?? 'Unknown provider'),
+                    'adapter_type' => (string) ($row['adapter_type'] ?? 'unknown'),
+                    'sent_count' => $sent,
+                    'failed_count' => $failed,
+                    'retry_count' => $retry,
+                    'attempt_count' => max(0, (int) ($row['attempt_count'] ?? ($sent + $failed))),
+                    'avg_latency_ms' => isset($row['avg_latency_ms']) ? max(0, (int) round((float) $row['avg_latency_ms'])) : null,
+                    'failover_count' => 0,
+                    'switch_out_count' => 0,
+                    'total_activity' => $sent + $failed + $retry,
+                ];
+            },
+            $rows
+        );
+    }
+
+    /** @return array<int,array{status:string,count:int}>|null */
+    private function queryAdvancedStatusRows(string $since, string $until, int $limit): ?array
+    {
+        global $wpdb;
+
+        $messagesTable = TableNames::messages();
+        $sql = $wpdb->prepare(
+            "SELECT COALESCE(NULLIF(status, ''), 'unknown') AS status, COUNT(*) AS status_count
+            FROM {$messagesTable}
+            WHERE created_at >= %s AND created_at < %s
+            GROUP BY COALESCE(NULLIF(status, ''), 'unknown')
+            ORDER BY status_count DESC, status ASC
+            LIMIT %d",
+            $since,
+            $until,
+            $limit
+        );
+        $rows = $wpdb->get_results($sql, ARRAY_A);
+        if (! is_array($rows)) {
+            return null;
+        }
+
+        return array_map(
+            static fn (array $row): array => [
+                'status' => sanitize_key((string) ($row['status'] ?? 'unknown')) ?: 'unknown',
+                'count' => max(0, (int) ($row['status_count'] ?? 0)),
+            ],
+            $rows
+        );
+    }
+
+    /** @return array<int,array{subject:string,count:int}>|null */
+    private function queryAdvancedSubjectRows(string $since, string $until, int $limit): ?array
+    {
+        global $wpdb;
+
+        $messagesTable = TableNames::messages();
+        $sql = $wpdb->prepare(
+            "SELECT COALESCE(subject, '') AS subject, COUNT(*) AS subject_count
+            FROM {$messagesTable}
+            WHERE created_at >= %s AND created_at < %s
+            GROUP BY COALESCE(subject, '')
+            ORDER BY subject_count DESC, subject ASC
+            LIMIT %d",
+            $since,
+            $until,
+            $limit
+        );
+        $rows = $wpdb->get_results($sql, ARRAY_A);
+        if (! is_array($rows)) {
+            return null;
+        }
+
+        return array_map(
+            static fn (array $row): array => [
+                'subject' => (string) ($row['subject'] ?? ''),
+                'count' => max(0, (int) ($row['subject_count'] ?? 0)),
+            ],
+            $rows
+        );
+    }
+
+    /** @return array<int,array{period:string,status:string,count:int}>|null */
+    private function queryAdvancedTrendRows(string $since, string $until, int $limit): ?array
+    {
+        global $wpdb;
+
+        $messagesTable = TableNames::messages();
+        $sql = $wpdb->prepare(
+            "SELECT DATE(created_at) AS period,
+                COALESCE(NULLIF(status, ''), 'unknown') AS status,
+                COUNT(*) AS status_count
+            FROM {$messagesTable}
+            WHERE created_at >= %s AND created_at < %s
+            GROUP BY DATE(created_at), COALESCE(NULLIF(status, ''), 'unknown')
+            ORDER BY period ASC, status ASC
+            LIMIT %d",
+            $since,
+            $until,
+            $limit
+        );
+        $rows = $wpdb->get_results($sql, ARRAY_A);
+        if (! is_array($rows)) {
+            return null;
+        }
+
+        return array_map(
+            static fn (array $row): array => [
+                'period' => (string) ($row['period'] ?? ''),
+                'status' => sanitize_key((string) ($row['status'] ?? 'unknown')) ?: 'unknown',
+                'count' => max(0, (int) ($row['status_count'] ?? 0)),
+            ],
+            $rows
+        );
+    }
+
+    /** @return array<int,array{category:string,count:int,last_seen_at:?string}>|null */
+    private function queryAdvancedFailureRows(string $since, string $until, int $limit): ?array
+    {
+        global $wpdb;
+
+        $attemptsTable = TableNames::attempts();
+        $sql = $wpdb->prepare(
+            "SELECT
+                COALESCE(NULLIF(failure_category, ''), 'uncategorized') AS failure_category,
+                COUNT(*) AS failure_count,
+                MAX(created_at) AS last_seen_at
+            FROM {$attemptsTable}
+            WHERE result = %s AND created_at >= %s AND created_at < %s
+            GROUP BY COALESCE(NULLIF(failure_category, ''), 'uncategorized')
+            ORDER BY failure_count DESC, failure_category ASC
+            LIMIT %d",
+            'fail',
+            $since,
+            $until,
+            $limit
+        );
+        $rows = $wpdb->get_results($sql, ARRAY_A);
+        if (! is_array($rows)) {
+            return null;
+        }
+
+        return array_map(
+            static fn (array $row): array => [
+                'category' => sanitize_key((string) ($row['failure_category'] ?? 'uncategorized')) ?: 'uncategorized',
+                'count' => max(0, (int) ($row['failure_count'] ?? 0)),
+                'last_seen_at' => isset($row['last_seen_at']) && (string) $row['last_seen_at'] !== '' ? (string) $row['last_seen_at'] : null,
+            ],
+            $rows
+        );
+    }
+
+    /**
      * @return array<int,array{provider_id:int,provider_name:string,adapter_type:string,sent_count:int,failed_count:int,retry_count:int,avg_latency_ms:?int,failover_count:int,switch_out_count:int,total_activity:int}>
      */
     public function getProviderBreakdown(string $since): array
