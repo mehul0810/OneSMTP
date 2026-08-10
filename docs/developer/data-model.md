@@ -35,8 +35,9 @@ Aculect Mail uses custom database tables for operational email records.
   recipient HMAC, bounded domain, reason, provider identifier, timestamps,
   expiry, and count. A separate `onesmtp_suppression_derivations` claim table
   keeps normalized hard-bounce/complaint derivation pending until suppression
-  persistence succeeds, so provider retries can complete a failed write
-  without inflating occurrence counts. It is populated only from normalized
+  persistence succeeds, with a cryptographically random per-claim token
+  fencing stale workers after reclaim. Provider retries can complete a failed
+  write without inflating occurrence counts. It is populated only from normalized
   authenticated events when both Pro gates and the default-off site toggle are
   enabled; plaintext recipients, provider message IDs, and payloads never
   cross the suppression repository boundary.

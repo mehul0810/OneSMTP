@@ -9,7 +9,7 @@ final class Installer
     public const VERSION_OPTION       = 'onesmtp_version';
     public const SCHEMA_VERSION_OPTION = 'onesmtp_schema_version';
     public const RETENTION_DAYS_OPTION = 'onesmtp_log_retention_days';
-    public const SCHEMA_VERSION        = 2;
+    public const SCHEMA_VERSION        = 3;
 
     public static function activate(): void
     {

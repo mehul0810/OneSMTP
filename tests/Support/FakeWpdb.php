@@ -224,8 +224,9 @@ final class FakeWpdb
 
                 $this->suppressionDerivationRowsByHash[$hash] = [
                     'external_event_hash' => $hash,
+                    'claim_token' => (string) ($args[1] ?? ''),
                     'status' => 'processing',
-                    'updated_at' => (string) ($args[1] ?? ''),
+                    'updated_at' => (string) ($args[2] ?? ''),
                 ];
 
                 return 1;
@@ -235,9 +236,11 @@ final class FakeWpdb
                 $isPending = str_contains($sql, "SET status = 'pending'");
                 if ($isProcessed || $isPending) {
                     $hash = (string) ($args[$isProcessed ? 2 : 1] ?? '');
+                    $claimToken = (string) ($args[$isProcessed ? 3 : 2] ?? '');
                     $row = $this->suppressionDerivationRowsByHash[$hash] ?? null;
-                    if (is_array($row) && (string) ($row['status'] ?? '') === 'processing') {
+                    if (is_array($row) && (string) ($row['status'] ?? '') === 'processing' && hash_equals((string) ($row['claim_token'] ?? ''), $claimToken)) {
                         $row['status'] = $isProcessed ? 'processed' : 'pending';
+                        $row['claim_token'] = null;
                         $row['updated_at'] = (string) ($args[0] ?? '');
                         $this->suppressionDerivationRowsByHash[$hash] = $row;
 
@@ -246,11 +249,17 @@ final class FakeWpdb
 
                     return 0;
                 }
-                $hash = (string) ($args[1] ?? '');
+                $claimToken = (string) ($args[0] ?? '');
+                $hash = (string) ($args[2] ?? '');
+                $staleAt = strtotime((string) ($args[3] ?? '')) ?: 0;
                 $row = $this->suppressionDerivationRowsByHash[$hash] ?? null;
-                if (is_array($row) && (string) ($row['status'] ?? '') === 'pending') {
+                $updatedAt = is_array($row) ? (strtotime((string) ($row['updated_at'] ?? '')) ?: 0) : 0;
+                $isPending = is_array($row) && (string) ($row['status'] ?? '') === 'pending';
+                $isStale = is_array($row) && (string) ($row['status'] ?? '') === 'processing' && $updatedAt < $staleAt;
+                if ($isPending || $isStale) {
+                    $row['claim_token'] = $claimToken;
                     $row['status'] = 'processing';
-                    $row['updated_at'] = (string) ($args[0] ?? '');
+                    $row['updated_at'] = (string) ($args[1] ?? '');
                     $this->suppressionDerivationRowsByHash[$hash] = $row;
 
                     return 1;

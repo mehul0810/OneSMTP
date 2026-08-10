@@ -179,6 +179,7 @@ final class DatabaseSchema
         $suppressionDerivationsSql = "CREATE TABLE {$suppressionDerivationsTable} (
             id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
             external_event_hash CHAR(64) NOT NULL,
+            claim_token CHAR(64) NULL,
             status VARCHAR(16) NOT NULL DEFAULT 'processing',
             created_at DATETIME NOT NULL,
             updated_at DATETIME NOT NULL,

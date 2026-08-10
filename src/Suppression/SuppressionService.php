@@ -56,11 +56,11 @@ final class SuppressionService
         }
 
         $eventHash = ProviderEventRepository::externalEventHash($event);
-        $claim = $this->derivations->claim($eventHash);
-        if ($claim === SuppressionDerivationRepository::PROCESSED) {
+        $claimToken = $this->derivations->claim($eventHash);
+        if ($claimToken === SuppressionDerivationRepository::PROCESSED) {
             return true;
         }
-        if ($claim !== SuppressionDerivationRepository::CLAIMED) {
+        if (in_array($claimToken, [ SuppressionDerivationRepository::CLAIMED, SuppressionDerivationRepository::BUSY ], true)) {
             return false;
         }
 
@@ -69,7 +69,7 @@ final class SuppressionService
         $expiry = (new DateTimeImmutable('now', new DateTimeZone('UTC')))->modify('+' . $days . ' days')->format('Y-m-d H:i:s');
         global $wpdb;
         if ($wpdb->query('START TRANSACTION') === false) {
-            $this->derivations->markPending($eventHash);
+            $this->derivations->markPending($eventHash, $claimToken);
 
             return false;
         }
@@ -83,16 +83,16 @@ final class SuppressionService
             $firstSeen,
             $expiry
         );
-        if ( ! $saved || ! $this->derivations->markProcessed($eventHash) ) {
+        if ( ! $saved || ! $this->derivations->markProcessed($eventHash, $claimToken) ) {
             $wpdb->query('ROLLBACK');
-            $this->derivations->markPending($eventHash);
+            $this->derivations->markPending($eventHash, $claimToken);
 
             return false;
         }
 
         if ($wpdb->query('COMMIT') === false) {
             $wpdb->query('ROLLBACK');
-            $this->derivations->markPending($eventHash);
+            $this->derivations->markPending($eventHash, $claimToken);
 
             return false;
         }
