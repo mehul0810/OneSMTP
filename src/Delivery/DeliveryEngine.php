@@ -20,18 +20,23 @@ final class DeliveryEngine
     private ProviderDeliveryManager $deliveryManager;
     private EventRepository $events;
 
+    /** @var callable():int */
+    private $monotonicNow;
+
     public function __construct(
         ProviderRepository $providers,
         AttemptRepository $attempts,
         DispatchPolicyInterface $dispatchPolicy,
         ?ProviderDeliveryManager $deliveryManager = null,
-        ?EventRepository $events = null
+        ?EventRepository $events = null,
+        ?callable $monotonicNow = null
     ) {
         $this->providers = $providers;
         $this->attempts = $attempts;
         $this->dispatchPolicy = $dispatchPolicy;
         $this->deliveryManager = $deliveryManager ?? new ProviderDeliveryManager();
         $this->events = $events ?? new EventRepository();
+        $this->monotonicNow = $monotonicNow ?? static fn (): int => hrtime(true);
     }
 
     public function deliver(
@@ -67,7 +72,9 @@ final class DeliveryEngine
             return new DeliveryOutcome(false, 0, 'missing_provider', 'Provider not found.');
         }
 
+        $startedAt = ($this->monotonicNow)();
         $result = $this->deliveryManager->send($provider, $payload);
+        $latencyMs = max(0, (int) round(((($this->monotonicNow)()) - $startedAt) / 1_000_000));
 
         if ($result->isSuccess()) {
             $this->providers->markState($providerId, 'closed', null);
@@ -81,7 +88,8 @@ final class DeliveryEngine
             $result->getCode(),
             $result->getMessage(),
             $result->getProviderMessageId(),
-            $result->getFailureCategory()
+            $result->getFailureCategory(),
+            $latencyMs
         );
     }
 

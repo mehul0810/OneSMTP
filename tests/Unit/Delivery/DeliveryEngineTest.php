@@ -6,6 +6,11 @@ namespace OneSMTP\Tests\Unit\Delivery;
 
 use OneSMTP\Delivery\DeliveryEngine;
 use OneSMTP\Dispatch\DefaultDispatchPolicy;
+use OneSMTP\Providers\ProviderAdapterInterface;
+use OneSMTP\Providers\ProviderAdapterRegistry;
+use OneSMTP\Providers\ProviderConfig;
+use OneSMTP\Providers\ProviderDeliveryManager;
+use OneSMTP\Providers\SendResult;
 use OneSMTP\Repository\AttemptRepository;
 use OneSMTP\Repository\EventRepository;
 use OneSMTP\Repository\ProviderRepository;
@@ -113,6 +118,53 @@ final class DeliveryEngineTest extends TestCase
         self::assertNotNull($event);
         self::assertSame(503, $event['data']['message_id']);
         self::assertSame(999, $event['data']['provider_id']);
+    }
+
+    public function test_provider_call_latency_is_measured_on_the_delivery_outcome(): void
+    {
+        $provider = [
+            'id' => 100,
+            'adapter_type' => 'timed',
+            'is_active' => 1,
+            'priority' => 1,
+            'weight' => 1,
+            'config_json' => '{}',
+        ];
+        $GLOBALS['wpdb']->activeProviders = [$provider];
+        $GLOBALS['wpdb']->providerRowsById[100] = $provider;
+
+        $adapter = new class implements ProviderAdapterInterface {
+            public function getSlug(): string
+            {
+                return 'timed';
+            }
+
+            public function send(array $message, ProviderConfig $config): SendResult
+            {
+                return new SendResult(true, 'sent', 'Accepted.');
+            }
+
+            public function testConnection(ProviderConfig $config): SendResult
+            {
+                return new SendResult(true, 'connected', 'Connected.');
+            }
+        };
+        $ticks = [1_000_000_000, 1_125_000_000];
+        $engine = new DeliveryEngine(
+            new ProviderRepository(),
+            new AttemptRepository(),
+            new DefaultDispatchPolicy(),
+            new ProviderDeliveryManager(new ProviderAdapterRegistry(['timed' => $adapter])),
+            new EventRepository(),
+            static function () use (&$ticks): int {
+                return (int) array_shift($ticks);
+            }
+        );
+
+        $outcome = $engine->deliver(504, 1, ['to' => ['qa@example.com'], 'subject' => 'Timed']);
+
+        self::assertTrue($outcome->isSuccess());
+        self::assertSame(125, $outcome->getLatencyMs());
     }
 
     private function buildEngine(): DeliveryEngine

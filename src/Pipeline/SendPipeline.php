@@ -414,6 +414,7 @@ final class SendPipeline
             'error_code' => $outcome->isSuccess() ? null : $outcome->getCode(),
             'error_message' => $outcome->isSuccess() ? null : $outcome->getMessage(),
             'failure_category' => $outcome->isSuccess() ? null : $outcome->getFailureCategory(),
+            'latency_ms' => $outcome->getLatencyMs(),
             'provider_message_id' => $outcome->getProviderMessageId(),
         ]);
     }

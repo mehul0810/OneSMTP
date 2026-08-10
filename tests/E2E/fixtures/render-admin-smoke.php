@@ -3,11 +3,14 @@
 declare(strict_types=1);
 
 use OneSMTP\Admin\AdminPage;
+use OneSMTP\Admin\DashboardAdmin;
 use OneSMTP\Admin\QueueDiagnosticsAdmin;
+use OneSMTP\Analytics\ProviderReliabilityScorer;
 use OneSMTP\Core\Capabilities;
 use OneSMTP\Diagnostics\DiagnosticReportGenerator;
 use OneSMTP\Queue\ActionSchedulerHealth;
 use OneSMTP\Queue\QueueDiagnostics;
+use OneSMTP\Product\FeatureGate;
 use OneSMTP\Repository\AttemptRepository;
 use OneSMTP\Repository\MessageRepository;
 use OneSMTP\Repository\ProviderRepository;
@@ -175,6 +178,22 @@ $GLOBALS['wpdb']->eventAcknowledgementRows = [
     ],
 ];
 
+$analyticsSince = '2026-06-19 12:00:00';
+$GLOBALS['wpdb']->dashboardActivityRowsBySince[$analyticsSince] = [
+    'sent_count' => 96,
+    'failed_count' => 4,
+    'retry_count' => 2,
+];
+$GLOBALS['wpdb']->dashboardProviderAttemptRowsBySince[$analyticsSince] = [[
+    'provider_id' => 7,
+    'provider_name' => 'Browser Smoke SMTP',
+    'adapter_type' => 'smtp',
+    'sent_count' => 96,
+    'failed_count' => 4,
+    'retry_count' => 2,
+    'avg_latency_ms' => 800,
+]];
+
 $_GET = [
     'page' => 'onesmtp',
     'onesmtp_message_id' => '21',
@@ -193,10 +212,16 @@ $queue = new QueueDiagnostics(
     static fn (): int => 1782475200
 );
 
+$proFeatures = new FeatureGate([FeatureGate::ADVANCED_ANALYTICS => true], true);
 $admin = new AdminPage(
     diagnostics: new QueueDiagnosticsAdmin(
         $queue,
         new DiagnosticReportGenerator(new ProviderRepository(), $queue, new AttemptRepository(), null, static fn (): int => 1782475200)
+    ),
+    dashboard: new DashboardAdmin(
+        nowProvider: static fn (): int => 1782475200,
+        reliability: new ProviderReliabilityScorer(),
+        features: $proFeatures
     )
 );
 

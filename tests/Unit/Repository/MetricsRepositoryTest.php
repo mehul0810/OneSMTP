@@ -66,6 +66,7 @@ final class MetricsRepositoryTest extends TestCase
                 'sent_count' => 7,
                 'failed_count' => 2,
                 'retry_count' => 3,
+                'avg_latency_ms' => '825.6',
             ],
             [
                 'provider_id' => 20,
@@ -95,12 +96,14 @@ final class MetricsRepositoryTest extends TestCase
 
         self::assertSame(10, $breakdown[0]['provider_id']);
         self::assertSame(12, $breakdown[0]['total_activity']);
+        self::assertSame(826, $breakdown[0]['avg_latency_ms']);
         self::assertSame(20, $breakdown[1]['provider_id']);
         self::assertSame(1, $breakdown[1]['sent_count']);
         self::assertSame(4, $breakdown[1]['failover_count']);
         self::assertSame(5, $breakdown[1]['total_activity']);
         self::assertSame(30, $breakdown[2]['provider_id']);
         self::assertSame(0, $breakdown[2]['sent_count']);
+        self::assertNull($breakdown[2]['avg_latency_ms']);
         self::assertSame(2, $breakdown[2]['failover_count']);
     }
 
