@@ -17,6 +17,7 @@ final class FeatureGate
     public const ADVANCED_ANALYTICS = 'advanced_analytics';
     public const COMPLIANCE_CONTROLS = 'compliance_controls';
     public const MULTISITE_MANAGEMENT = 'multisite_management';
+    public const ADVANCED_ALERTS = 'advanced_alerts';
 
     public const STATE_ENABLED = 'enabled';
     public const STATE_FLAG_DISABLED = 'flag_disabled';
@@ -29,6 +30,7 @@ final class FeatureGate
         self::ADVANCED_ANALYTICS,
         self::COMPLIANCE_CONTROLS,
         self::MULTISITE_MANAGEMENT,
+        self::ADVANCED_ALERTS,
     ];
 
     /** @var array<string,bool> */
@@ -54,12 +56,21 @@ final class FeatureGate
     public static function fromRuntime(): self
     {
         $flags = apply_filters('onesmtp_feature_flags', []);
+        $proFlags = apply_filters('onesmtp_pro_feature_flags', []);
+        if (is_array($proFlags)) {
+            $flags = array_merge(is_array($flags) ? $flags : [], $proFlags);
+        }
         $entitled = apply_filters('onesmtp_pro_entitled', false);
 
         return new self(
             is_array($flags) ? $flags : [],
             $entitled === true
         );
+    }
+
+    public static function fromWordPress(): self
+    {
+        return self::fromRuntime();
     }
 
     /** @return array<int,string> */

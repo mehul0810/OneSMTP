@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace OneSMTP\Tests\Integration\Dispatch;
 
+use OneSMTP\Alerts\FailureAlertDispatcher;
 use OneSMTP\Delivery\DeliveryEngine;
 use OneSMTP\Dispatch\DefaultDispatchPolicy;
 use OneSMTP\Pipeline\SendPipeline;
+use OneSMTP\Product\FeatureGate;
 use OneSMTP\Providers\FailureCategory;
 use OneSMTP\Providers\ProviderAdapterInterface;
 use OneSMTP\Providers\ProviderAdapterRegistry;
@@ -399,6 +401,52 @@ final class SendPipelineIntegrationTest extends TestCase
         }
     }
 
+    public function test_real_terminal_failure_producer_dispatches_pro_escalation(): void
+    {
+        $this->seedProvider(27, 'test_alert_escalation');
+        update_option('onesmtp_settings', [
+            'failure_alerts' => [
+                'advanced_enabled' => true,
+                'advanced_destinations' => [
+                    [
+						'channel' => 'email',
+						'target' => 'oncall@example.test',
+					],
+                ],
+                'escalation_failure_threshold' => 1,
+            ],
+        ], false);
+
+        $alerts = new FailureAlertDispatcher(
+            null,
+            null,
+            new FeatureGate([
+                FeatureGate::ADVANCED_ALERTS => true,
+            ], true)
+        );
+        $pipeline = $this->buildPipeline(
+            new StaticAdapter(
+                'test_alert_escalation',
+                new SendResult(false, 'missing_api_key', 'Provider API key is not configured.')
+            ),
+            null,
+            new EventRepository($alerts)
+        );
+
+        self::assertFalse($pipeline->handlePreWpMail(null, [
+            'to' => ['private@example.test'],
+            'subject' => 'Terminal escalation',
+            'message' => 'Sensitive body',
+            'headers' => [],
+        ]));
+
+        self::assertCount(1, $GLOBALS['onesmtp_test_mail']);
+        self::assertSame(['oncall@example.test'], $GLOBALS['onesmtp_test_mail'][0]['to']);
+        self::assertStringContainsString('"alert_level": "escalated"', (string) $GLOBALS['onesmtp_test_mail'][0]['message']);
+        self::assertStringContainsString('"trigger": "repeated_failures"', (string) $GLOBALS['onesmtp_test_mail'][0]['message']);
+        self::assertStringNotContainsString('Sensitive body', (string) $GLOBALS['onesmtp_test_mail'][0]['message']);
+    }
+
     public function test_manual_resend_uses_forced_provider_and_records_lineage_attempt(): void
     {
         $this->seedProvider(30, 'test_resend');
@@ -575,13 +623,13 @@ final class SendPipelineIntegrationTest extends TestCase
         self::assertNotNull($this->findEventInsert('terminal_failure'));
     }
 
-    private function buildPipeline(ProviderAdapterInterface $adapter, ?callable $clock = null): SendPipeline
+    private function buildPipeline(ProviderAdapterInterface $adapter, ?callable $clock = null, ?EventRepository $events = null): SendPipeline
     {
         $dispatch = new DefaultDispatchPolicy();
         $messages = new MessageRepository();
         $attempts = new AttemptRepository();
         $providers = new ProviderRepository();
-        $events = new EventRepository();
+        $events = $events ?? new EventRepository();
         $retryScheduler = new RetryScheduler($dispatch, $messages, $attempts, $providers, $events);
         $deliveryManager = new ProviderDeliveryManager(new ProviderAdapterRegistry([$adapter->getSlug() => $adapter]));
         $deliveryEngine = new DeliveryEngine($providers, $attempts, $dispatch, $deliveryManager, $events);
