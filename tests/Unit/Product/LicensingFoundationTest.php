@@ -28,6 +28,15 @@ final class LicensingFoundationTest extends TestCase
         self::assertStringNotContainsString($raw, (string) wp_json_encode($status->toArray()));
     }
 
+    public function test_short_identifiers_are_fully_masked_and_empty_values_stay_empty(): void
+    {
+        self::assertSame('****', MaskedIdentifier::fromRaw('A')->value());
+        self::assertSame('****', MaskedIdentifier::fromRaw('AB12')->value());
+        self::assertSame('****', MaskedIdentifier::fromRaw('A-B')->value());
+        self::assertSame('', MaskedIdentifier::fromRaw('')->value());
+        self::assertSame('', MaskedIdentifier::fromRaw('   ')->value());
+    }
+
     public function test_unknown_reason_is_reduced_to_a_bounded_error_code(): void
     {
         $status = LicenseStatus::create(LicenseState::ERROR, reason: 'remote diagnostic with a key');

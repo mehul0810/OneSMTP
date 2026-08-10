@@ -22,10 +22,12 @@ final class MaskedIdentifier
             return self::none();
         }
 
-        $suffix = substr($identifier, -4);
-        $suffix = preg_replace('/[^A-Za-z0-9]/', '', $suffix) ?? '';
+        $normalized = preg_replace('/[^A-Za-z0-9]/', '', $identifier) ?? '';
+        if (strlen($normalized) <= 4) {
+            return new self('****');
+        }
 
-        return new self($suffix === '' ? '****' : '****' . substr($suffix, -4));
+        return new self('****' . substr($normalized, -4));
     }
 
     public function value(): string
