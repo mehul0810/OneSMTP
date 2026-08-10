@@ -137,6 +137,7 @@ final class ProviderEventIngestionTest extends TestCase
             true,
             true,
             static function ($event, $providerId) use (&$handled): bool {
+                unset($event, $providerId);
                 $handled++;
 
                 return true;
@@ -147,7 +148,7 @@ final class ProviderEventIngestionTest extends TestCase
 
         $mutated = json_decode($body, true, 32, JSON_THROW_ON_ERROR);
         $mutated['event-data']['event'] = 'complained';
-        self::assertFalse($service->ingest((string) wp_json_encode($mutated), 'application/json', []));
+        self::assertFalse($service->ingest( (string) wp_json_encode($mutated), 'application/json', []));
         self::assertSame(1, $handled);
     }
 
