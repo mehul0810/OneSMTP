@@ -80,11 +80,11 @@ final class RetentionPolicy
         }
 
         $presets = self::presets();
-        if (! isset($presets[$profile])) {
+        if ( ! isset($presets[ $profile ])) {
             throw new InvalidArgumentException('Choose a supported retention policy.');
         }
 
-        return (int) $presets[$profile]['days'];
+        return (int) $presets[ $profile ]['days'];
     }
 
     public static function profileForDays(int $days): string

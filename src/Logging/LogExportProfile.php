@@ -70,7 +70,7 @@ final class LogExportProfile
     {
         $profile = sanitize_key($profile);
 
-        return isset(self::profiles()[$profile]) ? $profile : self::DEFAULT_PROFILE;
+        return isset(self::profiles()[ $profile ]) ? $profile : self::DEFAULT_PROFILE;
     }
 
     /** @return array<int,string> */
@@ -78,6 +78,6 @@ final class LogExportProfile
     {
         $profile = self::normalize($profile);
 
-        return self::profiles()[$profile]['fields'];
+        return self::profiles()[ $profile ]['fields'];
     }
 }

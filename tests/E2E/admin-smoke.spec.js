@@ -11,13 +11,14 @@ const repoRoot = path.resolve( __dirname, '..', '..' );
 const adminUrl =
 	'https://example.org/wp-admin/options-general.php?page=onesmtp';
 
-function renderAdminFixture() {
+function renderAdminFixture( pro = false ) {
 	return execFileSync( 'php', [ fixturePath ], {
 		cwd: repoRoot,
 		encoding: 'utf8',
 		env: {
 			...process.env,
 			ONESMTP_PLAYWRIGHT_SMOKE: '1',
+			ONESMTP_PLAYWRIGHT_PRO: pro ? '1' : '0',
 		},
 	} );
 }
@@ -269,7 +270,7 @@ test.describe( 'Aculect Mail admin browser smoke', () => {
 		await expect( proCapabilities ).toContainText( 'Available with Pro' );
 		await expect(
 			proCapabilities.getByRole( 'button', { name: 'Requires Pro' } )
-		).toHaveCount( 4 );
+		).toHaveCount( 5 );
 		await expect(
 			proCapabilities
 				.getByRole( 'button', { name: 'Requires Pro' } )
@@ -294,10 +295,29 @@ test.describe( 'Aculect Mail admin browser smoke', () => {
 	test( 'renders compliance retention and export profile controls with screenshots', async ( {
 		page,
 	} ) => {
-		await openWorkspace( page, 'Advanced', 'onesmtp-advanced' );
+		const proHtml = renderAdminFixture( true );
+		await page.unroute(
+			'https://example.org/wp-admin/options-general.php**'
+		);
+		await page.route(
+			'https://example.org/wp-admin/options-general.php**',
+			async ( route ) => {
+				await route.fulfill( {
+					status: 200,
+					contentType: 'text/html; charset=utf-8',
+					body: proHtml,
+				} );
+			}
+		);
+		await page.goto( adminUrl );
+		await page.goto(
+			`${ adminUrl }?tab=onesmtp-advanced#onesmtp-advanced`
+		);
 		const advanced = page.locator( '#onesmtp-advanced' );
 		const retention = advanced.locator( '.onesmtp-settings-panel', {
-			hasText: 'Log retention policy',
+			has: page.getByRole( 'heading', {
+				name: 'Log retention policy',
+			} ),
 		} );
 
 		await expect( retention ).toContainText( '1-120 days' );
@@ -305,16 +325,25 @@ test.describe( 'Aculect Mail admin browser smoke', () => {
 			retention.getByRole( 'combobox', { name: 'Policy preset' } )
 		).toBeVisible();
 		await expect(
-			retention.getByRole( 'spinbutton', { name: 'Custom duration in days' } )
+			retention.getByRole( 'spinbutton', {
+				name: 'Custom duration in days',
+			} )
 		).toHaveAttribute( 'min', '1' );
 
-		await openWorkspace( page, 'Activity', 'onesmtp-activity' );
+		await page.goto(
+			`${ adminUrl }?tab=onesmtp-activity#onesmtp-activity`
+		);
+		await page
+			.locator(
+				'#onesmtp-activity details.onesmtp-activity-filters summary'
+			)
+			.click();
 		await expect(
 			page.getByRole( 'combobox', { name: 'Export profile' } )
 		).toBeVisible();
-		await expect( page.locator( '#onesmtp-log-export-profile-help' ) ).toContainText(
-			'payload JSON'
-		);
+		await expect(
+			page.locator( '#onesmtp-log-export-profile-help' )
+		).toContainText( 'payload JSON' );
 
 		await page.screenshot( {
 			path: 'output/playwright/screenshots/issue-44-desktop.png',
