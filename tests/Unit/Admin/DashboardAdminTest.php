@@ -164,6 +164,30 @@ final class DashboardAdminTest extends TestCase
         self::assertStringNotContainsString('Provider reliability', $this->render());
     }
 
+    public function test_pro_reliability_dashboard_excludes_unattributed_attempts(): void
+    {
+        $lastWeek = $this->sinceDaysAgo(7);
+        $GLOBALS['wpdb']->dashboardActivityRowsBySince[$lastWeek] = [
+            'sent_count' => 0,
+            'failed_count' => 2,
+            'retry_count' => 0,
+        ];
+        $GLOBALS['wpdb']->dashboardProviderAttemptRowsBySince[$lastWeek] = [[
+            'provider_id' => 0,
+            'provider_name' => 'Unknown provider',
+            'adapter_type' => 'unknown',
+            'sent_count' => 0,
+            'failed_count' => 2,
+            'retry_count' => 0,
+            'avg_latency_ms' => null,
+        ]];
+
+        $html = $this->render(true);
+
+        self::assertStringContainsString('Reliability scoring begins after a provider records a delivery attempt.', $html);
+        self::assertStringNotContainsString('data-onesmtp-dataviews="analytics-reliability"', $html);
+    }
+
     private function render(bool $proAnalytics = false): string
     {
         $features = new FeatureGate(

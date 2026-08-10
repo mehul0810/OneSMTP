@@ -94,6 +94,10 @@ final class DashboardAdmin
 
         $rows = [];
         foreach ($providers as $provider) {
+            if ((int) ($provider['provider_id'] ?? 0) <= 0) {
+                continue;
+            }
+
             $score = $this->reliability->score($provider);
             if ($score['attempt_count'] === 0) {
                 continue;
