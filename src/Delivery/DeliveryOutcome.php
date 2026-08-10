@@ -15,6 +15,7 @@ final class DeliveryOutcome
     private string $message;
     private ?string $providerMessageId;
     private string $failureCategory;
+    private ?int $latencyMs;
 
     public function __construct(
         bool $success,
@@ -22,7 +23,8 @@ final class DeliveryOutcome
         string $code = '',
         string $message = '',
         ?string $providerMessageId = null,
-        ?string $failureCategory = null
+        ?string $failureCategory = null,
+        ?int $latencyMs = null
     ) {
         $this->success           = $success;
         $this->providerId        = $providerId;
@@ -30,6 +32,7 @@ final class DeliveryOutcome
         $this->message           = $message;
         $this->providerMessageId = $providerMessageId;
         $this->failureCategory   = $success ? '' : FailureCategory::normalize($failureCategory ?? FailureClassifier::classify($code, $message));
+        $this->latencyMs         = $latencyMs !== null ? max(0, $latencyMs) : null;
     }
 
     public function isSuccess(): bool
@@ -60,6 +63,11 @@ final class DeliveryOutcome
     public function getFailureCategory(): string
     {
         return $this->failureCategory;
+    }
+
+    public function getLatencyMs(): ?int
+    {
+        return $this->latencyMs;
     }
 
     public function shouldRetry(): bool
