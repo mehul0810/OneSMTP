@@ -4,13 +4,19 @@ declare(strict_types=1);
 
 namespace OneSMTP\Settings;
 
+use OneSMTP\Multisite\NetworkSettingsRepository;
+
 final class BackgroundSendingSettingsRepository
 {
     private const KEY = 'background_sending';
 
-    public function __construct(private ?SettingsRepository $settings = null)
+    public function __construct(
+        private ?SettingsRepository $settings = null,
+        private ?NetworkSettingsRepository $networkSettings = null
+    )
     {
         $this->settings = $settings ?? new SettingsRepository();
+        $this->networkSettings = $networkSettings ?? new NetworkSettingsRepository();
     }
 
     public function get(): BackgroundSendingSettings
@@ -18,7 +24,7 @@ final class BackgroundSendingSettingsRepository
         $settings = $this->settings->getAll();
         $background = isset($settings[self::KEY]) && is_array($settings[self::KEY]) ? $settings[self::KEY] : [];
 
-        return BackgroundSendingSettings::fromArray($background);
+        return BackgroundSendingSettings::fromArray($this->networkSettings->resolve(self::KEY, $background));
     }
 
     public function save(BackgroundSendingSettings $background): bool

@@ -192,6 +192,10 @@ if (! function_exists('add_option')) {
 if (! function_exists('update_option')) {
     function update_option(string $option, mixed $value, bool|string|null $autoload = null): bool
     {
+        if (($GLOBALS['onesmtp_test_throw_on_update_option'] ?? '') === $option) {
+            throw new RuntimeException('Synthetic update_option failure.');
+        }
+
         if (! isset($GLOBALS['onesmtp_test_options'])) {
             $GLOBALS['onesmtp_test_options'] = [];
         }
@@ -208,6 +212,10 @@ if (! function_exists('update_option')) {
 if (! function_exists('get_option')) {
     function get_option(string $option, mixed $default = false): mixed
     {
+        if (($GLOBALS['onesmtp_test_throw_on_get_option'] ?? '') === $option) {
+            throw new RuntimeException('Synthetic get_option failure.');
+        }
+
         if (! array_key_exists($option, $GLOBALS['onesmtp_test_options'] ?? [])) {
             return $default;
         }
@@ -223,11 +231,78 @@ if (! function_exists('get_site_option')) {
     }
 }
 
+if (! function_exists('update_site_option')) {
+    function update_site_option(string $option, mixed $value): bool
+    {
+        return update_option($option, $value, false);
+    }
+}
+
+if (! function_exists('is_multisite')) {
+    function is_multisite(): bool
+    {
+        return (bool) ($GLOBALS['onesmtp_test_multisite'] ?? false);
+    }
+}
+
+if (! function_exists('is_network_admin')) {
+    function is_network_admin(): bool
+    {
+        return (bool) ($GLOBALS['onesmtp_test_network_admin'] ?? false);
+    }
+}
+
+if (! function_exists('get_sites')) {
+    function get_sites(array $args = []): array
+    {
+        return $GLOBALS['onesmtp_test_sites'] ?? [];
+    }
+}
+
+if (! function_exists('get_current_blog_id')) {
+    function get_current_blog_id(): int
+    {
+        return (int) ($GLOBALS['onesmtp_test_current_blog_id'] ?? 1);
+    }
+}
+
+if (! function_exists('switch_to_blog')) {
+    function switch_to_blog(int $siteId): bool
+    {
+        if ((int) ($GLOBALS['onesmtp_test_throw_on_switch_to_blog'] ?? 0) === $siteId) {
+            throw new RuntimeException('Synthetic switch_to_blog failure.');
+        }
+
+        $GLOBALS['onesmtp_test_blog_stack'][] = get_current_blog_id();
+        $GLOBALS['onesmtp_test_current_blog_id'] = $siteId;
+
+        return true;
+    }
+}
+
+if (! function_exists('restore_current_blog')) {
+    function restore_current_blog(): bool
+    {
+        $previous = array_pop($GLOBALS['onesmtp_test_blog_stack']);
+        if ($previous !== null) {
+            $GLOBALS['onesmtp_test_current_blog_id'] = (int) $previous;
+        }
+
+        return true;
+    }
+}
+
 if (! function_exists('get_bloginfo')) {
     function get_bloginfo(string $show = ''): string
     {
+        if (($GLOBALS['onesmtp_test_throw_on_get_bloginfo'] ?? false) === true) {
+            throw new RuntimeException('Synthetic get_bloginfo failure.');
+        }
+
         if ($show === 'name') {
-            return 'Test Site';
+            $blogId = (int) ($GLOBALS['onesmtp_test_current_blog_id'] ?? 1);
+
+            return (string) (($GLOBALS['onesmtp_test_blog_names'] ?? [])[$blogId] ?? 'Test Site');
         }
 
         return '';
@@ -499,6 +574,10 @@ if (! function_exists('sanitize_key')) {
 if (! function_exists('sanitize_text_field')) {
     function sanitize_text_field(string $value): string
     {
+        if (($GLOBALS['onesmtp_test_throw_on_sanitize_text_field'] ?? '') !== '' && str_contains($value, (string) $GLOBALS['onesmtp_test_throw_on_sanitize_text_field'])) {
+            throw new RuntimeException('Synthetic sanitize_text_field failure.');
+        }
+
         return trim(strip_tags($value));
     }
 }
@@ -603,6 +682,13 @@ if (! function_exists('__')) {
     }
 }
 
+if (! function_exists('_n')) {
+    function _n(string $single, string $plural, int $number, string $domain = 'default'): string
+    {
+        return $number === 1 ? $single : $plural;
+    }
+}
+
 if (! function_exists('esc_html__')) {
     function esc_html__(string $text, string $domain = 'default'): string
     {
@@ -693,6 +779,13 @@ if (! function_exists('admin_url')) {
     function admin_url(string $path = ''): string
     {
         return 'https://example.org/wp-admin/' . ltrim($path, '/');
+    }
+}
+
+if (! function_exists('network_admin_url')) {
+    function network_admin_url(string $path = ''): string
+    {
+        return 'https://example.org/wp-admin/network/' . ltrim($path, '/');
     }
 }
 
