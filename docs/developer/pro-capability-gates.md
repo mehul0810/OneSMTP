@@ -85,8 +85,11 @@ site toggle, and a real site secret are available.
 The filters above are internal integration points for the candidate runtime and
 fixtures, not a supported way to activate paid behavior. Do not add license
 activation, purchase URLs, pricing, tiers, hosted-service claims, telemetry,
-privacy promises, or public schema changes here. Owner-gated issue #40 and
-#66 remain planned/excluded from this candidate. Provider
+privacy promises, or public schema changes here. Owner-gated issue #40 remains
+planned/excluded from this candidate. The repository-local #66
+foundation defines typed license, entitlement, and update contracts but no
+production activation, entitlement authority, update feed, package delivery,
+or network service; see [`licensing-foundation.md`](licensing-foundation.md). Provider
 quota budgets from [issue #54](https://github.com/mehul0810/aculect-mail/issues/54) are candidate-shipped by merged [PR #166](https://github.com/mehul0810/aculect-mail/pull/166);
 the issue is closed and its release-tip evidence is recorded in the claim ledger.
 

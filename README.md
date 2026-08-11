@@ -33,6 +33,9 @@ network log summaries, and per-provider minute/hour/day sending budgets behind
 behind `bounce_suppression`. Suppression derives only from authenticated
 normalized Mailgun hard-bounce and complaint events and blocks a complete
 message on an active match.
+The candidate also includes behavior-inert licensing and update integration
+contracts with honest unavailable states; it does not include a license
+service, purchase flow, update feed, or package delivery.
 Customer-owned Gmail and Zoho Mail OAuth connection lifecycle, encrypted
 bounded token refresh/cache, disconnect cleanup, and Gmail API delivery are
 also candidate workflows behind `provider_auth_lifecycle`; gate-off
@@ -79,6 +82,7 @@ hosted-service, telemetry, privacy, or release-date claims from this section.
 - Multisite network: `docs/admin/multisite-network.md`
 - Developer docs: `docs/developer/`
 - Pro capability gates: `docs/developer/pro-capability-gates.md`
+- Licensing foundation: `docs/developer/licensing-foundation.md`
 - 0.4.0 Pro claim ledger: `docs/release/0.4.0-pro-claim-ledger.md`
 - Compatibility matrix: `docs/developer/compatibility-matrix.md`
 - Internationalization workflow: `docs/developer/i18n.md`

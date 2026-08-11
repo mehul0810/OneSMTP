@@ -666,6 +666,37 @@ test.describe( 'Aculect Mail admin browser smoke', () => {
 		} );
 	} );
 
+	test( 'renders the no-network Pro distribution foundation at desktop and mobile', async ( {
+		page,
+	} ) => {
+		await page.goto(
+			`${ adminUrl }?tab=onesmtp-advanced#onesmtp-advanced`
+		);
+
+		const panel = page.locator( '.onesmtp-pro-distribution' );
+		await expect( panel ).toContainText( 'Pro distribution foundation' );
+		await expect( panel ).toContainText( 'License service' );
+		await expect( panel ).toContainText( 'Pro updates' );
+		await expect( panel.getByText( 'Not configured' ) ).toHaveCount( 2 );
+		await expect( panel ).toContainText(
+			'No license service, activation request, update feed, package download, or purchase flow is connected.'
+		);
+		await expect( panel.locator( 'form' ) ).toHaveCount( 0 );
+		await expect( panel.locator( 'input' ) ).toHaveCount( 0 );
+
+		await page.screenshot( {
+			path: 'docs/admin/screenshots/issue-66/pro-distribution-foundation-desktop.png',
+			fullPage: true,
+		} );
+
+		await page.setViewportSize( { width: 390, height: 844 } );
+		await expect( panel ).toBeVisible();
+		await page.screenshot( {
+			path: 'docs/admin/screenshots/issue-66/pro-distribution-foundation-mobile.png',
+			fullPage: true,
+		} );
+	} );
+
 	test( 'renders long suppression records through the DataViews contract at desktop and 390px', async ( {
 		page,
 	} ) => {

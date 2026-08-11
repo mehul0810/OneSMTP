@@ -23,6 +23,7 @@ The format is based on Keep a Changelog and this project follows Semantic Versio
 - Attachment-bearing quota deferrals fail closed before UUID resolution or scheduling with safe terminal metadata when sanitized retry data cannot reproduce files.
 - Candidate Pro onboarding, default-deny fallback boundaries, planned exclusions, and claim evidence are documented without purchase, licensing, pricing, or upgrade claims.
 - Candidate Mailgun webhook ingestion behind `provider_events`, plus default-off site-local hard-bounce and complaint suppression behind `bounce_suppression`, with strict HTTPS/JSON bounds, five-minute timestamp skew, encrypted signing-key storage, a dedicated hashed replay-token claim store, normalized privacy-safe event records, whole-message dispatch blocking, and bounded retention.
+- Repository-local, no-network licensing and update contracts with bounded statuses, masked identifiers, default-deny entitlement adaptation, injectable fakes, and honest unavailable/error admin states. No activation service or update delivery is included.
 - Candidate `provider_auth_lifecycle` workflows for customer-owned Gmail and Zoho Mail OAuth: site-local HTTPS state-bound callbacks, narrow provider scopes, encrypted bounded token refresh/cache, revoke-and-cleanup disconnect, and Gmail API MIME delivery. This remains unreleased and Pro-gated.
 
 ## [0.3.0] - Unreleased

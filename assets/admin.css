@@ -1197,6 +1197,34 @@
     margin-top: 16px;
 }
 
+.onesmtp-pro-distribution-status {
+    display: grid;
+    margin: 0 0 16px;
+    border: 1px solid var(--aculect-admin-border);
+    border-radius: 6px;
+}
+
+.onesmtp-pro-distribution-row {
+    display: grid;
+    grid-template-columns: minmax(140px, 1fr) minmax(0, 2fr);
+    gap: 16px;
+    padding: 14px 16px;
+}
+
+.onesmtp-pro-distribution-row + .onesmtp-pro-distribution-row {
+    border-top: 1px solid var(--aculect-admin-border);
+}
+
+.onesmtp-pro-distribution-row dt {
+    font-weight: 600;
+}
+
+.onesmtp-pro-distribution-row dd {
+    margin: 0;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
 .onesmtp-settings-panel .form-table {
     margin-top: 0;
 }
@@ -1460,6 +1488,11 @@
     .onesmtp-pro-capability-status {
         justify-content: flex-start;
         flex-wrap: wrap;
+    }
+
+    .onesmtp-pro-distribution-row {
+        grid-template-columns: 1fr;
+        gap: 4px;
     }
 
     .onesmtp-admin-workspace-layout {

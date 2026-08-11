@@ -44,8 +44,11 @@ The controls are default-deny and do not change core delivery when unavailable.
 
 The status **Available with Pro** is descriptive of the capability boundary,
 not a claim that a plan, license, purchase flow, or upgrade URL is available.
-The candidate has no purchase CTA, license activation path, hosted service,
+The candidate has no purchase CTA, operational license activation path, hosted service,
 pricing, tier, site-count, support/SLA, telemetry, or privacy promise.
+Its local licensing/update foundation exposes bounded contracts and honest
+unavailable/error states only; it performs no external request and cannot
+activate a paid entitlement or deliver an update.
 
 ## Visual reference
 
@@ -65,8 +68,8 @@ enabled Pro workflows:
 
 - Open/click tracking (issue
   [#40](https://github.com/mehul0810/aculect-mail/issues/40)).
-- License activation or update mechanisms (issue
-  [#66](https://github.com/mehul0810/aculect-mail/issues/66)).
+- A concrete license service, production activation, entitlement authority,
+  update feed, authenticated package delivery, and signing-key infrastructure.
 The disabled controls for these boundaries are inert. Do not add an upgrade
 link or purchase instruction until the owner supplies the URL and positioning
 decision.

@@ -4,7 +4,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: Aculect Mail 0.1.0\n"
 "Report-Msgid-Bugs-To: https://github.com/mehul0810/aculect-mail/issues\n"
-"POT-Creation-Date: 2026-08-10 18:18+0000\n"
+"POT-Creation-Date: 2026-08-11 02:01+0000\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
@@ -136,6 +136,7 @@ msgstr ""
 
 #: src/Admin/AdminPage.php:366
 #: src/Admin/ProviderAdmin.php:322
+#: src/Admin/ProDistributionPanel.php:67
 msgid "Active"
 msgstr ""
 
@@ -156,6 +157,10 @@ msgstr ""
 #: src/Admin/AdminPage.php:237
 #: src/Admin/NetworkAdmin.php:49
 msgid "Aculect Mail"
+msgstr ""
+
+#: src/Admin/ProDistributionPanel.php:35
+msgid "Aculect Mail 0.4.0 includes local integration contracts only. No license service, activation request, update feed, package download, or purchase flow is connected."
 msgstr ""
 
 #: src/Admin/NetworkAdmin.php:48
@@ -399,7 +404,7 @@ msgstr ""
 msgid "Alert event: %s."
 msgstr ""
 
-#: src/Admin/AdminPage.php:472
+#: src/Admin/AdminPage.php:473
 msgid "Alert history"
 msgstr ""
 
@@ -793,6 +798,10 @@ msgstr ""
 msgid "Credential update needed. Re-enter the affected credentials to restore delivery."
 msgstr ""
 
+#: src/Admin/ProDistributionPanel.php:78
+msgid "Current"
+msgstr ""
+
 #: src/Admin/DashboardAdmin.php:363
 msgid "Current queue"
 msgstr ""
@@ -1066,6 +1075,10 @@ msgstr ""
 msgid "Evidence"
 msgstr ""
 
+#: src/Admin/ProDistributionPanel.php:69
+msgid "Expired"
+msgstr ""
+
 #: src/Admin/SettingsAdmin.php:815
 #: src/Admin/SettingsAdmin.php:823
 msgid "Expires"
@@ -1266,6 +1279,7 @@ msgid "In progress"
 msgstr ""
 
 #: src/Admin/ProviderAdmin.php:194
+#: src/Admin/ProDistributionPanel.php:66
 msgid "Inactive"
 msgstr ""
 
@@ -1291,6 +1305,10 @@ msgstr ""
 
 #: src/Admin/NetworkAdmin.php:188
 msgid "Inheritance is explicit per control. Turning inheritance off keeps only this site’s allowlisted values; provider credentials remain site-local."
+msgstr ""
+
+#: src/Admin/ProDistributionPanel.php:68
+msgid "Invalid"
 msgstr ""
 
 #: src/Core/RetentionPolicy.php:38
@@ -1342,6 +1360,10 @@ msgstr ""
 
 #: src/Admin/SettingsAdmin.php:822
 msgid "Legacy suppression table"
+msgstr ""
+
+#: src/Admin/ProDistributionPanel.php:37
+msgid "License service"
 msgstr ""
 
 #: src/Admin/DashboardAdmin.php:118
@@ -1676,6 +1698,11 @@ msgstr ""
 msgid "Not available yet"
 msgstr ""
 
+#: src/Admin/ProDistributionPanel.php:65
+#: src/Admin/ProDistributionPanel.php:77
+msgid "Not configured"
+msgstr ""
+
 #: src/Admin/ProviderAdmin.php:194
 msgid "Not connected"
 msgstr ""
@@ -1903,6 +1930,18 @@ msgstr ""
 msgid "Pro capabilities"
 msgstr ""
 
+#: src/Admin/ProDistributionPanel.php:33
+msgid "Pro distribution foundation"
+msgstr ""
+
+#: src/Admin/ProDistributionPanel.php:40
+msgid "Pro features remain denied unless a separately reviewed runtime supplies both entitlement evidence and the feature rollout flag."
+msgstr ""
+
+#: src/Admin/ProDistributionPanel.php:38
+msgid "Pro updates"
+msgstr ""
+
 #: src/Admin/LogAdmin.php:338
 msgid "Processing"
 msgstr ""
@@ -1961,7 +2000,7 @@ msgstr ""
 msgid "Provider activity detail"
 msgstr ""
 
-#: src/Admin/AdminPage.php:466
+#: src/Admin/AdminPage.php:467
 msgid "Provider administration"
 msgstr ""
 
@@ -2053,7 +2092,7 @@ msgstr ""
 msgid "Queue detail"
 msgstr ""
 
-#: src/Admin/AdminPage.php:469
+#: src/Admin/AdminPage.php:470
 msgid "Queue diagnostics"
 msgstr ""
 
@@ -2767,6 +2806,11 @@ msgstr ""
 msgid "Status distribution"
 msgstr ""
 
+#: src/Admin/ProDistributionPanel.php:70
+#: src/Admin/ProDistributionPanel.php:80
+msgid "Status unavailable"
+msgstr ""
+
 #: src/Logging/LogExportProfile.php:26
 msgid "Status, provider, retry, attachment, recipient-domain, and timestamp summaries."
 msgstr ""
@@ -3061,6 +3105,10 @@ msgstr ""
 
 #: src/Admin/RoutingAdmin.php:354
 msgid "Unsaved candidate rule set"
+msgstr ""
+
+#: src/Admin/ProDistributionPanel.php:79
+msgid "Update available"
 msgstr ""
 
 #: src/Admin/RoutingAdmin.php:524
