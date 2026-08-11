@@ -8,6 +8,7 @@ use OneSMTP\Admin\AdminPage;
 use OneSMTP\Cli\DiagnosticsCommand;
 use OneSMTP\Api\RestController;
 use OneSMTP\Api\ProviderEventController;
+use OneSMTP\Api\ProviderOAuthController;
 use OneSMTP\Core\Installer;
 use OneSMTP\Conflict\MailDeliveryOwnership;
 use OneSMTP\Diagnostics\DiagnosticReportGenerator;
@@ -43,6 +44,7 @@ use OneSMTP\Multisite\NetworkSettingsRepository;
 use OneSMTP\Repository\SuppressionRepository;
 use OneSMTP\Suppression\SuppressionService;
 use OneSMTP\Suppression\SuppressionSettingsRepository;
+use OneSMTP\Providers\Auth\ProviderOAuthLifecycleCoordinator;
 
 final class Plugin
 {
@@ -144,12 +146,17 @@ final class Plugin
 
         DiagnosticsCommand::register(new DiagnosticsCommand(new DiagnosticReportGenerator($providers, $queueDiagnostics, $attempts)));
 
+        $providerOAuth = new ProviderOAuthController(
+            new ProviderOAuthLifecycleCoordinator($providers, $featureGate)
+        );
+
         add_action(
             'rest_api_init',
-            static function () use ($providers, $messages, $attempts, $sendPipeline, $featureGate, $providerEventIngestion): void {
+            static function () use ($providers, $messages, $attempts, $sendPipeline, $featureGate, $providerEventIngestion, $providerOAuth): void {
                 $controller = new RestController($providers, $messages, $attempts, $sendPipeline, null, new SenderIdentityRepository(), null, $featureGate);
                 $controller->registerRoutes();
                 (new ProviderEventController($providerEventIngestion))->registerRoutes();
+                $providerOAuth->registerRoutes();
             }
         );
 

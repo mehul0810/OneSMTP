@@ -16,7 +16,22 @@ abstract class AbstractAdapter
             return [];
         }
 
-        return array_values(array_filter(array_map('strval', $to), static fn (string $email): bool => $email !== ''));
+        return array_values(array_filter(
+            array_map('strval', $to),
+            static fn (string $email): bool => $email !== '' && preg_match('/[\x00-\x1F\x7F]/', $email) !== 1
+        ));
+    }
+
+    protected function hasUnsafeRecipientInput(mixed $to): bool
+    {
+        $values = is_string($to) ? [ $to ] : (is_array($to) ? $to : []);
+        foreach ($values as $value) {
+            if (! is_scalar($value) || preg_match('/[\x00-\x1F\x7F]/', (string) $value) === 1) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     protected function normalizeHeaders($headers): array

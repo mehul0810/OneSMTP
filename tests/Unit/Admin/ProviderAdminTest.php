@@ -178,6 +178,42 @@ final class ProviderAdminTest extends TestCase
         self::assertStringContainsString('webhookEndpoint&quot;:&quot;https:\\/\\/example.org', $output);
     }
 
+    public function test_render_exposes_oauth_lifecycle_only_when_the_pro_gate_is_enabled(): void
+    {
+        $GLOBALS['wpdb']->activeProviders = [
+            [
+                'id' => 8,
+                'name' => 'Fixture Gmail',
+                'adapter_type' => 'gmail',
+                'priority' => 1,
+                'weight' => 1,
+                'is_active' => 0,
+                'circuit_state' => 'closed',
+                'config_json' => wp_json_encode([
+                    'client_id' => 'fixture-client',
+                    'client_secret' => 'fixture-secret',
+                ]),
+            ],
+        ];
+
+        ob_start();
+        (new ProviderAdmin(new ProviderRepository()))->render();
+        $freeOutput = (string) ob_get_clean();
+
+        ob_start();
+        (new ProviderAdmin(
+            new ProviderRepository(),
+            featureGate: new FeatureGate([ FeatureGate::PROVIDER_AUTH_LIFECYCLE => true ], true)
+        ))->render();
+        $proOutput = (string) ob_get_clean();
+
+        self::assertStringContainsString('oauthEnabled&quot;:false', $freeOutput);
+        self::assertStringNotContainsString('https:\\/\\/example.org\\/wp-json\\/onesmtp\\/v1\\/providers\\/8\\/oauth\\/callback', $freeOutput);
+        self::assertStringContainsString('oauthEnabled&quot;:true', $proOutput);
+        self::assertStringContainsString('oauthCallbackBase&quot;:&quot;https:\\/\\/example.org', $proOutput);
+        self::assertStringNotContainsString('fixture-secret', $freeOutput . $proOutput);
+    }
+
     public function test_render_shows_quiet_suremail_analysis_card_without_global_notice_actions(): void
     {
         update_option('suremails_connections', [

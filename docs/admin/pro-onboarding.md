@@ -40,6 +40,7 @@ The controls are default-deny and do not change core delivery when unavailable.
 | Bounce and complaint suppression | Advanced settings | `bounce_suppression` plus `provider_events` | Default-off site-local suppression derives only from authenticated normalized Mailgun hard-bounce and complaint events. An unexpired exact HMAC match blocks the complete message across initial, queued, retry, and manual resend paths; rows inherit bounded retention. |
 | Multisite network settings and bounded network log summaries | Network admin Settings → Aculect Mail and network log view | `multisite_management` plus `manage_network_options` | Network defaults and site overrides are allowlisted and resolved at read time. Summaries are bounded and privacy-safe; provider credentials, payloads, bodies, full recipients, headers, and paths remain site-local/excluded. Single-site and normal site-admin behavior remain unchanged. See [Multisite network](multisite-network.md). |
 | Provider sending budgets ([#54](https://github.com/mehul0810/aculect-mail/issues/54)) | Provider connection settings and delivery routing | `provider_quota_budgets` | Bound each provider's minute, hour, and day attempt windows. Quota-exhausted providers are skipped; an all-exhausted eligible pool defers to the earliest next capacity. Attachment-bearing quota deferrals fail closed with `attachment_quota_deferral_not_persisted` before UUID resolution or scheduling, so no retry can omit files. See [Provider setup](provider-setup.md) and [Failover and Rotation](failover-and-rotation.md). |
+| Customer-owned Gmail and Zoho OAuth lifecycle | Providers → Gmail or Zoho Mail connection | `provider_auth_lifecycle` | Save client registration inactive, register the exact HTTPS callback, then connect, verify, test, and activate. Gate-off leaves core behavior and existing Zoho manual credentials unchanged; no hosted broker or shared secret is used. See [Provider setup](provider-setup.md). |
 
 The status **Available with Pro** is descriptive of the capability boundary,
 not a claim that a plan, license, purchase flow, or upgrade URL is available.
@@ -55,6 +56,8 @@ states: [desktop panel screenshot](screenshots/issue-57/pro-capabilities-panel-d
 and [mobile panel screenshot](screenshots/issue-57/pro-capabilities-panel-mobile.png).
 For the full claim context and captions, see the [0.4.0 claim ledger](../release/0.4.0-pro-claim-ledger.md#screenshot-inventory).
 
+The OAuth drawer proof uses synthetic Gmail/Zoho records only: [desktop](screenshots/issue-50-51/oauth-desktop.png) and [390px narrow](screenshots/issue-50-51/oauth-mobile.png).
+
 ## Planned or excluded boundaries
 
 The following are not shipped by this candidate and must not be presented as
@@ -62,10 +65,6 @@ enabled Pro workflows:
 
 - Open/click tracking (issue
   [#40](https://github.com/mehul0810/aculect-mail/issues/40)).
-- OAuth connection lifecycle (issue
-  [#50](https://github.com/mehul0810/aculect-mail/issues/50)) and provider token
-  refresh, revocation, or reconnection UX (issue
-  [#51](https://github.com/mehul0810/aculect-mail/issues/51)).
 - License activation or update mechanisms (issue
   [#66](https://github.com/mehul0810/aculect-mail/issues/66)).
 The disabled controls for these boundaries are inert. Do not add an upgrade

@@ -219,6 +219,52 @@ final class ProviderRepositoryTest extends TestCase
         self::assertSame([], $GLOBALS['wpdb']->updates);
     }
 
+    public function test_update_returns_zero_when_provider_row_update_fails(): void
+    {
+        $GLOBALS['wpdb']->providerRowsById[7] = [
+            'id' => 7,
+            'slug' => 'primary',
+            'name' => 'Primary',
+            'adapter_type' => 'smtp',
+            'priority' => 1,
+            'weight' => 1,
+            'is_active' => 1,
+            'circuit_state' => 'closed',
+            'config_json' => '{}',
+        ];
+        $GLOBALS['wpdb']->failProviderConfigUpdates = true;
+
+        self::assertSame(0, (new ProviderRepository())->save([
+            'id' => 7,
+            'name' => 'Updated',
+            'adapter_type' => 'smtp',
+            'config' => [],
+        ]));
+    }
+
+    public function test_update_returns_zero_when_provider_row_update_throws(): void
+    {
+        $GLOBALS['wpdb']->providerRowsById[7] = [
+            'id' => 7,
+            'slug' => 'primary',
+            'name' => 'Primary',
+            'adapter_type' => 'smtp',
+            'priority' => 1,
+            'weight' => 1,
+            'is_active' => 1,
+            'circuit_state' => 'closed',
+            'config_json' => '{}',
+        ];
+        $GLOBALS['wpdb']->throwProviderConfigUpdates = true;
+
+        self::assertSame(0, (new ProviderRepository())->save([
+            'id' => 7,
+            'name' => 'Updated',
+            'adapter_type' => 'smtp',
+            'config' => [],
+        ]));
+    }
+
     private function undecryptableSecretValue(): string
     {
         $parts = explode(':', (new SecretVault())->encrypt('placeholder-value'), 6);

@@ -69,8 +69,49 @@ $provider = [
     'updated_at' => '2026-06-26 10:00:00',
 ];
 
-$GLOBALS['wpdb']->activeProviders = [$provider];
+$oauthProviders = [
+    [
+        'id' => 8,
+        'slug' => 'browser_smoke_gmail',
+        'name' => 'Browser Smoke Gmail',
+        'adapter_type' => 'gmail',
+        'priority' => 20,
+        'weight' => 1,
+        'is_active' => 0,
+        'circuit_state' => 'closed',
+        'circuit_until' => null,
+        'config_json' => wp_json_encode([
+            'client_id' => 'gmail-client-fixture',
+            'client_secret' => 'gmail-secret-fixture',
+        ]),
+        'created_at' => '2026-06-26 10:00:00',
+        'updated_at' => '2026-06-26 10:00:00',
+    ],
+    [
+        'id' => 9,
+        'slug' => 'browser_smoke_zoho',
+        'name' => 'Browser Smoke Zoho',
+        'adapter_type' => 'zoho_mail',
+        'priority' => 30,
+        'weight' => 1,
+        'is_active' => 0,
+        'circuit_state' => 'closed',
+        'circuit_until' => null,
+        'config_json' => wp_json_encode([
+            'region' => 'eu',
+            'account_id' => 'zoho-account-fixture',
+            'client_id' => 'zoho-client-fixture',
+            'client_secret' => 'zoho-secret-fixture',
+        ]),
+        'created_at' => '2026-06-26 10:00:00',
+        'updated_at' => '2026-06-26 10:00:00',
+    ],
+];
+$GLOBALS['wpdb']->activeProviders = array_merge([$provider], $oauthProviders);
 $GLOBALS['wpdb']->providerRowsById[7] = $provider;
+foreach ($oauthProviders as $oauthProvider) {
+    $GLOBALS['wpdb']->providerRowsById[(int) $oauthProvider['id']] = $oauthProvider;
+}
 $GLOBALS['wpdb']->queueDiagnosticRow = [
     'queued_count' => 0,
     'retry_scheduled_count' => 4,
@@ -264,6 +305,7 @@ $featureFlags = [
     FeatureGate::PROVIDER_EVENTS => true,
     FeatureGate::PROVIDER_QUOTA_BUDGETS => true,
     FeatureGate::BOUNCE_SUPPRESSION => true,
+    FeatureGate::PROVIDER_AUTH_LIFECYCLE => true,
 ];
 if (getenv('ONESMTP_PLAYWRIGHT_PRO_ROUTING') === '1') {
     $featureFlags[FeatureGate::SMART_ROUTING] = true;
@@ -341,4 +383,18 @@ if (file_exists($adminScript)) {
     echo file_get_contents($adminScript); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped, WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents -- Local fixture asset.
 }
 echo '</script>';
+if (getenv('ONESMTP_PLAYWRIGHT_COMPONENTS') === '1') {
+    // Test-only browser harness: the production bundle is loaded unchanged;
+    // these minimal globals stand in for WordPress packages absent from the
+    // standalone fixture and do not duplicate the production drawer.
+    $reactScript = file_get_contents($repoRoot . '/node_modules/react/umd/react.production.min.js');
+    $reactDomScript = file_get_contents($repoRoot . '/node_modules/react-dom/umd/react-dom.production.min.js');
+    $componentStyles = file_get_contents($repoRoot . '/node_modules/@wordpress/components/build-style/style.css');
+    echo '<style>' . $componentStyles . '</style>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Local test dependency.
+    echo '<style>.onesmtp-provider-inline-settings label{display:flex;flex-direction:column;gap:4px;margin:8px 0}.onesmtp-provider-inline-settings input,.onesmtp-provider-inline-settings select{max-width:100%;box-sizing:border-box}.onesmtp-provider-drawer-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.onesmtp-oauth-guidance{max-width:640px}.onesmtp-oauth-guidance code{display:block;overflow-wrap:anywhere;white-space:normal}@media(max-width:600px){.onesmtp-provider-drawer-options{grid-template-columns:1fr}.onesmtp-provider-inline-settings{overflow-wrap:anywhere}}</style>';
+    echo '<script>' . $reactScript . '</script>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Local test dependency.
+    echo '<script>' . $reactDomScript . '</script>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Local test dependency.
+    echo '<script>window.ReactJSXRuntime={jsx:function(t,p,k){return window.React.createElement(t,Object.assign({},p,{key:k}))},jsxs:function(t,p,k){return window.React.createElement(t,Object.assign({},p,{key:k}))},Fragment:window.React.Fragment};window.wp=window.wp||{};window.wp.element=Object.assign({},window.React,{createRoot:window.ReactDOM.createRoot,createPortal:window.ReactDOM.createPortal});window.wp.i18n={__:(function(){return function(t){return t}})()};window.wp.apiFetch=function(o){return fetch(o.url,{method:o.method||"GET",headers:o.headers||{},body:o.data?JSON.stringify(o.data):undefined}).then(function(r){return r.json()})};var R=window.React;var e=function(p){return R.createElement("button",Object.assign({},p,{type:p.type||"button"}),p.children)};var t=function(p){return R.createElement("label",{},R.createElement("span",{},p.label),R.createElement("input",Object.assign({},p,{value:p.value||"",onChange:function(a){return p.onChange&&p.onChange(a.target.value)}})),p.help&&R.createElement("small",{},p.help))};var n=function(p){return R.createElement("label",{},R.createElement("span",{},p.label),R.createElement("select",{value:p.value||"",onChange:function(a){return p.onChange&&p.onChange(a.target.value)}},(p.options||[]).map(function(a){return R.createElement("option",{key:a.value,value:a.value},a.label)})))};window.wp.components={Button:e,Notice:function(p){return R.createElement("div",{className:"notice"},p.children)},SelectControl:n,Spinner:function(){return R.createElement("span",{},"Loading")},TextControl:t,ToggleControl:function(p){return R.createElement("label",{},R.createElement("input",{type:"checkbox",checked:!!p.checked,onChange:function(a){return p.onChange&&p.onChange(a.target.checked)}}),p.label)}};</script>';
+    echo '<script src="https://example.org/wp-content/plugins/onesmtp/build/index.js"></script>';
+}
 echo '</body></html>';

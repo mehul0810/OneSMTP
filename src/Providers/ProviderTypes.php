@@ -396,7 +396,8 @@ final class ProviderTypes
             self::GMAIL => [
                 'client_id' => self::credentialField('string', true, true, 512),
                 'client_secret' => self::credentialField('string', true, true, 512),
-                'refresh_token' => self::credentialField('string', true, true, 2048),
+                // The callback supplies this after inactive credentials are saved.
+                'refresh_token' => self::credentialField('string', false, true, 2048),
             ],
             self::SENDGRID => ['api_key' => $apiKey, 'timeout' => $timeout],
             self::POSTMARK => ['api_key' => $apiKey, 'timeout' => $timeout],
@@ -433,7 +434,9 @@ final class ProviderTypes
                 'account_id' => self::credentialField('string', true, false, 128),
                 'client_id' => self::credentialField('string', true, true, 512),
                 'client_secret' => self::credentialField('string', true, true, 512),
-                'refresh_token' => self::credentialField('string', true, true, 2048),
+                // Existing manual refresh credentials remain supported; OAuth
+                // connect obtains this value after the initial save.
+                'refresh_token' => self::credentialField('string', false, true, 2048),
                 'timeout' => $timeout,
             ],
             self::EMAILIT => ['api_key' => $apiKey, 'timeout' => $timeout],

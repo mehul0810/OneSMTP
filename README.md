@@ -33,6 +33,11 @@ network log summaries, and per-provider minute/hour/day sending budgets behind
 behind `bounce_suppression`. Suppression derives only from authenticated
 normalized Mailgun hard-bounce and complaint events and blocks a complete
 message on an active match.
+Customer-owned Gmail and Zoho Mail OAuth connection lifecycle, encrypted
+bounded token refresh/cache, disconnect cleanup, and Gmail API delivery are
+also candidate workflows behind `provider_auth_lifecycle`; gate-off
+installations retain core behavior and existing Zoho manual refresh
+credentials.
 Quota deferrals for attachment-bearing messages fail
 closed without scheduling a retry when sanitized data cannot reproduce the
 files. Core provider setup, sending, failover, queues, retries, logs, manual
