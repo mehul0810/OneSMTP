@@ -123,6 +123,10 @@ final class FakeWpdb
 
     public bool $failProviderActiveUpdates = false;
 
+    public bool $throwProviderConfigUpdates = false;
+
+    public bool $throwProviderActiveUpdates = false;
+
     /** @var array<string,array<string,mixed>> */
     public array $suppressionDerivationRowsByHash = [];
 
@@ -191,6 +195,12 @@ final class FakeWpdb
     public function update(string $table, array $data, array $where, array $format, array $whereFormat): int|false
     {
         if (str_ends_with($table, 'onesmtp_providers')) {
+            if (array_key_exists('config_json', $data) && $this->throwProviderConfigUpdates) {
+                throw new \RuntimeException('Synthetic provider config update failure.');
+            }
+            if (array_key_exists('is_active', $data) && $this->throwProviderActiveUpdates) {
+                throw new \RuntimeException('Synthetic provider active update failure.');
+            }
             if (array_key_exists('config_json', $data) && $this->failProviderConfigUpdates) {
                 return false;
             }
@@ -206,6 +216,18 @@ final class FakeWpdb
             'format' => $format,
             'where_format' => $whereFormat,
         ];
+
+        if (str_ends_with($table, 'onesmtp_providers') && isset($where['id'])) {
+            $providerId = (int) $where['id'];
+            if (isset($this->providerRowsById[$providerId])) {
+                $this->providerRowsById[$providerId] = array_merge($this->providerRowsById[$providerId], $data);
+            }
+            foreach ($this->activeProviders as $index => $provider) {
+                if ((int) ($provider['id'] ?? 0) === $providerId) {
+                    $this->activeProviders[$index] = array_merge($provider, $data);
+                }
+            }
+        }
 
         return 1;
     }

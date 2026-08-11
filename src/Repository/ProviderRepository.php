@@ -148,14 +148,21 @@ final class ProviderRepository
                 return 0;
             }
         }
-        $config = isset($provider['config']) && is_array($provider['config']) ? $provider['config'] : [];
-        if ($id > 0 && $preserveStoredSensitiveConfig) {
-            $config = $this->preserveStoredSensitiveConfig($id, $config);
-            $config = $this->preserveStoredQuotaConfig($id, $config);
-        }
+        try {
+            $config = isset($provider['config']) && is_array($provider['config']) ? $provider['config'] : [];
+            if ($id > 0 && $preserveStoredSensitiveConfig) {
+                $config = $this->preserveStoredSensitiveConfig($id, $config);
+                $config = $this->preserveStoredQuotaConfig($id, $config);
+            }
 
-        $config = $this->normalizeQuotaConfig($config);
-        $config = $this->encryptSecrets($config);
+            $config = $this->normalizeQuotaConfig($config);
+            $config = $this->encryptSecrets($config);
+        } catch (\Throwable $exception) {
+            unset($exception);
+            delete_option($lockKey);
+
+            return 0;
+        }
 
         $payload = [
             'slug'          => sanitize_key((string) ($provider['slug'] ?? $type . '_' . wp_generate_password(8, false))),
@@ -174,13 +181,23 @@ final class ProviderRepository
         ];
 
         if ($id > 0) {
-            $wpdb->update(
-                TableNames::providers(),
-                $payload,
-                ['id' => $id],
-                ['%s', '%s', '%s', '%d', '%d', '%d', '%s', '%s', '%s', '%s'],
-                ['%d']
-            );
+            try {
+                $updated = $wpdb->update(
+                    TableNames::providers(),
+                    $payload,
+                    ['id' => $id],
+                    ['%s', '%s', '%s', '%d', '%d', '%d', '%s', '%s', '%s', '%s'],
+                    ['%d']
+                );
+            } catch (\Throwable $exception) {
+                unset($exception);
+                $updated = false;
+            }
+            if ($updated === false) {
+                delete_option($lockKey);
+
+                return 0;
+            }
             do_action('onesmtp_provider_saved', $id);
             delete_option($lockKey);
 
@@ -248,54 +265,75 @@ final class ProviderRepository
      */
     public function clearOAuthCredentials(int $providerId): bool
     {
-        global $wpdb;
+        try {
+            global $wpdb;
 
-        $provider = $this->find($providerId);
-        if (! is_array($provider)) {
-            return false;
-        }
+            $provider = $this->find($providerId);
+            if (! is_array($provider)) {
+                $this->persistOAuthDisconnectBlock($providerId);
 
-        $config = isset($provider['config']) && is_array($provider['config']) ? $provider['config'] : [];
-        foreach ([ 'access_token', 'access_token_expires_at', 'refresh_token', 'oauth_scope', 'oauth_token_type' ] as $key) {
-            unset($config[$key]);
-        }
+                return false;
+            }
 
-        $config = $this->encryptSecrets($config);
-        $deactivated = $wpdb->update(
-            TableNames::providers(),
-            [
-                'is_active' => 0,
-                'updated_at' => current_time('mysql', true),
-            ],
-            [ 'id' => $providerId ],
-            [ '%d', '%s' ],
-            [ '%d' ]
-        );
-        $updated = $wpdb->update(
-            TableNames::providers(),
-            [
-                'config_json' => wp_json_encode($config),
-                'updated_at' => current_time('mysql', true),
-            ],
-            [ 'id' => $providerId ],
-            [ '%s', '%s' ],
-            [ '%d' ]
-        );
+            $config = isset($provider['config']) && is_array($provider['config']) ? $provider['config'] : [];
+            foreach ([ 'access_token', 'access_token_expires_at', 'refresh_token', 'oauth_scope', 'oauth_token_type' ] as $key) {
+                unset($config[$key]);
+            }
 
-        if ($deactivated === false || $updated === false) {
-            // Keep a successful safety write in place. The independent block
-            // marker fences delivery if either write failed and also retries
-            // deactivation after the failed statement where possible.
+            $config = $this->encryptSecrets($config);
+            // Deactivation and credential removal must be one provider-row
+            // safety write. A verified durable block is the fallback when
+            // this atomic update cannot be completed.
+            $updated = $wpdb->update(
+                TableNames::providers(),
+                [
+                    'is_active' => 0,
+                    'config_json' => wp_json_encode($config),
+                    'updated_at' => current_time('mysql', true),
+                ],
+                [ 'id' => $providerId ],
+                [ '%d', '%s', '%s' ],
+                [ '%d' ]
+            );
+
+            $updatedProvider = $updated === false ? null : $this->find($providerId);
+            $updatedConfig = is_array($updatedProvider) && isset($updatedProvider['config']) && is_array($updatedProvider['config'])
+                ? $updatedProvider['config']
+                : [];
+            $credentialsRemoved = ! array_key_exists('access_token', $updatedConfig)
+                && ! array_key_exists('access_token_expires_at', $updatedConfig)
+                && ! array_key_exists('refresh_token', $updatedConfig);
+            if ($updated === false || ! is_array($updatedProvider) || (int) ($updatedProvider['is_active'] ?? 1) !== 0 || ! $credentialsRemoved) {
+                // Keep a successful safety write in place. The independent block
+                // marker fences delivery if either write failed and also retries
+                // deactivation after the failed statement where possible.
+                $this->persistOAuthDisconnectBlock($providerId);
+
+                return false;
+            }
+
+            delete_option($this->oauthDisconnectBlockKey($providerId));
+            $this->cache->flush();
+            do_action('onesmtp_provider_saved', $providerId);
+
+            return true;
+        } catch (\Throwable $exception) {
+            unset($exception);
             $this->persistOAuthDisconnectBlock($providerId);
 
             return false;
         }
+    }
 
-        delete_option($this->oauthDisconnectBlockKey($providerId));
-        $this->cache->flush();
-        do_action('onesmtp_provider_saved', $providerId);
+    public function hasDurableOAuthDisconnectBlock(int $providerId): bool
+    {
+        try {
+            return get_option($this->oauthDisconnectBlockKey($providerId), false) !== false;
+        } catch (\Throwable $exception) {
+            unset($exception);
 
-        return true;
+            return false;
+        }
     }
 
     public function isOAuthDisconnectBlocked(int $providerId): bool
@@ -304,13 +342,7 @@ final class ProviderRepository
             return true;
         }
 
-        try {
-            return (bool) get_option($this->oauthDisconnectBlockKey($providerId), false);
-        } catch (\Throwable $exception) {
-            unset($exception);
-
-            return false;
-        }
+        return $this->hasDurableOAuthDisconnectBlock($providerId);
     }
 
     private function mapProviderRow(array $row): array
@@ -335,19 +367,18 @@ final class ProviderRepository
 
     private function persistOAuthDisconnectBlock(int $providerId): bool
     {
-        $key = $this->oauthDisconnectBlockKey($providerId);
         $this->runtimeOAuthDisconnectBlocks[$providerId] = true;
         $blocked = false;
+        $value = [ 'blocked_at' => time() ];
+        $key = $this->oauthDisconnectBlockKey($providerId);
         try {
-            $blocked = update_option($key, [ 'blocked_at' => time() ], false);
-            if (! $blocked) {
-                $blocked = get_option($key, false) !== false;
-            }
+            update_option($key, $value, false);
+            $blocked = get_option($key, false) !== false;
         } catch (\Throwable $exception) {
             unset($exception);
         }
 
-        // Best effort outside the failed transaction: if the credential
+        // Best effort after the failed statement: if the credential
         // rewrite failed but this write is available, the row is physically
         // inactive as well as fenced by the independent marker.
         global $wpdb;
@@ -375,6 +406,7 @@ final class ProviderRepository
     {
         return self::OAUTH_DISCONNECT_BLOCK_PREFIX . max(1, $providerId);
     }
+
 
     private function normalizeCircuitState(string $state): string
     {

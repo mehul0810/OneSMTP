@@ -55,7 +55,9 @@ final class ProviderOAuthDescriptor
         }
 
         $region = self::normalizeRegion($region);
-        $host = 'accounts.zoho.' . self::ZOHO_REGIONS[ $region ];
+        $host = $region === 'ca'
+            ? 'accounts.zohocloud.ca'
+            : 'accounts.zoho.' . self::ZOHO_REGIONS[ $region ];
 
         return new self(
             ProviderTypes::ZOHO_MAIL,

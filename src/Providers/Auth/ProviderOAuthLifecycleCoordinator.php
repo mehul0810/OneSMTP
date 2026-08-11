@@ -298,12 +298,17 @@ final class ProviderOAuthLifecycleCoordinator
         }
         $remoteOk = $token === '';
         if ($descriptor instanceof ProviderOAuthDescriptor && $token !== '') {
-            $response = $this->http->post($descriptor->getRevokeEndpoint(), [], [ 'token' => $token ]);
-            $remoteOk = $response->isSuccessful() || ($response->getStatus() === 400 && $providerType === ProviderTypes::GMAIL);
+            try {
+                $response = $this->http->post($descriptor->getRevokeEndpoint(), [], [ 'token' => $token ]);
+                $remoteOk = $response->isSuccessful() || ($response->getStatus() === 400 && $providerType === ProviderTypes::GMAIL);
+            } catch (\Throwable $exception) {
+                unset($exception);
+                $remoteOk = false;
+            }
         }
 
         $localOk = $this->providers->clearOAuthCredentials($providerId);
-        $localBlocked = $this->providers->isOAuthDisconnectBlocked($providerId);
+        $localBlocked = $this->providers->hasDurableOAuthDisconnectBlock($providerId);
         delete_transient($this->verifiedKey($providerId));
 
         if ( ! $localOk && $localBlocked) {
@@ -315,8 +320,20 @@ final class ProviderOAuthLifecycleCoordinator
             ];
         }
 
+        if ( ! $localOk) {
+            return [
+                'ok' => false,
+                'code' => 'disconnect_blocked',
+                'provider_id' => $providerId,
+                'provider_type' => $providerType,
+            ];
+        }
+
         return [
             'ok' => $localOk,
+            // The two fail-closed branches above return for every false local
+            // cleanup result; keep the explicit expression for audit clarity.
+            // @phpstan-ignore booleanAnd.leftAlwaysTrue, ternary.alwaysTrue
             'code' => $localOk && $remoteOk ? 'disconnected' : ($localOk ? 'disconnected_remote_retry' : 'disconnect_failed'),
             'provider_id' => $providerId,
             'provider_type' => $providerType,

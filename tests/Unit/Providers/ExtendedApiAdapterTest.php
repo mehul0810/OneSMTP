@@ -14,6 +14,9 @@ use OneSMTP\Providers\Adapters\Smtp2GoAdapter;
 use OneSMTP\Providers\Adapters\SparkPostAdapter;
 use OneSMTP\Providers\Adapters\ZeptoMailAdapter;
 use OneSMTP\Providers\Adapters\ZohoMailAdapter;
+use OneSMTP\Providers\Adapters\ZohoOAuthTokenProvider;
+use OneSMTP\Providers\Auth\ProviderOAuthTokenService;
+use OneSMTP\Product\FeatureGate;
 use OneSMTP\Providers\Adapters\EmailitAdapter;
 use OneSMTP\Providers\Adapters\NetcoreAdapter;
 use OneSMTP\Providers\ProviderAdapterRegistry;
@@ -167,7 +170,7 @@ final class ExtendedApiAdapterTest extends TestCase
 			],
         ];
 
-        $result = (new ZohoMailAdapter())->send($this->message(), new ProviderConfig([
+        $result = (new ZohoMailAdapter(new ZohoOAuthTokenProvider($this->enabledTokenService())))->send($this->message(), new ProviderConfig([
             'account_id' => '12345',
             'client_id' => 'client-id',
             'client_secret' => 'client-secret',
@@ -219,5 +222,15 @@ final class ExtendedApiAdapterTest extends TestCase
                 'Bcc: bcc@example.test',
             ],
         ];
+    }
+
+    private function enabledTokenService(): ProviderOAuthTokenService
+    {
+        return new ProviderOAuthTokenService(
+            null,
+            null,
+            null,
+            new FeatureGate([ FeatureGate::PROVIDER_AUTH_LIFECYCLE => true ], true)
+        );
     }
 }

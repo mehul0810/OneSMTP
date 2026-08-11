@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OneSMTP\Providers\Auth;
 
+use OneSMTP\Product\FeatureGate;
 use OneSMTP\Providers\FailureCategory;
 use OneSMTP\Providers\ProviderConfig;
 use OneSMTP\Providers\ProviderTypes;
@@ -21,6 +22,7 @@ final class ProviderOAuthTokenService
 
     private ProviderOAuthHttpClientInterface $http;
     private SecretVault $vault;
+    private FeatureGate $featureGate;
 
     /** @var callable():int */
     private $clock;
@@ -28,11 +30,13 @@ final class ProviderOAuthTokenService
     public function __construct(
         ?ProviderOAuthHttpClientInterface $http = null,
         ?SecretVault $vault = null,
-        ?callable $clock = null
+        ?callable $clock = null,
+        ?FeatureGate $featureGate = null
     ) {
         $this->http = $http ?? new WordPressProviderOAuthHttpClient();
         $this->vault = $vault ?? new SecretVault();
         $this->clock = $clock ?? static fn (): int => time();
+        $this->featureGate = $featureGate ?? FeatureGate::fromWordPress();
     }
 
     /** @return string|SendResult */
@@ -53,6 +57,13 @@ final class ProviderOAuthTokenService
         $accessToken = trim( (string) $config->get('access_token', ''));
         $expiresAt = (int) $config->get('access_token_expires_at', 0);
         $now = (int) ($this->clock)();
+
+        $oauthShaped = $providerType === ProviderTypes::GMAIL
+            ? $clientId !== '' || $clientSecret !== '' || $refreshToken !== '' || $accessToken !== '' || $config->get('oauth_scope', '') !== '' || $expiresAt > 0
+            : $clientId !== '' || $clientSecret !== '' || $config->get('oauth_scope', '') !== '';
+        if ($oauthShaped && ! $this->featureGate->isEnabled(FeatureGate::PROVIDER_AUTH_LIFECYCLE)) {
+            return new SendResult(false, 'feature_unavailable', 'OAuth delivery is unavailable on this site.');
+        }
 
         if ($clientId === '' || $clientSecret === '' || $refreshToken === '') {
             // Preserve the existing Zoho manual access-token contract. OAuth

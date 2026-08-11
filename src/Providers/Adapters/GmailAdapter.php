@@ -15,9 +15,13 @@ final class GmailAdapter extends AbstractHttpApiAdapter implements ProviderAdapt
     private const MAX_ATTACHMENT_BYTES = 10485760;
     private const MAX_TOTAL_ATTACHMENT_BYTES = 26214400;
 
-    public function __construct(private ?ProviderOAuthTokenService $tokens = null)
+    private ProviderOAuthTokenService $tokens;
+    private SmtpAdapter $legacySmtp;
+
+    public function __construct(?ProviderOAuthTokenService $tokens = null, ?SmtpAdapter $legacySmtp = null)
     {
         $this->tokens = $tokens ?? new ProviderOAuthTokenService();
+        $this->legacySmtp = $legacySmtp ?? new SmtpAdapter();
     }
 
     public function getSlug(): string
@@ -27,6 +31,13 @@ final class GmailAdapter extends AbstractHttpApiAdapter implements ProviderAdapt
 
     public function send(array $message, ProviderConfig $config): SendResult
     {
+        if ($this->isLegacySmtpConfig($config)) {
+            return $this->legacySmtp->send($message, $config);
+        }
+        if ($this->hasUnsafeRecipientInput($message['to'] ?? [])) {
+            return new SendResult(false, 'invalid_recipient', 'Recipient address is invalid.');
+        }
+
         $accessToken = $this->tokens->accessToken('gmail', $config);
         if ($accessToken instanceof SendResult) {
             return $accessToken;
@@ -76,7 +87,24 @@ final class GmailAdapter extends AbstractHttpApiAdapter implements ProviderAdapt
 
     public function testConnection(ProviderConfig $config): SendResult
     {
+        if ($this->isLegacySmtpConfig($config)) {
+            return $this->legacySmtp->testConnection($config);
+        }
+
         return $this->send($this->testEnvelope('Gmail'), $config);
+    }
+
+    private function isLegacySmtpConfig(ProviderConfig $config): bool
+    {
+        foreach ([ 'client_id', 'client_secret', 'refresh_token', 'access_token', 'oauth_scope', 'access_token_expires_at' ] as $key) {
+            if (trim((string) $config->get($key, '')) !== '') {
+                return false;
+            }
+        }
+
+        return trim((string) $config->get('host', '')) !== ''
+            || trim((string) $config->get('username', '')) !== ''
+            || trim((string) $config->get('password', '')) !== '';
     }
 
     /** @return string|SendResult */
