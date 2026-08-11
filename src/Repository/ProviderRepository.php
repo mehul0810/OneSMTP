@@ -14,6 +14,11 @@ use OneSMTP\Quota\ProviderQuotaSettingsKey;
 
 final class ProviderRepository
 {
+    private const OAUTH_DISCONNECT_BLOCK_PREFIX = 'onesmtp_oauth_disconnect_blocked_';
+
+    /** @var array<int,bool> */
+    private array $runtimeOAuthDisconnectBlocks = [];
+
     /*
      * Repository queries use only plugin-owned identifiers from TableNames.
      * Every runtime value is passed through wpdb::prepare() or a typed wpdb
@@ -45,6 +50,10 @@ final class ProviderRepository
         $sql = 'SELECT * FROM ' . TableNames::providers() . " WHERE is_active = 1 ORDER BY priority ASC, id ASC";
         $rows = $wpdb->get_results($sql, ARRAY_A);
         $rows = is_array($rows) ? array_map([$this, 'mapProviderRow'], $rows) : [];
+        $rows = array_values(array_filter(
+            $rows,
+            static fn (array $row): bool => ! array_key_exists('is_active', $row) || ! empty($row['is_active'])
+        ));
 
         $this->cache->remember($rows);
 
@@ -118,7 +127,7 @@ final class ProviderRepository
         return false;
     }
 
-    public function save(array $provider): int
+    public function save(array $provider, bool $preserveStoredSensitiveConfig = true): int
     {
         global $wpdb;
 
@@ -139,14 +148,21 @@ final class ProviderRepository
                 return 0;
             }
         }
-        $config = isset($provider['config']) && is_array($provider['config']) ? $provider['config'] : [];
-        if ($id > 0) {
-            $config = $this->preserveStoredSensitiveConfig($id, $config);
-            $config = $this->preserveStoredQuotaConfig($id, $config);
-        }
+        try {
+            $config = isset($provider['config']) && is_array($provider['config']) ? $provider['config'] : [];
+            if ($id > 0 && $preserveStoredSensitiveConfig) {
+                $config = $this->preserveStoredSensitiveConfig($id, $config);
+                $config = $this->preserveStoredQuotaConfig($id, $config);
+            }
 
-        $config = $this->normalizeQuotaConfig($config);
-        $config = $this->encryptSecrets($config);
+            $config = $this->normalizeQuotaConfig($config);
+            $config = $this->encryptSecrets($config);
+        } catch (\Throwable $exception) {
+            unset($exception);
+            delete_option($lockKey);
+
+            return 0;
+        }
 
         $payload = [
             'slug'          => sanitize_key((string) ($provider['slug'] ?? $type . '_' . wp_generate_password(8, false))),
@@ -165,13 +181,23 @@ final class ProviderRepository
         ];
 
         if ($id > 0) {
-            $wpdb->update(
-                TableNames::providers(),
-                $payload,
-                ['id' => $id],
-                ['%s', '%s', '%s', '%d', '%d', '%d', '%s', '%s', '%s', '%s'],
-                ['%d']
-            );
+            try {
+                $updated = $wpdb->update(
+                    TableNames::providers(),
+                    $payload,
+                    ['id' => $id],
+                    ['%s', '%s', '%s', '%d', '%d', '%d', '%s', '%s', '%s', '%s'],
+                    ['%d']
+                );
+            } catch (\Throwable $exception) {
+                unset($exception);
+                $updated = false;
+            }
+            if ($updated === false) {
+                delete_option($lockKey);
+
+                return 0;
+            }
             do_action('onesmtp_provider_saved', $id);
             delete_option($lockKey);
 
@@ -233,6 +259,92 @@ final class ProviderRepository
         do_action('onesmtp_provider_state_changed', $providerId, $state);
     }
 
+    /**
+     * Remove only OAuth access/refresh material while preserving customer
+     * client registration fields for a bounded reconnect flow.
+     */
+    public function clearOAuthCredentials(int $providerId): bool
+    {
+        try {
+            global $wpdb;
+
+            $provider = $this->find($providerId);
+            if (! is_array($provider)) {
+                $this->persistOAuthDisconnectBlock($providerId);
+
+                return false;
+            }
+
+            $config = isset($provider['config']) && is_array($provider['config']) ? $provider['config'] : [];
+            foreach ([ 'access_token', 'access_token_expires_at', 'refresh_token', 'oauth_scope', 'oauth_token_type' ] as $key) {
+                unset($config[$key]);
+            }
+
+            $config = $this->encryptSecrets($config);
+            // Deactivation and credential removal must be one provider-row
+            // safety write. A verified durable block is the fallback when
+            // this atomic update cannot be completed.
+            $updated = $wpdb->update(
+                TableNames::providers(),
+                [
+                    'is_active' => 0,
+                    'config_json' => wp_json_encode($config),
+                    'updated_at' => current_time('mysql', true),
+                ],
+                [ 'id' => $providerId ],
+                [ '%d', '%s', '%s' ],
+                [ '%d' ]
+            );
+
+            $updatedProvider = $updated === false ? null : $this->find($providerId);
+            $updatedConfig = is_array($updatedProvider) && isset($updatedProvider['config']) && is_array($updatedProvider['config'])
+                ? $updatedProvider['config']
+                : [];
+            $credentialsRemoved = ! array_key_exists('access_token', $updatedConfig)
+                && ! array_key_exists('access_token_expires_at', $updatedConfig)
+                && ! array_key_exists('refresh_token', $updatedConfig);
+            if ($updated === false || ! is_array($updatedProvider) || (int) ($updatedProvider['is_active'] ?? 1) !== 0 || ! $credentialsRemoved) {
+                // Keep a successful safety write in place. The independent block
+                // marker fences delivery if either write failed and also retries
+                // deactivation after the failed statement where possible.
+                $this->persistOAuthDisconnectBlock($providerId);
+
+                return false;
+            }
+
+            delete_option($this->oauthDisconnectBlockKey($providerId));
+            $this->cache->flush();
+            do_action('onesmtp_provider_saved', $providerId);
+
+            return true;
+        } catch (\Throwable $exception) {
+            unset($exception);
+            $this->persistOAuthDisconnectBlock($providerId);
+
+            return false;
+        }
+    }
+
+    public function hasDurableOAuthDisconnectBlock(int $providerId): bool
+    {
+        try {
+            return get_option($this->oauthDisconnectBlockKey($providerId), false) !== false;
+        } catch (\Throwable $exception) {
+            unset($exception);
+
+            return false;
+        }
+    }
+
+    public function isOAuthDisconnectBlocked(int $providerId): bool
+    {
+        if (isset($this->runtimeOAuthDisconnectBlocks[$providerId])) {
+            return true;
+        }
+
+        return $this->hasDurableOAuthDisconnectBlock($providerId);
+    }
+
     private function mapProviderRow(array $row): array
     {
         $row['id'] = (int) ($row['id'] ?? 0);
@@ -245,9 +357,56 @@ final class ProviderRepository
             (string) $row['circuit_state']
         );
         $row['config'] = $this->decodeConfig(isset($row['config_json']) ? (string) $row['config_json'] : '');
+        if ($this->isOAuthDisconnectBlocked($row['id'])) {
+            $row['is_active'] = 0;
+            $row['oauth_disconnect_blocked'] = true;
+        }
 
         return $row;
     }
+
+    private function persistOAuthDisconnectBlock(int $providerId): bool
+    {
+        $this->runtimeOAuthDisconnectBlocks[$providerId] = true;
+        $blocked = false;
+        $value = [ 'blocked_at' => time() ];
+        $key = $this->oauthDisconnectBlockKey($providerId);
+        try {
+            update_option($key, $value, false);
+            $blocked = get_option($key, false) !== false;
+        } catch (\Throwable $exception) {
+            unset($exception);
+        }
+
+        // Best effort after the failed statement: if the credential
+        // rewrite failed but this write is available, the row is physically
+        // inactive as well as fenced by the independent marker.
+        global $wpdb;
+        try {
+            $wpdb->update(
+                TableNames::providers(),
+                [ 'is_active' => 0, 'updated_at' => current_time('mysql', true) ],
+                [ 'id' => $providerId ],
+                [ '%d', '%s' ],
+                [ '%d' ]
+            );
+        } catch (\Throwable $exception) {
+            unset($exception);
+        }
+
+        $this->cache->flush();
+        if ($blocked) {
+            do_action('onesmtp_provider_saved', $providerId);
+        }
+
+        return $blocked;
+    }
+
+    private function oauthDisconnectBlockKey(int $providerId): string
+    {
+        return self::OAUTH_DISCONNECT_BLOCK_PREFIX . max(1, $providerId);
+    }
+
 
     private function normalizeCircuitState(string $state): string
     {

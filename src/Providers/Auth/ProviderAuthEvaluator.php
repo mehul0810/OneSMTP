@@ -38,13 +38,8 @@ final class ProviderAuthEvaluator implements ProviderAuthLifecycleEvaluatorInter
     public function evaluate(ProviderAuthContext $context): ProviderAuthStatus
     {
         $providerType = $context->getProviderType();
-        if ($providerType === ProviderTypes::ZOHO_MAIL) {
-            return $this->evaluateZoho($context);
-        }
-
-        // GmailAdapter is SMTP-backed today; do not claim OAuth lifecycle support.
-        if ($providerType === ProviderTypes::GMAIL) {
-            return $this->status(ProviderAuthState::UNSUPPORTED);
+        if (in_array($providerType, [ ProviderTypes::ZOHO_MAIL, ProviderTypes::GMAIL ], true)) {
+            return $this->evaluateOAuth($context);
         }
 
         return $this->status(
@@ -54,7 +49,7 @@ final class ProviderAuthEvaluator implements ProviderAuthLifecycleEvaluatorInter
         );
     }
 
-    private function evaluateZoho(ProviderAuthContext $context): ProviderAuthStatus
+    private function evaluateOAuth(ProviderAuthContext $context): ProviderAuthStatus
     {
         $configuration = $context->getConfiguration();
         $refreshResult = $context->getRefreshResult();

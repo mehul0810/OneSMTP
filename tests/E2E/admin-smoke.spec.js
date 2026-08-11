@@ -14,7 +14,8 @@ const adminUrl =
 function renderAdminFixture(
 	pro = false,
 	proRouting = false,
-	suppressions = ''
+	suppressions = '',
+	components = false
 ) {
 	return execFileSync( 'php', [ fixturePath ], {
 		cwd: repoRoot,
@@ -25,6 +26,7 @@ function renderAdminFixture(
 			ONESMTP_PLAYWRIGHT_PRO: pro ? '1' : '0',
 			ONESMTP_PLAYWRIGHT_PRO_ROUTING: proRouting ? '1' : '0',
 			ONESMTP_PLAYWRIGHT_SUPPRESSIONS: suppressions,
+			ONESMTP_PLAYWRIGHT_COMPONENTS: components ? '1' : '0',
 		},
 	} );
 }
@@ -266,6 +268,155 @@ test.describe( 'Aculect Mail admin browser smoke', () => {
 		).toHaveCount( 0 );
 	} );
 
+	test( 'renders gated Gmail and Zoho OAuth setup with synthetic statuses', async ( {
+		page,
+	} ) => {
+		const proHtml = renderAdminFixture( true, false, '', true );
+		await page.unroute(
+			'https://example.org/wp-admin/options-general.php**'
+		);
+		await page.route(
+			'https://example.org/wp-content/plugins/onesmtp/build/**',
+			async ( route ) => {
+				const assetPath = route
+					.request()
+					.url()
+					.split( '/' )
+					.pop()
+					.split( '?' )[ 0 ];
+				await route.fulfill( {
+					status: 200,
+					contentType: 'application/javascript',
+					path: path.join( repoRoot, 'build', assetPath ),
+				} );
+			}
+		);
+		await page.route(
+			'https://example.org/wp-admin/options-general.php**',
+			async ( route ) => {
+				await route.fulfill( {
+					status: 200,
+					contentType: 'text/html; charset=utf-8',
+					body: proHtml,
+				} );
+			}
+		);
+		await page.route(
+			'https://example.org/wp-json/onesmtp/v1/providers/8/oauth/status',
+			async ( route ) => {
+				await route.fulfill( {
+					status: 200,
+					contentType: 'application/json',
+					body: JSON.stringify( {
+						status: {
+							state: 'configured_unverified',
+							can_reconnect: true,
+							can_revoke: false,
+						},
+					} ),
+				} );
+			}
+		);
+		await page.route(
+			'https://example.org/wp-json/onesmtp/v1/providers/9/oauth/status',
+			async ( route ) => {
+				await route.fulfill( {
+					status: 200,
+					contentType: 'application/json',
+					body: JSON.stringify( {
+						status: {
+							state: 'connected',
+							can_reconnect: true,
+							can_revoke: true,
+						},
+					} ),
+				} );
+			}
+		);
+		await page.goto( adminUrl );
+		await openWorkspace( page, 'Providers', 'onesmtp-providers' );
+		const gmail = page.locator( '[data-provider-type="gmail"]' );
+		await gmail.getByRole( 'button', { name: 'Manage' } ).click();
+		await expect( gmail ).toContainText(
+			'Customer-owned OAuth connection'
+		);
+		await expect( gmail ).toContainText( 'Configured unverified' );
+		await expect( gmail ).toContainText( 'Connect with Google' );
+		await expect( gmail ).toContainText(
+			'https://example.org/wp-json/onesmtp/v1/providers/8/oauth/callback'
+		);
+		const zoho = page.locator( '[data-provider-type="zoho_mail"]' );
+		await zoho.getByRole( 'button', { name: 'Manage' } ).click();
+		await expect( zoho ).toContainText( 'Connected' );
+		await expect(
+			zoho.getByRole( 'button', { name: 'Reconnect' } )
+		).toBeVisible();
+		await expect(
+			zoho.getByRole( 'button', { name: 'Disconnect' } )
+		).toBeVisible();
+		await page.screenshot( {
+			path: 'output/playwright/screenshots/issue-50-51-oauth-desktop.png',
+			fullPage: true,
+		} );
+		await page.setViewportSize( { width: 390, height: 844 } );
+		await expect(
+			page.evaluate(
+				() =>
+					document.documentElement.scrollWidth <=
+					document.documentElement.clientWidth + 1
+			)
+		).toBeTruthy();
+		await page.screenshot( {
+			path: 'output/playwright/screenshots/issue-50-51-oauth-mobile.png',
+			fullPage: true,
+		} );
+	} );
+
+	test( 'keeps OAuth lifecycle unavailable on free installations', async ( {
+		page,
+	} ) => {
+		await page.unroute(
+			'https://example.org/wp-admin/options-general.php**'
+		);
+		const freeHtml = renderAdminFixture( false, false, '', true );
+		await page.route(
+			'https://example.org/wp-content/plugins/onesmtp/build/**',
+			async ( route ) => {
+				const assetPath = route
+					.request()
+					.url()
+					.split( '/' )
+					.pop()
+					.split( '?' )[ 0 ];
+				await route.fulfill( {
+					status: 200,
+					contentType: 'application/javascript',
+					path: path.join( repoRoot, 'build', assetPath ),
+				} );
+			}
+		);
+		await page.route(
+			'https://example.org/wp-admin/options-general.php**',
+			async ( route ) => {
+				await route.fulfill( {
+					status: 200,
+					contentType: 'text/html; charset=utf-8',
+					body: freeHtml,
+				} );
+			}
+		);
+		await page.goto( adminUrl );
+		await openWorkspace( page, 'Providers', 'onesmtp-providers' );
+		const gmail = page.locator( '[data-provider-type="gmail"]' );
+		await gmail.getByRole( 'button', { name: 'Manage' } ).click();
+		await expect( gmail ).toContainText(
+			'OAuth connect, callback, refresh, and disconnect are unavailable'
+		);
+		await expect(
+			gmail.getByRole( 'button', { name: 'Connect with Google' } )
+		).toHaveCount( 0 );
+	} );
+
 	test( 'renders Pro provider budgets with bounded accessible controls', async ( {
 		page,
 	} ) => {
@@ -435,7 +586,7 @@ test.describe( 'Aculect Mail admin browser smoke', () => {
 		await expect( proCapabilities ).toContainText( 'Available with Pro' );
 		await expect(
 			proCapabilities.getByRole( 'button', { name: 'Requires Pro' } )
-		).toHaveCount( 8 );
+		).toHaveCount( 9 );
 		await expect(
 			proCapabilities
 				.getByRole( 'button', { name: 'Requires Pro' } )
@@ -487,7 +638,7 @@ test.describe( 'Aculect Mail admin browser smoke', () => {
 		);
 		await expect(
 			proCapabilities.getByText( 'Enabled', { exact: true } )
-		).toHaveCount( 5 );
+		).toHaveCount( 6 );
 		const suppressionPanel = page
 			.locator(
 				'section.onesmtp-settings-panel:not(.onesmtp-pro-capabilities)'

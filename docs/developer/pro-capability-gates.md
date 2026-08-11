@@ -33,6 +33,7 @@ The gate IDs currently defined in source are:
 | `bounce_suppression` | Candidate-shipped behind the gate | Site-local hard-bounce and complaint suppression derived from normalized Mailgun events; whole-message enforcement is fail-closed and bounded by retention. |
 | `multisite_management` | Shipped behind the gate | Network-admin-only allowlisted settings with explicit site inheritance/overrides and bounded privacy-safe network log summaries. Provider credentials and payload fields remain site-local. |
 | `provider_quota_budgets` | Shipped behind the gate | Per-provider minute/hour/day attempt windows with deterministic capacity-aware routing and typed deferral. Attachment-bearing quota deferrals fail closed before UUID resolution or scheduling when sanitized retry data cannot reproduce files. |
+| `provider_auth_lifecycle` | Candidate-shipped behind the gate | Site-local customer-owned Gmail and Zoho Mail OAuth connect, callback, refresh, status, and disconnect flows with encrypted credentials and default-deny controls. |
 
 These gates are still candidate/release-branch scope and are not public
 release or licensing APIs. Suppression remains inert unless both gates, the
@@ -66,6 +67,12 @@ site toggle, and a real site secret are available.
   verification, atomic replay-token claiming, and retention happen before any normalized row
   is written; no provider payload or plaintext recipient crosses the storage or
   admin boundary.
+- Provider OAuth lifecycle state is transient/derived. Stored client
+  registration and encrypted access/refresh credentials remain site-local;
+  one-time state is transient, user/provider/type-bound, short-lived, and
+  replay-rejected. Gmail uses only `gmail.send`; Zoho uses only
+  `ZohoMail.messages.CREATE` with regional endpoints and S256 PKCE. Disconnect
+  removes local access/refresh credentials even when remote revoke fails.
 - Provider budgets are stored as bounded non-secret provider configuration. Only
   production send attempts count toward a window; provider tests do not. When
   all eligible providers are exhausted, delivery defers to the earliest next
@@ -78,8 +85,8 @@ site toggle, and a real site secret are available.
 The filters above are internal integration points for the candidate runtime and
 fixtures, not a supported way to activate paid behavior. Do not add license
 activation, purchase URLs, pricing, tiers, hosted-service claims, telemetry,
-privacy promises, or public schema changes here. Owner-gated issues #40, #50,
-#51 remain planned/excluded from this candidate. The repository-local #66
+privacy promises, or public schema changes here. Owner-gated issue #40 remains
+planned/excluded from this candidate. The repository-local #66
 foundation defines typed license, entitlement, and update contracts but no
 production activation, entitlement authority, update feed, package delivery,
 or network service; see [`licensing-foundation.md`](licensing-foundation.md). Provider

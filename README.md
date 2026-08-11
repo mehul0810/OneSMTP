@@ -36,6 +36,11 @@ message on an active match.
 The candidate also includes behavior-inert licensing and update integration
 contracts with honest unavailable states; it does not include a license
 service, purchase flow, update feed, or package delivery.
+Customer-owned Gmail and Zoho Mail OAuth connection lifecycle, encrypted
+bounded token refresh/cache, disconnect cleanup, and Gmail API delivery are
+also candidate workflows behind `provider_auth_lifecycle`; gate-off
+installations retain core behavior and existing Zoho manual refresh
+credentials.
 Quota deferrals for attachment-bearing messages fail
 closed without scheduling a retry when sanitized data cannot reproduce the
 files. Core provider setup, sending, failover, queues, retries, logs, manual

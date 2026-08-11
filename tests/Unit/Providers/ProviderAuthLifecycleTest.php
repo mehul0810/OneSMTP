@@ -140,7 +140,7 @@ final class ProviderAuthLifecycleTest extends TestCase
         self::assertFalse($partial->canRevoke());
     }
 
-    public function test_gmail_oauth_shaped_configuration_is_not_reported_as_connected(): void
+    public function test_gmail_oauth_configuration_requires_verified_exchange_before_connected(): void
     {
         $context = ProviderAuthContext::fromProviderConfig(
             'gmail',
@@ -152,8 +152,8 @@ final class ProviderAuthLifecycleTest extends TestCase
         );
         $status = (new ProviderAuthEvaluator())->evaluate($context);
 
-        self::assertSame(ProviderAuthState::UNSUPPORTED, $status->getState());
-        self::assertFalse($status->canReconnect());
+        self::assertSame(ProviderAuthState::CONFIGURED_UNVERIFIED, $status->getState());
+        self::assertTrue($status->canReconnect());
         self::assertFalse($status->canRevoke());
 
         $refreshedStatus = (new ProviderAuthEvaluator())->evaluate(
@@ -164,7 +164,7 @@ final class ProviderAuthLifecycleTest extends TestCase
             ]), ProviderAuthRefreshResult::success())
         );
 
-        self::assertSame(ProviderAuthState::UNSUPPORTED, $refreshedStatus->getState());
+        self::assertSame(ProviderAuthState::CONNECTED, $refreshedStatus->getState());
     }
 
     public function test_static_unknown_and_unrecognized_refresh_outcomes_fail_closed(): void

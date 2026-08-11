@@ -60,6 +60,13 @@ if (! function_exists('wp_parse_url')) {
     }
 }
 
+if (! function_exists('wp_strip_all_tags')) {
+    function wp_strip_all_tags(string $text): string
+    {
+        return strip_tags($text);
+    }
+}
+
 if (! class_exists('WP_Error')) {
     class WP_Error
     {
@@ -199,7 +206,8 @@ if (! function_exists('add_option')) {
 if (! function_exists('update_option')) {
     function update_option(string $option, mixed $value, bool|string|null $autoload = null): bool
     {
-        if (($GLOBALS['onesmtp_test_throw_on_update_option'] ?? '') === $option) {
+        $throwOn = $GLOBALS['onesmtp_test_throw_on_update_option'] ?? '';
+        if ($throwOn === $option || (is_array($throwOn) && in_array($option, $throwOn, true))) {
             throw new RuntimeException('Synthetic update_option failure.');
         }
 
